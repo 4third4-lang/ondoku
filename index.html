@@ -349,6 +349,14 @@ body.has-nav main { padding-bottom: 90px; }
 .passage.mode-shuffle .pair { margin-bottom: .7em; }
 .passage.mode-nospace .w { padding: 0; }
 
+/* ---- 先生のアカウント ---- */
+.pill.admin { background: #ede7ff; color: #5b3fb5; margin-left: 4px; }
+.topbar-right .pill.admin { background: rgba(255,255,255,.2); color: #fff; }
+.edit-box { border: 2px solid var(--primary-soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; background: #fbfdff; }
+.edit-box h3 { margin: 0 0 6px; }
+.pw-card { border: 2px solid #f0cf63; background: #fffbea; }
+.pw-card .pw { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.2rem; background: #fff; padding: 2px 8px; border-radius: 6px; border: 1px solid #f0cf63; }
+
 </style>
 </head>
 <body>
@@ -575,7 +583,7 @@ window.APP_CONFIG = {
     var used = {};
     tokenize(text || '').forEach(function (t) { t.units.forEach(function (u) { used[u] = true; }); });
     function pickFree(list) {
-      var free = list.filter(function (w) { return !toUnits(w).some(function (u) { return used[u]; }); });
+      var free = list.filter(function (w) { return !toUnits(w).some(function (u) { return used[u] || used[u + 's'] || used[u + 'es']; }); });
       return pick(free.length ? free : list);
     }
     return pickFree(PHRASE_WORDS.color) + ' ' + pickFree(PHRASE_WORDS.animal) + ' ' + pickFree(PHRASE_WORDS.number);
@@ -968,15 +976,95 @@ window.APP_CONFIG = {
     ctx.cachePut('fail:' + key, String(n), 600);
   }
 
+  // ---------------- パスワードのハッシュ（SHA-256） ----------------
+  function sha256(ascii) {
+    function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
+    var maxWord = Math.pow(2, 32), result = '', words = [], i, j;
+    var bytes = unescape(encodeURIComponent(ascii));
+    var bitLen = bytes.length * 8;
+    var hash = [], k = [], primeCounter = 0, isComposite = {};
+    for (var cand = 2; primeCounter < 64; cand++) {
+      if (!isComposite[cand]) {
+        for (i = 0; i < 313; i += cand) isComposite[i] = cand;
+        hash[primeCounter] = (Math.pow(cand, .5) * maxWord) | 0;
+        k[primeCounter++] = (Math.pow(cand, 1 / 3) * maxWord) | 0;
+      }
+    }
+    hash = hash.slice(0, 8);
+    bytes += '\x80';
+    while (bytes.length % 64 - 56) bytes += '\x00';
+    for (i = 0; i < bytes.length; i++) {
+      j = bytes.charCodeAt(i);
+      words[i >> 2] |= j << ((3 - i) % 4) * 8;
+    }
+    words[words.length] = ((bitLen / maxWord) | 0);
+    words[words.length] = (bitLen);
+    for (j = 0; j < words.length;) {
+      var w = words.slice(j, j += 16), oldHash = hash;
+      hash = hash.slice(0, 8);
+      for (i = 0; i < 64; i++) {
+        var w15 = w[i - 15], w2 = w[i - 2], a = hash[0], e = hash[4];
+        var temp1 = hash[7] + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & hash[5]) ^ ((~e) & hash[6])) + k[i] +
+          (w[i] = (i < 16) ? w[i] : (w[i - 16] + (rr(w15, 7) ^ rr(w15, 18) ^ (w15 >>> 3)) + w[i - 7] + (rr(w2, 17) ^ rr(w2, 19) ^ (w2 >>> 10))) | 0);
+        var temp2 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+        hash = [(temp1 + temp2) | 0].concat(hash);
+        hash[4] = (hash[4] + temp1) | 0;
+      }
+      for (i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+    for (i = 0; i < 8; i++) for (j = 3; j + 1; j--) { var b = (hash[i] >> (j * 8)) & 255; result += ((b < 16) ? 0 : '') + b.toString(16); }
+    return result;
+  }
+  function hashPass(id, pass) { return 'h:' + sha256(String(id).toLowerCase() + ':' + pass + ':ondoku-v1'); }
+  function passMatches(t, pass) {
+    var stored = str(t.pass);
+    if (!stored || !pass) return false;
+    return stored.indexOf('h:') === 0 ? stored === hashPass(t.id, pass) : stored === pass;
+  }
+  function randomPass() {
+    var c = 'abcdefghjkmnpqrstuvwxyz23456789', s = '';
+    for (var i = 0; i < 8; i++) s += c.charAt(Math.floor(Math.random() * c.length));
+    return s;
+  }
+
+  // ---------------- 先生・クラス ----------------
+  function teacherPublic(t) {
+    return { id: t.id, name: str(t.name), admin: str(t.role) === 'admin', role: str(t.role) === 'admin' ? 'admin' : 'teacher',
+      classes: splitClasses(t.classes), active: t.active === undefined || t.active === '' ? true : bool(t.active) };
+  }
+  // 旧版（先生パスワード1つ）からの移行：先生が1人もいなければ管理者を作る
+  function ensureAdmin(store) {
+    if (store.getTeachers().length) return;
+    var legacy = str(store.getSetting('先生パスワード'));
+    if (!legacy) return;
+    store.addTeacher({ id: 'admin', name: '管理者', pass: hashPass('admin', legacy), role: 'admin', classes: '', active: true, created: '' });
+  }
+  function classList(store) {
+    var map = {}, order = [];
+    store.getClasses().forEach(function (c) { if (str(c.name) && !map[c.name]) { map[c.name] = { name: str(c.name), count: num(c.count), students: 0 }; order.push(c.name); } });
+    store.getStudents().forEach(function (s) {
+      if (!map[s.cls]) { map[s.cls] = { name: s.cls, count: 0, students: 0 }; order.push(s.cls); }
+      map[s.cls].students++;
+    });
+    return order.map(function (n) { return map[n]; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ja'); });
+  }
+  function canTeach(me, cls) { return me.admin || me.classes.indexOf(cls) >= 0; }
+  // 課題を編集できるか：管理者／作った先生／同じクラスの担当
+  function canEditAssignment(me, a) {
+    if (me.admin) return true;
+    if (str(a.owner) === me.id) return true;
+    var cl = splitClasses(a.classes);
+    if (!cl.length || cl.indexOf('全員') >= 0) return false;
+    return cl.some(function (c) { return me.classes.indexOf(c) >= 0; });
+  }
+
   // ---------------- 処理本体 ----------------
   var handlers = {};
 
   handlers.publicInfo = function (p, store) {
-    var classes = {};
-    store.getStudents().forEach(function (s) { if (s.cls) classes[s.cls] = true; });
     return {
       appTitle: str(store.getSetting('アプリ名')),
-      classes: Object.keys(classes).sort()
+      classes: classList(store).filter(function (c) { return c.students > 0; }).map(function (c) { return c.name; })
     };
   };
 
@@ -994,14 +1082,17 @@ window.APP_CONFIG = {
   };
 
   handlers.teacherLogin = function (p, store, ctx) {
-    checkLock(ctx, '__teacher');
-    var pass = str(store.getSetting('先生パスワード'));
-    if (!pass || str(p.pass) !== pass) {
-      addFail(ctx, '__teacher');
-      throw err('パスワードがちがいます。');
+    ensureAdmin(store);
+    var id = str(p.id).toLowerCase() || 'admin';
+    checkLock(ctx, 'teacher:' + id);
+    var t = store.getTeacher(id);
+    if (!t || !teacherPublic(t).active || !passMatches(t, str(p.pass))) {
+      addFail(ctx, 'teacher:' + id);
+      throw err('ログインIDかパスワードがちがいます。');
     }
-    var token = makeToken(ctx, { role: 'teacher', id: 'teacher', exp: ctx.now().getTime() + 7 * 86400000 });
-    return { token: token };
+    if (str(t.pass).indexOf('h:') !== 0) store.updateTeacher(t.id, { pass: hashPass(t.id, str(p.pass)) });
+    var token = makeToken(ctx, { role: 'teacher', id: t.id, exp: ctx.now().getTime() + 7 * 86400000 });
+    return { token: token, me: teacherPublic(t) };
   };
 
   function currentStudent(p, store, ctx) {
@@ -1241,13 +1332,22 @@ window.APP_CONFIG = {
   };
 
   // ---------------- 先生用 ----------------
-  function teacher(p, ctx) { return readToken(ctx, p.token, 'teacher'); }
+  // ログイン中の先生（毎回、名簿で有効かを確認）
+  function currentTeacher(p, store, ctx) {
+    var tk = readToken(ctx, p.token, 'teacher');
+    var t = store.getTeacher(tk.id);
+    if (!t || !teacherPublic(t).active) throw err('ログインしてください。（アカウントが無効になっています）');
+    return teacherPublic(t);
+  }
+  function adminOnly(me) { if (!me.admin) throw err('この操作は管理者だけができます。'); }
 
   handlers.t_overview = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     var today = jstDate(ctx.now());
     var students = store.getStudents();
     var bests = store.getAllBests();
+    var tname = {};
+    store.getTeachers().forEach(function (t) { tname[t.id] = str(t.name); });
     var assignments = store.getAssignments().map(function (a) {
       var cl = splitClasses(a.classes);
       var targets = students.filter(function (s) { return !cl.length || cl.indexOf('全員') >= 0 || cl.indexOf(s.cls) >= 0; });
@@ -1260,6 +1360,8 @@ window.APP_CONFIG = {
         id: a.id, title: a.title, classes: str(a.classes), due: str(a.due), contest: bool(a.contest),
         published: bool(a.published), created: str(a.created), words: num(a.words),
         types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal',
+        owner: str(a.owner), ownerName: tname[str(a.owner)] || '', canEdit: canEditAssignment(me, a),
+        mine: str(a.owner) === me.id || splitClasses(a.classes).some(function (c) { return me.classes.indexOf(c) >= 0; }),
         targets: targets.length, done: done, avg: done ? Math.round(sum / done * 10) / 10 : null
       };
     }).sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
@@ -1277,26 +1379,25 @@ window.APP_CONFIG = {
       if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
       return pub;
     });
-    var classes = {};
-    students.forEach(function (s) { classes[s.cls] = true; });
     var settings = settingsForClient(store);
-    return { assignments: assignments, students: list, classes: Object.keys(classes).sort(), today: today, settings: settings,
-      openFlags: openFlags(store, today) };
+    return { assignments: assignments, students: list, classes: classList(store).map(function (c) { return c.name; }), today: today, settings: settings,
+      openFlags: openFlags(store, today), me: me };
   };
 
   handlers.t_getAssignment = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     var a = store.getAssignment(str(p.aid));
     if (!a) throw err('課題が見つかりません。');
     return { assignment: {
       id: a.id, title: a.title, text: a.text, ja: str(a.ja), classes: str(a.classes),
       due: str(a.due), contest: bool(a.contest), published: bool(a.published),
-      types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal', pass: passLine(a), blanks: str(a.blanks)
+      types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal', pass: passLine(a), blanks: str(a.blanks),
+      canEdit: canEditAssignment(me, a)
     } };
   };
 
   handlers.t_saveAssignment = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     var a = p.assignment || {};
     var title = str(a.title).slice(0, 80), text = str(a.text).slice(0, 5000);
     if (!title) throw err('タイトルを入力してください。');
@@ -1315,24 +1416,36 @@ window.APP_CONFIG = {
     data.types = types.join(',');
     data.pass = Math.max(1, Math.min(100, Math.round(num(a.pass) || 80)));
     data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 3000);
+    // 権限：担当クラスにだけ出せる（全員向けは管理者のみ）
+    var cls = splitClasses(data.classes);
+    if (!me.admin) {
+      if (!cls.length) throw err('対象クラスを選んでください（全員向けの課題は管理者だけが出せます）。');
+      var bad = cls.filter(function (c) { return me.classes.indexOf(c) < 0; });
+      if (bad.length) throw err('担当していないクラスには課題を出せません：' + bad.join('、'));
+    }
     if (a.id && store.getAssignment(a.id)) {
+      if (!canEditAssignment(me, store.getAssignment(a.id))) throw err('この課題を編集する権限がありません。');
       store.updateAssignment(a.id, data);
       return { id: a.id };
     }
-    data.id = 'A' + ctx.now().getTime().toString(36).toUpperCase();
+    data.owner = me.id;
+    do { data.id = 'A' + ctx.now().getTime().toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase(); }
+    while (store.getAssignment(data.id));
     data.created = ctx.now().toISOString();
     store.addAssignment(data);
     return { id: data.id };
   };
 
   handlers.t_deleteAssignment = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
+    var da = store.getAssignment(str(p.aid));
+    if (da && !canEditAssignment(me, da)) throw err('この課題を削除する権限がありません。');
     store.deleteAssignment(str(p.aid));
     return {};
   };
 
   handlers.t_assignmentResults = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     var a = store.getAssignment(str(p.aid));
     if (!a) throw err('課題が見つかりません。');
     var cl = splitClasses(a.classes);
@@ -1355,11 +1468,11 @@ window.APP_CONFIG = {
         masterCleared: isMaster(a) && cleared === types.length };
     });
     return { assignment: { id: a.id, title: a.title, text: a.text, due: str(a.due), contest: bool(a.contest), classes: str(a.classes),
-      types: types, mode: isMaster(a) ? 'master' : 'normal', pass: pl }, rows: rows };
+      types: types, mode: isMaster(a) ? 'master' : 'normal', pass: pl, canEdit: canEditAssignment(me, a) }, rows: rows };
   };
 
   handlers.t_studentDetail = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     var s = store.getStudent(str(p.sid));
     if (!s) throw err('生徒が見つかりません。');
     var titles = {};
@@ -1374,7 +1487,7 @@ window.APP_CONFIG = {
   };
 
   handlers.t_export = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     var cls = str(p.cls);
     var assignments = store.getAssignments().slice().sort(function (x, y) { return (x.created || '').localeCompare(y.created || ''); });
     var bests = {};
@@ -1406,7 +1519,8 @@ window.APP_CONFIG = {
   };
 
   handlers.t_importStudents = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
+    adminOnly(me);
     var rows = p.rows || [];
     var added = 0, updated = 0;
     rows.forEach(function (r) {
@@ -1425,23 +1539,134 @@ window.APP_CONFIG = {
   };
 
   handlers.t_studentPasses = function (p, store, ctx) {
-    teacher(p, ctx);
-    return { rows: store.getStudents().map(function (s) { return { id: s.id, cls: s.cls, no: s.no, name: str(s.name), pass: str(s.pass) }; }) };
+    var me = currentTeacher(p, store, ctx);
+    return { rows: store.getStudents().filter(function (s) { return canTeach(me, s.cls); }).map(function (s) { return { id: s.id, cls: s.cls, no: s.no, name: str(s.name), pass: str(s.pass) }; }) };
   };
 
   handlers.t_saveSettings = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
+    adminOnly(me);
     var st = p.settings || {};
     if ('allowNick' in st) store.setSetting('ニックネームを使う', st.allowNick ? 'TRUE' : 'FALSE');
     if ('showRanking' in st) store.setSetting('ランキングを表示', st.showRanking ? 'TRUE' : 'FALSE');
     if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
     if ('phraseCheck' in st) store.setSetting('合言葉チェック', st.phraseCheck ? 'TRUE' : 'FALSE');
     if ('saveAudio' in st) store.setSetting('音声を保存', st.saveAudio ? 'TRUE' : 'FALSE');
-    if (st.teacherPass) {
-      if (str(st.teacherPass).length < 6) throw err('パスワードは6文字以上にしてください。');
-      store.setSetting('先生パスワード', str(st.teacherPass));
-    }
     return {};
+  };
+
+  // ---- 自分のパスワード変更 ----
+  handlers.t_changePassword = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var t = store.getTeacher(me.id);
+    if (!passMatches(t, str(p.oldPass))) throw err('今のパスワードがちがいます。');
+    if (str(p.newPass).length < 6) throw err('新しいパスワードは6文字以上にしてください。');
+    store.updateTeacher(me.id, { pass: hashPass(me.id, str(p.newPass)) });
+    return {};
+  };
+
+  // ---- 管理者：先生のアカウント ----
+  handlers.t_teachers = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    adminOnly(me);
+    return { teachers: store.getTeachers().map(teacherPublic), classes: classList(store).map(function (c) { return c.name; }) };
+  };
+  handlers.t_saveTeacher = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    adminOnly(me);
+    var t = p.teacher || {};
+    var id = str(t.id).toLowerCase();
+    if (!/^[a-z0-9._-]{3,20}$/.test(id)) throw err('ログインIDは、半角英数字（3〜20文字）にしてください。');
+    var name = str(t.name).slice(0, 30);
+    if (!name) throw err('名前を入力してください。');
+    var data = { name: name, role: t.role === 'admin' ? 'admin' : 'teacher', classes: splitClasses(t.classes).join(','),
+      active: t.active !== false };
+    var ex = store.getTeacher(id);
+    if (t.isNew) {
+      if (ex) throw err('そのログインIDはすでに使われています。');
+      var pw = randomPass();
+      data.id = id; data.pass = hashPass(id, pw); data.created = ctx.now().toISOString();
+      store.addTeacher(data);
+      return { id: id, password: pw };
+    }
+    if (!ex) throw err('先生が見つかりません。');
+    // 管理者が1人もいなくならないようにする
+    var admins = store.getTeachers().filter(function (x) { var tp = teacherPublic(x); return tp.admin && tp.active && x.id !== id; });
+    if ((data.role !== 'admin' || !data.active) && teacherPublic(ex).admin && !admins.length) throw err('管理者が1人もいなくなるため、変更できません。');
+    store.updateTeacher(id, data);
+    return { id: id };
+  };
+  handlers.t_resetTeacherPass = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    adminOnly(me);
+    var id = str(p.id).toLowerCase();
+    if (!store.getTeacher(id)) throw err('先生が見つかりません。');
+    var pw = randomPass();
+    store.updateTeacher(id, { pass: hashPass(id, pw) });
+    return { id: id, password: pw };
+  };
+  handlers.t_deleteTeacher = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    adminOnly(me);
+    var id = str(p.id).toLowerCase();
+    if (id === me.id) throw err('自分のアカウントは削除できません。');
+    var ex = store.getTeacher(id);
+    if (!ex) throw err('先生が見つかりません。');
+    store.deleteTeacher(id);
+    return {};
+  };
+
+  // ---- 管理者：クラスと人数 ----
+  handlers.t_classes = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var teachers = store.getTeachers().map(teacherPublic);
+    return { classes: classList(store).map(function (c) {
+      c.teachers = teachers.filter(function (t) { return t.active && t.classes.indexOf(c.name) >= 0; }).map(function (t) { return t.name; });
+      return c;
+    }), admin: me.admin };
+  };
+  // 人数を設定：増やすと生徒（番号・パスコード）を自動で追加、減らすと番号の大きい生徒を削除（confirm が必要）
+  handlers.t_saveClass = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    adminOnly(me);
+    var name = str(p.name).replace(/\s/g, '').slice(0, 12);
+    if (!name || /[,、]/.test(name)) throw err('クラス名を正しく入力してください（例：1A、1-1）。');
+    var count = Math.round(num(p.count));
+    if (count < 0 || count > 60) throw err('人数は0〜60人にしてください。');
+    var students = store.getStudents().filter(function (s) { return s.cls === name; });
+    var removing = students.filter(function (s) { return num(s.no) > count; });
+    if (removing.length && !p.confirm) {
+      return { needConfirm: true, removing: removing.map(function (s) { return s.cls + ' ' + s.no + '番 ' + str(s.name); }) };
+    }
+    removing.forEach(function (s) { store.deleteStudent(s.id); });
+    var added = 0;
+    for (var i = 1; i <= count; i++) {
+      var sid = name + '-' + i;
+      if (!store.getStudent(sid)) {
+        store.addStudent({ id: sid, cls: name, no: String(i), name: '', pass: String(1000 + Math.floor(Math.random() * 9000)), nick: '',
+          totalWords: 0, streak: 0, bestStreak: 0, lastDate: '', todayDate: '', todayWords: 0 });
+        added++;
+      }
+    }
+    store.setClass(name, count);
+    return { added: added, removed: removing.length };
+  };
+  handlers.t_deleteClass = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    adminOnly(me);
+    var name = str(p.name);
+    var students = store.getStudents().filter(function (s) { return s.cls === name; });
+    if (students.length && !p.confirm) return { needConfirm: true, removing: students.map(function (s) { return s.cls + ' ' + s.no + '番 ' + str(s.name); }) };
+    students.forEach(function (s) { store.deleteStudent(s.id); });
+    store.deleteClass(name);
+    store.getTeachers().forEach(function (t) {
+      var cl = splitClasses(t.classes);
+      if (cl.indexOf(name) >= 0) store.updateTeacher(t.id, { classes: cl.filter(function (c) { return c !== name; }).join(',') });
+    });
+    return { removed: students.length };
+  };
+  handlers.t_me = function (p, store, ctx) {
+    return { me: currentTeacher(p, store, ctx) };
   };
 
   // ---- 不正の疑い（要確認）----
@@ -1453,11 +1678,11 @@ window.APP_CONFIG = {
     return n;
   }
   handlers.t_flagCount = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     return { count: openFlags(store, jstDate(ctx.now())) };
   };
   handlers.t_flags = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     var today = jstDate(ctx.now());
     var byId = {}, titles = {};
     store.getStudents().forEach(function (s) { byId[s.id] = s; });
@@ -1470,15 +1695,17 @@ window.APP_CONFIG = {
         return { rid: rid(r), time: r.time, sid: r.sid, cls: s.cls, no: s.no, name: str(s.name), kind: r.kind,
           title: r.aid ? (titles[r.aid] || '（削除された課題）') : (Sc.englishOnly(r.text).replace(/\n/g, ' ') || str(r.text)).slice(0, 60),
           flag: str(r.flag), reviewed: str(r.reviewed), audio: str(r.audio), transcript: str(r.transcript),
-          accuracy: num(r.accuracy), total: num(r.total) };
+          accuracy: num(r.accuracy), total: num(r.total), canReview: canTeach(me, s.cls) };
       });
     return { list: list, open: openFlags(store, today) };
   };
   // 先生が確認：ok＝問題なし（記録を認めて単語数を加える）／ng＝不正あり
   handlers.t_reviewFlag = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     var r = store.findRecord(str(p.rid));
     if (!r || !str(r.flag)) throw err('記録が見つかりません。');
+    var rs = store.getStudent(r.sid);
+    if (rs && !canTeach(me, rs.cls)) throw err('担当していないクラスの生徒は確認できません。');
     if (str(r.reviewed)) return { reviewed: r.reviewed };  // 自動で無効になったもの・確認済みのものは変更しない
     var day = jstDate(ctx.now());
     var ok = p.verdict === 'ok';
@@ -1505,7 +1732,7 @@ window.APP_CONFIG = {
   };
 
   handlers.t_audio = function (p, store, ctx) {
-    teacher(p, ctx);
+    var me = currentTeacher(p, store, ctx);
     if (!store.getAudio) throw err('音声を読み込めません。');
     var a = store.getAudio(str(p.id));
     if (!a) throw err('音声が見つかりません（削除されたか、デモモードで前回のページ表示より前の録音です）。');
@@ -1513,7 +1740,8 @@ window.APP_CONFIG = {
   };
 
   var WRITE_ACTIONS = { submit: 1, setNick: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
-    t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1 };
+    t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
+    t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1 };
 
   function handle(action, payload, store, ctx) {
     var fn = handlers[action];
@@ -1527,7 +1755,7 @@ window.APP_CONFIG = {
     }
   }
 
-  var api = { handle: handle, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
+  var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
     weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
@@ -1640,6 +1868,26 @@ window.APP_CONFIG = {
     return id;
   };
   P.getAudio = function (id) { return AUDIO[id] || null; };
+
+  // 先生
+  P.getTeachers = function () { return (this.d.teachers || []).slice(); };
+  P.getTeacher = function (id) {
+    var l = this.d.teachers || [];
+    for (var i = 0; i < l.length; i++) if (l[i].id === String(id).toLowerCase()) return l[i];
+    return null;
+  };
+  P.addTeacher = function (t) { (this.d.teachers = this.d.teachers || []).push(t); this._changed(); };
+  P.updateTeacher = function (id, f) { var t = this.getTeacher(id); if (!t) return; for (var k in f) t[k] = f[k]; this._changed(); };
+  P.deleteTeacher = function (id) { this.d.teachers = (this.d.teachers || []).filter(function (t) { return t.id !== id; }); this._changed(); };
+  // クラス
+  P.getClasses = function () { return (this.d.classes || []).slice(); };
+  P.setClass = function (name, count) {
+    var l = this.d.classes = this.d.classes || [];
+    for (var i = 0; i < l.length; i++) if (l[i].name === name) { l[i].count = count; this._changed(); return; }
+    l.push({ name: name, count: count }); this._changed();
+  };
+  P.deleteClass = function (name) { this.d.classes = (this.d.classes || []).filter(function (c) { return c.name !== name; }); this._changed(); };
+  P.deleteStudent = function (id) { this.d.students = this.d.students.filter(function (s) { return s.id !== id; }); this._changed(); };
 
   P.getSetting = function (k) { return this.d.settings[k]; };
   P.setSetting = function (k, v) { this.d.settings[k] = v; this._changed(); };
@@ -1785,7 +2033,16 @@ window.SAMPLE_ASSIGNMENTS = [
         });
       }
     });
+    addDemoTeachers(d);
     return d;
+  }
+  function addDemoTeachers(d) {
+    d.teachers = [
+      { id: 'admin', name: '管理者', pass: Core.hashPass('admin', 'admin'), role: 'admin', classes: '', active: true, created: '' },
+      { id: 'tanaka', name: '田中', pass: Core.hashPass('tanaka', 'teacher'), role: 'teacher', classes: '1A', active: true, created: '' },
+      { id: 'suzuki', name: '鈴木', pass: Core.hashPass('suzuki', 'teacher'), role: 'teacher', classes: '1B', active: true, created: '' }
+    ];
+    d.classes = [{ name: '1A', count: 8 }, { name: '1B', count: 8 }];
   }
 
   function sampleAssignment(a, i, now) {
@@ -1799,7 +2056,7 @@ window.SAMPLE_ASSIGNMENTS = [
     if (demoStore) return demoStore;
     var data = null;
     try { data = JSON.parse(localStorage.getItem(DEMO_KEY) || 'null'); } catch (e) { data = null; }
-    if (!data) { data = seedDemo(); data.seedVersion = 3; }
+    if (!data) { data = seedDemo(); data.seedVersion = 4; }
     // 以前のデモデータに、新しいサンプル課題を追加
     if ((data.seedVersion || 1) < 2) {
       var now = new Date();
@@ -1824,6 +2081,11 @@ window.SAMPLE_ASSIGNMENTS = [
         if (ex && a.types) ex.types = a.types.join(',');
       });
       data.seedVersion = 3;
+    }
+    // 複数の先生（管理者・担当の先生）
+    if (data.seedVersion < 4) {
+      if (!data.teachers || !data.teachers.length) addDemoTeachers(data);
+      data.seedVersion = 4;
     }
     demoStore = new MemStore(data, function (d) {
       try { localStorage.setItem(DEMO_KEY, JSON.stringify(d)); } catch (e) { /* 保存できない環境 */ }
@@ -2168,7 +2430,8 @@ window.SAMPLE_ASSIGNMENTS = [
     var s = state.session;
     if (!s) { el.innerHTML = ''; return; }
     if (s.role === 'teacher') {
-      el.innerHTML = '<a class="bell" href="#/t/flags" title="要確認">🔔' + flagBadge() + '</a><span>先生用</span><button class="btn-small" id="btnLogout">ログアウト</button>';
+      var me = s.me || {};
+      el.innerHTML = '<a class="bell" href="#/t/flags" title="要確認">🔔' + flagBadge() + '</a><span>' + esc(me.name || '先生') + (me.admin ? '<span class="pill admin">管理者</span>' : '') + '</span><button class="btn-small" id="btnLogout">ログアウト</button>';
     } else {
       el.innerHTML = '<span>' + esc(s.label || '') + '</span>';
     }
@@ -2236,14 +2499,16 @@ window.SAMPLE_ASSIGNMENTS = [
       '<div style="margin-top:16px"><button class="btn-primary btn-big btn-block" type="submit">はじめる</button></div>' +
       '<div class="error" id="lErr"></div></form>' +
       '<form id="fTeacher" class="' + (role === 'teacher' ? '' : 'hidden') + '">' +
-      '<label for="tPass">先生用パスワード</label><input type="password" id="tPass" required autocomplete="current-password">' +
+      '<label for="tId">ログインID</label><input type="text" id="tId" required autocomplete="username" autocapitalize="off" spellcheck="false">' +
+      '<label for="tPass">パスワード</label><input type="password" id="tPass" required autocomplete="current-password">' +
       '<div style="margin-top:16px"><button class="btn-primary btn-big btn-block" type="submit">先生用画面へ</button></div>' +
       '<div class="error" id="tErr"></div></form>' +
       '</div>' +
-      (API.isDemo() ? '<div class="card login-card notice warn"><b>デモ用のログイン情報</b><br>生徒：クラス「1A」番号「1」パスコード「1234」<br>先生：パスワード「teacher」</div>' : '');
+      (API.isDemo() ? '<div class="card login-card notice warn"><b>デモ用のログイン情報</b><br>生徒：クラス「1A」番号「1」パスコード「1234」<br>管理者：ID「admin」パスワード「admin」<br>先生：ID「tanaka」（1A担当）・「suzuki」（1B担当）パスワード「teacher」</div>' : '');
     var last = store('ondoku_last_login') || {};
     if (last.cls && $('#lCls')) $('#lCls').value = last.cls;
     if (last.no) $('#lNo').value = last.no;
+    var lastT = store('ondoku_last_teacher'); if (lastT && $('#tId')) $('#tId').value = lastT;
     $all('.role-switch button').forEach(function (b) {
       b.onclick = function () { sessionStorage.setItem('loginRole', b.dataset.role); viewLogin(); };
     });
@@ -2265,8 +2530,9 @@ window.SAMPLE_ASSIGNMENTS = [
       var btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true;
       $('#tErr').textContent = '';
       try {
-        var r = await call('teacherLogin', { pass: $('#tPass').value });
-        state.session = { role: 'teacher', token: r.token };
+        var r = await call('teacherLogin', { id: $('#tId').value.trim(), pass: $('#tPass').value });
+        state.session = { role: 'teacher', token: r.token, me: r.me };
+        store('ondoku_last_teacher', r.me.id);
         store(SESSION_KEY, state.session);
         go('#/t');
       } catch (e) { $('#tErr').textContent = e.message; btn.disabled = false; }
@@ -2945,10 +3211,15 @@ window.SAMPLE_ASSIGNMENTS = [
     return '<span class="badge' + (state.flagCount ? '' : ' hidden') + '" data-flagbadge>' + (state.flagCount || 0) + '</span>';
   }
   function teacherTabs(active) {
-    return '<div class="tabs no-print">' + [['assign', '課題', '#/t'], ['students', '生徒', '#/t/students'], ['flags', '⚠ 要確認' + flagBadge(), '#/t/flags'], ['settings', '設定', '#/t/settings']].map(function (t) {
+    var tabs = [['assign', '課題', '#/t'], ['students', '生徒', '#/t/students'], ['flags', '⚠ 要確認' + flagBadge(), '#/t/flags']];
+    if (isAdmin()) tabs.push(['admin', '👥 先生・クラス', '#/t/admin']);
+    tabs.push(['settings', '設定', '#/t/settings']);
+    return '<div class="tabs no-print">' + tabs.map(function (t) {
       return '<a href="' + t[2] + '" class="' + (active === t[0] ? 'active' : '') + '">' + t[1] + '</a>';
     }).join('') + '</div>';
   }
+  function me() { return (state.session && state.session.me) || {}; }
+  function isAdmin() { return !!me().admin; }
   function flagBanner() {
     if (!state.flagCount) return '';
     return '<a class="flag-banner" href="#/t/flags">⚠ 不正の疑いがある音読が <b>' + state.flagCount + '件</b> あります。確認してください →</a>';
@@ -2982,6 +3253,7 @@ window.SAMPLE_ASSIGNMENTS = [
   async function loadOverview(force) {
     if (!state.overview || force) state.overview = await call('t_overview');
     if (typeof state.overview.openFlags === 'number') setFlagCount(state.overview.openFlags);
+    if (state.overview.me) { state.session.me = state.overview.me; store(SESSION_KEY, state.session); topRight(); }
     if (state.overview.settings && state.overview.settings.appTitle) setTitle(state.overview.settings.appTitle);
     return state.overview;
   }
@@ -2997,18 +3269,24 @@ window.SAMPLE_ASSIGNMENTS = [
         '<div class="stat"><div class="v">' + activeToday + '</div><div class="l">今日音読した生徒</div></div>' +
         '<div class="stat"><div class="v">' + n(weekTotal) + '</div><div class="l">今週の音読単語数</div></div>' +
         '<div class="stat"><div class="v">' + o.assignments.length + '</div><div class="l">課題数</div></div></div><div style="height:16px"></div>';
-      html += '<div class="card"><div class="card-title"><h2>課題一覧</h2><a class="btn btn-primary" href="#/t/new">＋ 新しい課題</a></div>';
-      html += o.assignments.length ? '<div class="table-wrap"><table><thead><tr><th>タイトル</th><th>対象</th><th>締切</th><th class="num">提出</th><th class="num">平均</th><th>状態</th></tr></thead><tbody>' +
-        o.assignments.map(function (a) {
+      var scope = sessionStorage.getItem('assignScope') || (isAdmin() ? 'all' : 'mine');
+      var list = o.assignments.filter(function (a) { return scope === 'all' || a.mine; });
+      html += '<div class="card"><div class="card-title"><h2>課題一覧</h2><div class="btn-row">' +
+        '<div class="seg" id="segScope"><button data-v="mine" class="' + (scope === 'mine' ? 'active' : '') + '">担当クラス</button><button data-v="all" class="' + (scope === 'all' ? 'active' : '') + '">すべて</button></div>' +
+        '<a class="btn btn-primary" href="#/t/new">＋ 新しい課題</a></div></div>' +
+        (!isAdmin() && !(me().classes || []).length ? '<div class="notice warn">担当クラスが設定されていません。管理者に担当クラスを設定してもらってください。</div>' : '');
+      html += list.length ? '<div class="table-wrap"><table><thead><tr><th>タイトル</th><th>対象</th><th>作成</th><th>締切</th><th class="num">提出</th><th class="num">平均</th><th>状態</th></tr></thead><tbody>' +
+        list.map(function (a) {
           return '<tr class="clickable" data-href="#/t/results/' + encodeURIComponent(a.id) + '"><td>' + (a.contest ? '🏆 ' : '') + esc(a.title) + '<br><small class="muted">' + a.words + '語' +
             (a.mode === 'master' ? '・🎓マスター' : (a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : (a.types && a.types[0] !== 1 ? '・' + '①②③④⑤'.charAt(a.types[0] - 1) : ''))) + '</small></td>' +
-            '<td>' + esc(a.classes || '全員') + '</td><td>' + (a.due ? fmtDay(a.due) : '—') + '</td>' +
+            '<td>' + esc(a.classes || '全員') + '</td><td>' + esc(a.ownerName || '—') + (a.canEdit ? '' : ' <small class="muted">（閲覧のみ）</small>') + '</td><td>' + (a.due ? fmtDay(a.due) : '—') + '</td>' +
             '<td class="num">' + a.done + ' / ' + a.targets + '</td><td class="num ' + scoreClass(a.avg) + '">' + (a.avg === null ? '—' : a.avg + '%') + '</td>' +
             '<td>' + (a.published ? '<span class="pill done">公開中</span>' : '<span class="pill gray">非公開</span>') + '</td></tr>';
-        }).join('') + '</tbody></table></div>' : '<div class="empty">まだ課題がありません。「＋ 新しい課題」から作成しましょう。</div>';
+        }).join('') + '</tbody></table></div>' : '<div class="empty">' + (scope === 'mine' ? '担当クラスの課題はまだありません。' : 'まだ課題がありません。') + '「＋ 新しい課題」から作成しましょう。</div>';
       html += '</div>';
       $app.innerHTML = html;
       bindRows();
+      $all('#segScope button').forEach(function (b) { b.onclick = function () { sessionStorage.setItem('assignScope', b.dataset.v); viewTeacher(); }; });
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
   function bindRows() {
@@ -3022,6 +3300,10 @@ window.SAMPLE_ASSIGNMENTS = [
       var o = await loadOverview();
       var a = { title: '', text: '', ja: '', classes: '', due: '', contest: false, published: true, types: [1], mode: 'normal', pass: 80, blanks: '' };
       if (aid) a = (await call('t_getAssignment', { aid: aid })).assignment;
+      if (aid && a.canEdit === false) {
+        $app.innerHTML = '<a class="back" href="#/t/results/' + encodeURIComponent(aid) + '">← もどる</a><div class="card empty">この課題は、担当クラスがちがうため編集できません（閲覧のみ）。</div>';
+        return;
+      }
       var cls = splitCls(a.classes);
       var html = '<a class="back" href="' + (aid ? '#/t/results/' + encodeURIComponent(aid) : '#/t') + '">← もどる</a>';
       html += '<div class="card"><h2>' + (aid ? '課題を編集' : '新しい課題') + '</h2>' +
@@ -3046,8 +3328,12 @@ window.SAMPLE_ASSIGNMENTS = [
         '<p class="muted" style="font-size:.88rem;margin:0 0 6px">色のついた語が（　　）になります。単語をクリックすると、付けたり外したりできます。あいさつや返事などの短い文には、原則として自動では入れません。</p>' +
         '<div class="blank-editor" id="eBlankPrev"></div><div class="btn-row" style="margin-top:6px"><button class="btn-small" type="button" id="eBlankAuto">🔄 自動で選び直す</button><span class="muted" id="eBlankCount"></span></div></div>' +
         '</div>' +
-        '<label>対象クラス（どれも選ばないと全員）</label><div class="btn-row">' +
-        o.classes.map(function (c) { return '<label class="check" style="margin:0 12px 0 0"><input type="checkbox" class="eCls" value="' + esc(c) + '"' + (cls.indexOf(c) >= 0 ? ' checked' : '') + '>' + esc(c) + '</label>'; }).join('') +
+        '<label>対象クラス' + (isAdmin() ? '（どれも選ばないと全員）' : '（担当クラスから選んでください）') + '</label><div class="btn-row">' +
+        o.classes.map(function (c) {
+          var mineC = isAdmin() || (me().classes || []).indexOf(c) >= 0;
+          var checked = cls.indexOf(c) >= 0 || (!aid && !isAdmin() && mineC && (me().classes || []).length === 1);
+          return '<label class="check" style="margin:0 12px 0 0' + (mineC ? '' : ';opacity:.45') + '"><input type="checkbox" class="eCls" value="' + esc(c) + '"' + (checked ? ' checked' : '') + (mineC ? '' : ' disabled') + '>' + esc(c) + '</label>';
+        }).join('') +
         (o.classes.length ? '' : '<span class="muted">名簿にクラスがありません</span>') + '</div>' +
         '<div class="form-row"><div><label for="eDue">締切（任意）</label><input type="date" id="eDue" value="' + esc(a.due) + '"></div><div></div></div>' +
         '<label class="check"><input type="checkbox" id="eContest"' + (a.contest ? ' checked' : '') + '>🏆 音読大会にする（自己ベストの正確さでランキング）</label>' +
@@ -3144,7 +3430,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var TL = { 1: '①通常', 2: '②穴埋め', 3: '③スペースなし', 4: '④並べ替え', 5: '⑤日→英' };
       var html = '<a class="back" href="#/t">← 課題一覧</a>';
       html += '<div class="card"><div class="card-title"><h2>' + (a.contest ? '🏆 ' : '') + esc(a.title) + '</h2>' +
-        '<div class="btn-row"><a class="btn btn-small" href="#/t/edit/' + encodeURIComponent(a.id) + '">✏️ 編集</a><button class="btn-small" id="bExp">⬇ Excel</button></div></div>' +
+        '<div class="btn-row">' + (a.canEdit ? '<a class="btn btn-small" href="#/t/edit/' + encodeURIComponent(a.id) + '">✏️ 編集</a>' : '<span class="pill gray">閲覧のみ</span>') + '<button class="btn-small" id="bExp">⬇ Excel</button></div></div>' +
         '<div class="kpi-inline"><span>対象 <b>' + esc(a.classes || '全員') + '</b></span><span>締切 <b>' + (a.due ? fmtDay(a.due) : '—') + '</b></span>' +
         '<span>種類 <b>' + (master ? '🎓 マスターモード' : types.map(function (t) { return TL[t]; }).join('・')) + '</b></span>' +
         (master || types.length > 1 ? '<span>合格ライン <b>' + a.pass + '%</b></span>' : '') +
@@ -3202,7 +3488,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var html = teacherTabs('students');
       html += '<div class="card"><div class="toolbar"><select id="sCls" style="width:auto"><option value="">全クラス</option>' +
         o.classes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select><span class="sep"></span>' +
-        '<button class="btn-small" id="bExpAll">⬇ Excel（全課題の成績）</button><a class="btn btn-small" href="#/t/import">＋ 名簿の登録</a><a class="btn btn-small" href="#/t/passes">🖨 パスコード表</a></div>' +
+        '<button class="btn-small" id="bExpAll">⬇ Excel（全課題の成績）</button>' + (isAdmin() ? '<a class="btn btn-small" href="#/t/import">＋ 名簿の登録</a>' : '') + '<a class="btn btn-small" href="#/t/passes">🖨 パスコード表</a></div>' +
         '<div class="table-wrap"><table><thead><tr><th>クラス</th><th class="num">番号</th><th>名前</th><th>級・段</th><th class="num">累計</th><th class="num">今週</th><th class="num">連続</th><th>最終音読日</th><th class="num">注意<br><small>今週</small></th></tr></thead><tbody id="sBody"></tbody></table></div></div>';
       $app.innerHTML = html;
       function draw() {
@@ -3264,6 +3550,7 @@ window.SAMPLE_ASSIGNMENTS = [
           '<div class="btn-row" style="margin-top:10px">' +
           (x.audio ? '<button class="btn-primary" data-audio="' + esc(x.audio) + '">▶ 録音を確認</button>' : '<span class="muted">（録音なし）</span>') +
           (x.reviewed ? '<span class="pill ' + (x.reviewed === '自動で無効' ? 'flag' : 'done') + '">' + (x.reviewed === '自動で無効' ? '✗ ' : '✓ ') + esc(x.reviewed) + '</span>'
+            : x.canReview === false ? '<span class="muted">（担当クラスの先生が確認します）</span>'
             : '<span class="sep"></span><button class="btn" data-verdict="ok">✓ 問題なし</button><button class="btn btn-danger" data-verdict="ng">✗ 不正あり</button>') +
           '</div></div>';
       }).join('');
@@ -3375,34 +3662,160 @@ window.SAMPLE_ASSIGNMENTS = [
     bottomNav(); $app.classList.add('wide'); loading();
     try {
       var o = await loadOverview(true);
-      var st = o.settings;
+      var st = o.settings, m = me();
       var html = teacherTabs('settings');
-      html += '<div class="card"><h2>アプリの設定</h2>' +
-        '<label for="sTitle">アプリ名（空欄なら「' + esc(CFG.APP_TITLE || '音読チャレンジ') + '」）</label><input type="text" id="sTitle" maxlength="30" value="' + esc(st.appTitle) + '">' +
-        '<label class="check"><input type="checkbox" id="sRank"' + (st.showRanking ? ' checked' : '') + '>生徒にランキングを表示する</label>' +
-        '<label class="check"><input type="checkbox" id="sNick"' + (st.allowNick ? ' checked' : '') + '>生徒がニックネームを使えるようにする（ランキングの表示名）</label>' +
-        '<h3 style="margin-top:16px">不正防止</h3>' +
-        '<label class="check"><input type="checkbox" id="sPhrase"' + (st.phraseCheck ? ' checked' : '') + '>🔑 合言葉チェック（音読の途中に毎回変わる合言葉を読ませる。確認できないと記録しない）</label>' +
-        '<label class="check"><input type="checkbox" id="sAudio"' + (st.saveAudio ? ' checked' : '') + '>🎙 音読の音声を保存し、先生画面で再生できるようにする</label>' +
-        '<p class="muted" style="font-size:.85rem">お手本音声の検知（判定中にお手本が流れたら記録しない）は常に有効です。音声を保存する場合は、生徒と保護者に事前にお知らせください。</p>' +
-        '<label for="sPass">先生用パスワードの変更（変更しない場合は空欄）</label><input type="password" id="sPass" autocomplete="new-password" placeholder="6文字以上">' +
-        '<div style="margin-top:14px"><button class="btn-primary" id="sSave">保存する</button></div></div>';
+      html += '<div class="card"><h2>👤 自分のアカウント</h2>' +
+        '<div class="kpi-inline"><span>名前 <b>' + esc(m.name || '') + '</b></span><span>ログインID <b>' + esc(m.id || '') + '</b></span><span>役割 <b>' + (m.admin ? '管理者' : '先生') + '</b></span>' +
+        '<span>担当クラス <b>' + esc((m.classes || []).join('、') || (m.admin ? 'すべて' : '未設定')) + '</b></span></div>' +
+        '<h3 style="margin-top:14px">パスワードの変更</h3><div class="form-row">' +
+        '<div><label for="pOld">今のパスワード</label><input type="password" id="pOld" autocomplete="current-password"></div>' +
+        '<div><label for="pNew">新しいパスワード（6文字以上）</label><input type="password" id="pNew" autocomplete="new-password"></div></div>' +
+        '<div style="margin-top:10px"><button class="btn-primary" id="pSave">変更する</button></div></div>';
+      if (m.admin) {
+        html += '<div class="card"><h2>アプリの設定 <span class="pill admin">管理者</span></h2>' +
+          '<label for="sTitle">アプリ名（空欄なら「' + esc(CFG.APP_TITLE || '音読チャレンジ') + '」）</label><input type="text" id="sTitle" maxlength="30" value="' + esc(st.appTitle) + '">' +
+          '<label class="check"><input type="checkbox" id="sRank"' + (st.showRanking ? ' checked' : '') + '>生徒にランキングを表示する</label>' +
+          '<label class="check"><input type="checkbox" id="sNick"' + (st.allowNick ? ' checked' : '') + '>生徒がニックネームを使えるようにする（ランキングの表示名）</label>' +
+          '<h3 style="margin-top:16px">不正防止</h3>' +
+          '<label class="check"><input type="checkbox" id="sPhrase"' + (st.phraseCheck ? ' checked' : '') + '>🔑 合言葉チェック（音読の途中に毎回変わる合言葉を読ませる。確認できないと記録しない）</label>' +
+          '<label class="check"><input type="checkbox" id="sAudio"' + (st.saveAudio ? ' checked' : '') + '>🎙 音読の音声を保存し、先生画面で再生できるようにする</label>' +
+          '<p class="muted" style="font-size:.85rem">お手本音声の検知（判定中にお手本が流れたら記録しない）は常に有効です。音声を保存する場合は、生徒と保護者に事前にお知らせください。</p>' +
+          '<div style="margin-top:14px"><button class="btn-primary" id="sSave">保存する</button></div></div>';
+      } else {
+        html += '<div class="card muted">アプリ全体の設定（アプリ名・ランキング・不正防止など）は、管理者が変更できます。</div>';
+      }
       html += '<div class="card"><h2>使い方のヒント</h2><ul>' +
         '<li>生徒には、このページのURLと「パスコード表」を配ってください。</li>' +
         '<li>音声認識は <b>Chrome</b>（PC・Android・Chromebook）と <b>iPhone/iPad の Safari</b> で使えます。</li>' +
         '<li>ホーム画面に追加すると、アプリのように起動できます。</li>' +
         (API.isDemo() ? '' : '<li>データはスプレッドシートに保存されています。直接開いて確認・編集もできます。</li>') + '</ul></div>';
-      if (API.isDemo()) html += '<div class="card"><h2>デモデータ</h2><p class="muted">デモ用のデータを最初の状態に戻します。</p><button class="btn-danger" id="sReset">デモデータをリセット</button></div>';
+      if (API.isDemo() && m.admin) html += '<div class="card"><h2>デモデータ</h2><p class="muted">デモ用のデータを最初の状態に戻します。</p><button class="btn-danger" id="sReset">デモデータをリセット</button></div>';
       $app.innerHTML = html;
-      $('#sSave').onclick = async function () {
+      $('#pSave').onclick = async function () {
+        try { await call('t_changePassword', { oldPass: $('#pOld').value, newPass: $('#pNew').value }); $('#pOld').value = ''; $('#pNew').value = ''; toast('パスワードを変更しました'); }
+        catch (e) { showError(e); }
+      };
+      if ($('#sSave')) $('#sSave').onclick = async function () {
         try {
-          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, phraseCheck: $('#sPhrase').checked, saveAudio: $('#sAudio').checked, teacherPass: $('#sPass').value } });
-          state.overview = null; setTitle($('#sTitle').value); toast('保存しました'); $('#sPass').value = '';
+          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, phraseCheck: $('#sPhrase').checked, saveAudio: $('#sAudio').checked } });
+          state.overview = null; setTitle($('#sTitle').value); toast('保存しました');
         } catch (e) { showError(e); }
       };
       if ($('#sReset')) $('#sReset').onclick = function () {
         if (!confirm('デモデータをリセットしますか？')) return;
         API.resetDemo(); logout(true); toast('リセットしました');
+      };
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ---- 管理者：先生のアカウントとクラス ----
+  async function viewAdmin(editId) {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      if (!isAdmin()) { $app.innerHTML = teacherTabs('admin') + '<div class="card empty">この画面は管理者だけが使えます。</div>'; return; }
+      var tr = await call('t_teachers'), cr = await call('t_classes');
+      var classes = cr.classes.map(function (c) { return c.name; });
+      var editing = editId === '__new' ? { isNew: true, id: '', name: '', role: 'teacher', classes: [], active: true }
+        : tr.teachers.filter(function (t) { return t.id === editId; })[0];
+      var html = teacherTabs('admin');
+      html += '<div id="pwNotice"></div>';
+      // 先生
+      html += '<div class="card"><div class="card-title"><h2>👥 先生のアカウント</h2><button class="btn-primary" id="tNew">＋ 先生を追加</button></div>';
+      if (editing) {
+        html += '<div class="edit-box"><h3>' + (editing.isNew ? '先生を追加' : esc(editing.name) + ' 先生を編集') + '</h3><div class="form-row">' +
+          '<div><label for="tfId">ログインID（半角英数字）</label><input type="text" id="tfId" value="' + esc(editing.id) + '"' + (editing.isNew ? '' : ' disabled') + ' autocapitalize="off" placeholder="例：tanaka"></div>' +
+          '<div><label for="tfName">名前</label><input type="text" id="tfName" value="' + esc(editing.name) + '" placeholder="例：田中"></div></div>' +
+          '<label for="tfRole">役割</label><select id="tfRole" style="width:auto"><option value="teacher"' + (editing.role !== 'admin' ? ' selected' : '') + '>先生（担当クラスに課題を出せる）</option><option value="admin"' + (editing.role === 'admin' ? ' selected' : '') + '>管理者（すべての操作ができる）</option></select>' +
+          '<label>担当クラス</label><div class="btn-row">' + (classes.length ? classes.map(function (c) {
+            return '<label class="check" style="margin:0 12px 0 0"><input type="checkbox" class="tfCls" value="' + esc(c) + '"' + (editing.classes.indexOf(c) >= 0 ? ' checked' : '') + '>' + esc(c) + '</label>';
+          }).join('') : '<span class="muted">先にクラスを登録してください</span>') + '</div>' +
+          (editing.isNew ? '' : '<label class="check"><input type="checkbox" id="tfActive"' + (editing.active ? ' checked' : '') + '>このアカウントを有効にする（外すとログインできなくなります）</label>') +
+          '<div class="btn-row" style="margin-top:10px"><button class="btn-primary" id="tfSave">' + (editing.isNew ? '追加してパスワードを発行' : '保存する') + '</button><a class="btn" href="#/t/admin">キャンセル</a></div>' +
+          '<div class="error" id="tfErr"></div></div>';
+      }
+      html += '<div class="table-wrap"><table><thead><tr><th>名前</th><th>ログインID</th><th>役割</th><th>担当クラス</th><th>状態</th><th></th></tr></thead><tbody>' +
+        tr.teachers.map(function (t) {
+          return '<tr><td>' + esc(t.name) + '</td><td>' + esc(t.id) + '</td><td>' + (t.admin ? '<span class="pill admin">管理者</span>' : '先生') + '</td>' +
+            '<td>' + esc(t.classes.join('、') || '—') + '</td><td>' + (t.active ? '<span class="pill done">有効</span>' : '<span class="pill gray">無効</span>') + '</td>' +
+            '<td><div class="btn-row"><a class="btn btn-small" href="#/t/admin/' + encodeURIComponent(t.id) + '">編集</a>' +
+            '<button class="btn-small" data-reset="' + esc(t.id) + '">パスワード再発行</button>' +
+            (t.id !== me().id ? '<button class="btn-small btn-danger" data-del="' + esc(t.id) + '">削除</button>' : '') + '</div></td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+      // クラス
+      html += '<div class="card"><h2>🏫 クラスと人数</h2>' +
+        '<p class="muted" style="font-size:.88rem">人数を設定すると、出席番号1番から順に生徒が自動で登録され、パスコードも自動で作られます。名前は「生徒」→「名簿の登録」で入れられます（空欄のままでも使えます）。</p>' +
+        '<div class="table-wrap"><table><thead><tr><th>クラス</th><th class="num">人数</th><th class="num">登録済み</th><th>担当の先生</th><th></th></tr></thead><tbody>' +
+        cr.classes.map(function (c) {
+          return '<tr><td><b>' + esc(c.name) + '</b></td><td class="num"><input type="number" class="cCount" data-name="' + esc(c.name) + '" min="0" max="60" value="' + (c.count || c.students) + '" style="width:80px"></td>' +
+            '<td class="num">' + c.students + '人</td><td>' + esc(c.teachers.join('、') || '—') + '</td>' +
+            '<td><div class="btn-row"><button class="btn-small" data-save="' + esc(c.name) + '">人数を保存</button><button class="btn-small btn-danger" data-delcls="' + esc(c.name) + '">削除</button></div></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<h3 style="margin-top:14px">クラスを追加</h3><div class="btn-row"><input type="text" id="cName" placeholder="例：2B" style="width:120px"><input type="number" id="cNum" min="1" max="60" placeholder="人数" style="width:100px"><button class="btn-primary" id="cAdd">追加</button></div>' +
+        '</div>';
+      $app.innerHTML = html;
+
+      function showPassword(id, pw) {
+        $('#pwNotice').innerHTML = '<div class="card pw-card"><h3>🔑 パスワードを発行しました</h3><p>ログインID：<b>' + esc(id) + '</b>　パスワード：<b class="pw">' + esc(pw) + '</b></p>' +
+          '<p class="muted" style="font-size:.88rem">この画面を閉じると、パスワードは二度と表示されません。先生に伝えてください（ログイン後、各自で変更できます）。</p></div>';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      $('#tNew').onclick = function () { go('#/t/admin/__new'); };
+      if ($('#tfSave')) $('#tfSave').onclick = async function () {
+        $('#tfErr').textContent = '';
+        try {
+          var data = { isNew: !!editing.isNew, id: editing.isNew ? $('#tfId').value.trim() : editing.id, name: $('#tfName').value.trim(),
+            role: $('#tfRole').value, classes: $all('.tfCls').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }).join(','),
+            active: $('#tfActive') ? $('#tfActive').checked : true };
+          var r = await call('t_saveTeacher', { teacher: data });
+          if (data.id === me().id) { state.overview = null; await loadOverview(true); }
+          await viewAdmin();
+          if (r.password) showPassword(r.id, r.password); else toast('保存しました');
+          history.replaceState(null, '', '#/t/admin');
+        } catch (e) { $('#tfErr').textContent = e.message; }
+      };
+      $all('button[data-reset]').forEach(function (b) {
+        b.onclick = async function () {
+          if (!confirm(b.dataset.reset + ' のパスワードを再発行しますか？（今のパスワードは使えなくなります）')) return;
+          try { var r = await call('t_resetTeacherPass', { id: b.dataset.reset }); showPassword(r.id, r.password); } catch (e) { showError(e); }
+        };
+      });
+      $all('button[data-del]').forEach(function (b) {
+        b.onclick = async function () {
+          if (!confirm(b.dataset.del + ' のアカウントを削除しますか？（その先生が作った課題や記録は残ります）')) return;
+          try { await call('t_deleteTeacher', { id: b.dataset.del }); toast('削除しました'); viewAdmin(); } catch (e) { showError(e); }
+        };
+      });
+      async function saveClass(name, count) {
+        var r = await call('t_saveClass', { name: name, count: count });
+        if (r.needConfirm) {
+          if (!confirm('人数を減らすと、次の生徒が名簿から削除されます（音読の記録はスプレッドシートに残ります）。\n\n' + r.removing.join('\n') + '\n\n削除してよろしいですか？')) return false;
+          r = await call('t_saveClass', { name: name, count: count, confirm: true });
+        }
+        state.overview = null;
+        toast(name + '：' + (r.added ? r.added + '人を追加' : '') + (r.added && r.removed ? '・' : '') + (r.removed ? r.removed + '人を削除' : '') + (!r.added && !r.removed ? '保存しました' : ''));
+        return true;
+      }
+      $all('button[data-save]').forEach(function (b) {
+        b.onclick = async function () {
+          var inp = $('.cCount[data-name="' + b.dataset.save + '"]');
+          try { if (await saveClass(b.dataset.save, +inp.value)) viewAdmin(); } catch (e) { showError(e); }
+        };
+      });
+      $all('button[data-delcls]').forEach(function (b) {
+        b.onclick = async function () {
+          var name = b.dataset.delcls;
+          try {
+            var r = await call('t_deleteClass', { name: name });
+            if (r.needConfirm) {
+              if (!confirm('クラス「' + name + '」を削除すると、' + r.removing.length + '人の生徒が名簿から削除されます（音読の記録は残ります）。削除してよろしいですか？')) return;
+              r = await call('t_deleteClass', { name: name, confirm: true });
+            }
+            state.overview = null; toast('クラス「' + name + '」を削除しました'); viewAdmin();
+          } catch (e) { showError(e); }
+        };
+      });
+      $('#cAdd').onclick = async function () {
+        try { if (await saveClass($('#cName').value.trim(), +$('#cNum').value)) viewAdmin(); } catch (e) { showError(e); }
       };
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
@@ -3463,6 +3876,7 @@ window.SAMPLE_ASSIGNMENTS = [
         case 'passes': return viewPasses();
         case 'settings': return viewSettings();
         case 'flags': return viewFlags(false);
+        case 'admin': return viewAdmin(parts[2]);
         default: return viewTeacher();
       }
     }
