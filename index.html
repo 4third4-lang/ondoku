@@ -838,7 +838,7 @@ window.APP_CONFIG = {
     store.getAssignments().forEach(function (a) { titles[a.id] = a.title; });
     var recs = store.getRecordsByStudent(s.id, 50).map(function (r) {
       return {
-        time: r.time, date: r.date, kind: r.kind, title: r.aid ? (titles[r.aid] || '（削除された課題）') : str(r.text).slice(0, 40),
+        time: r.time, date: r.date, kind: r.kind, title: r.aid ? (titles[r.aid] || '（削除された課題）') : (Sc.englishOnly(r.text).replace(/\n/g, ' ') || str(r.text)).slice(0, 40),
         accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total)
       };
     });
@@ -962,7 +962,7 @@ window.APP_CONFIG = {
     var titles = {};
     store.getAssignments().forEach(function (a) { titles[a.id] = a.title; });
     var recs = store.getRecordsByStudent(s.id, 200).map(function (r) {
-      return { time: r.time, kind: r.kind, title: r.aid ? (titles[r.aid] || '（削除された課題）') : str(r.text).slice(0, 40),
+      return { time: r.time, kind: r.kind, title: r.aid ? (titles[r.aid] || '（削除された課題）') : (Sc.englishOnly(r.text).replace(/\n/g, ' ') || str(r.text)).slice(0, 40),
         accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total), transcript: str(r.transcript) };
     });
     var pub = studentPublic(s); pub.name = str(s.name);
@@ -1695,7 +1695,7 @@ window.SAMPLE_ASSIGNMENTS = [
       '</div><div style="height:16px"></div>';
     html += '<div class="card proverb"><div class="card-title"><h2>🌱 今日のことわざ</h2>' +
       '<a class="btn btn-small btn-primary" href="#/proverb">音読する</a></div>' +
-      '<div class="en">' + esc(pv[0]) + '</div><div class="ja">' + esc(pv[1]) + '</div></div>';
+      '<div class="ja">' + esc(pv[1]) + '</div><div class="en">' + esc(pv[0]) + '</div></div>';
     html += '<div class="card"><div class="card-title"><h2>📚 課題</h2></div>';
     if (!h.assignments.length) html += '<div class="empty">今は課題がありません。自主練で音読してみましょう！</div>';
     else html += '<ul class="list">' + h.assignments.map(function (a) {
@@ -1931,7 +1931,8 @@ window.SAMPLE_ASSIGNMENTS = [
   function viewProverb() {
     bottomNav('home');
     var pv = todayProverb();
-    practiceView({ title: '今日のことわざ', text: pv[0], ja: pv[1], kind: 'proverb' });
+    // 日本語（上）＋英語（下）で表示。日本語は「日本語を隠す」で消せる（判定は英語のみ）
+    practiceView({ title: '今日のことわざ', text: pv[1] + '\n' + pv[0], kind: 'proverb' });
   }
 
   // ================= 生徒：自主練（カメラ取り込み） =================
