@@ -512,11 +512,22 @@ window.APP_CONFIG = {
   var JA_RE = /([\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]+)/;
   var JA_TEST = /^[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]+$/;
 
+  // 日本語が主の行か（日本語の文字数×2 ＞ 英字の数）。日本語の行は、数字や英字もすべて表示だけの扱いにする
+  var JA_CHAR_G = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]/g;
+  function isJaLine(line) {
+    var ja = (String(line).match(JA_CHAR_G) || []).length;
+    var latin = (String(line).match(/[A-Za-z]/g) || []).length;
+    return ja > 0 && ja * 2 > latin;
+  }
+
   function tokenize(text) {
     var tokens = [];
-    String(text || '').replace(/\r/g, '').split(/(\s+)/).forEach(function (part) {
+    var src = String(text || '').replace(/\r/g, '');
+    var lineJa = src.split('\n').map(isJaLine), li = 0;
+    src.split(/(\s+)/).forEach(function (part) {
       if (part === '') return;
-      if (/^\s+$/.test(part)) { tokens.push({ text: part, space: true, units: [] }); return; }
+      if (/^\s+$/.test(part)) { tokens.push({ text: part, space: true, units: [] }); li += (part.match(/\n/g) || []).length; return; }
+      if (lineJa[li]) { tokens.push({ text: part, space: false, ja: true, units: [] }); return; }
       var hasJa = JA_RE.test(part);
       part.split(JA_RE).forEach(function (seg) {
         if (seg === '') return;
@@ -530,7 +541,7 @@ window.APP_CONFIG = {
 
   // 英語の部分だけを取り出す（お手本の読み上げ用）
   function englishOnly(text) {
-    return String(text || '').split(/\n/).map(function (line) {
+    return String(text || '').split(/\n/).filter(function (line) { return !isJaLine(line); }).map(function (line) {
       return line.split(JA_RE).filter(function (seg) { return seg && !JA_TEST.test(seg); }).join(' ')
         .replace(/\s+/g, ' ').trim();
     }).filter(function (line) { return /[A-Za-z0-9]/.test(line); }).join('\n');
@@ -674,7 +685,7 @@ window.APP_CONFIG = {
     return tokenize(text).filter(function (t) { return !t.space && t.units.length; }).length;
   }
 
-  var api = { score: score, scoreWithPhrase: scoreWithPhrase, phraseTokens: phraseTokens,
+  var api = { isJaLine: isJaLine, score: score, scoreWithPhrase: scoreWithPhrase, phraseTokens: phraseTokens,
     makePhrase: makePhrase, phrasePosition: phrasePosition, tokenize: tokenize, englishOnly: englishOnly, toUnits: toUnits, countWords: countWords,
     numberToWords: numberToWords };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -838,7 +849,10 @@ window.APP_CONFIG = {
     var out = [], inBlank = false, pendingSpace = null;
     tokens.forEach(function (t) {
       if (t.blank) {
-        if (!inBlank) out.push({ text: '（　　　）', status: 'blank' });
+        // 文末の記号（. ! ? など）は（　　）の後ろに残す（文の区切りがわかるように）
+        var punct = (t.text.match(/[.!?,;:]+["'”’)]*$/) || [''])[0];
+        if (!inBlank) out.push({ text: '（　　　）' + punct, status: 'blank' });
+        else out[out.length - 1].text = '（　　　）' + punct;
         inBlank = true; pendingSpace = null; return;
       }
       if (t.status === 'space' && inBlank && !/\n/.test(t.text)) { pendingSpace = t; return; }
@@ -2600,7 +2614,55 @@ window.SAMPLE_ASSIGNMENTS = [
 
   // 英文の表示：行ごとに分け、「英語の行」と「日本語だけの行」が隣り合っていれば
   // 入力の順番に関係なく「日本語（上）→ 英語（下）」の組にして表示する
-  function passageHTML(tokens, enLine) {
+  // トークン列を <span> にする
+  function spansHTML(line) {
+    return line.map(function (t) {
+      if (t.status === 'space') return ' ';
+      var c = ({ ok: ' ok', ng: ' ng', ja: ' ja', phrase: ' phrase', 'phrase-ok': ' phrase ok', 'phrase-ng': ' phrase ng', 'phrase-label': ' phrase-label', blank: ' blank' }[t.status] || '') + (t.blank ? ' was-blank' : '');
+      return '<span class="w' + c + '">' + esc(t.text) + '</span>';
+    }).join('');
+  }
+
+  // ---- 文ごとに分ける ----
+  var ABBR = ['mr.', 'mrs.', 'ms.', 'dr.', 'st.', 'jr.', 'sr.', 'vs.', 'etc.', 'e.g.', 'i.e.', 'a.m.', 'p.m.', 'u.s.', 'no.', 'mt.'];
+  function endsSentence(t) {
+    if (!t || t.status === 'space') return false;
+    var w = String(t.text).toLowerCase().replace(/^["“'‘(（]+/, '');
+    if (!/[.!?]["'”’)）]*$/.test(w)) return false;
+    if (ABBR.indexOf(w.replace(/["'”’)）]+$/, '')) >= 0) return false;
+    if (/^[a-z]\.$/.test(w) && w !== 'i.') return false;   // イニシャル（J. など）
+    return true;
+  }
+  // 英語の行（トークン列）を文ごとに分ける
+  function splitEnLine(line) {
+    var out = [[]];
+    line.forEach(function (t, i) {
+      var cur = out[out.length - 1];
+      if (t.status === 'space' && !cur.length) return;       // 文頭の空白は捨てる
+      cur.push(t);
+      if (endsSentence(t)) {
+        var rest = line.slice(i + 1).some(function (x) { return x.status !== 'space' && !/^phrase/.test(x.status); });
+        if (rest) out.push([]);
+      }
+    });
+    return out.filter(function (x) { return x.some(function (t) { return t.status !== 'space'; }); });
+  }
+  // 日本語の文章を「。！？」で分ける
+  function splitJaText(text) {
+    var m = String(text).match(/[^。！？!?]*[。！？!?]+[」』）)"”]*|[^。！？!?]+$/g) || [];
+    return m.map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+  function splitJaLine(line) {
+    var text = line.map(function (t) { return t.status === 'space' ? ' ' : t.text; }).join('').trim();
+    return splitJaText(text).map(function (x) { return [{ text: x, status: 'ja' }]; });
+  }
+
+  // 英文の表示：1文ずつ改行し、日本語の文と英語の文が対応していれば
+  // 入力の順番に関係なく「日本語（上）→ 英語（下）」の組にして表示する
+  // opts: { enLine: 英語の行を描く関数（並べ替え用）, jaSentences: 和訳欄の文（日本語の行がないとき） }
+  function passageHTML(tokens, opts) {
+    opts = typeof opts === 'function' ? { enLine: opts } : (opts || {});
+    var enLine = opts.enLine;
     var lines = [], cur = [];
     tokens.forEach(function (t) {
       if (t.status === 'space' && /\n/.test(t.text)) {
@@ -2617,21 +2679,39 @@ window.SAMPLE_ASSIGNMENTS = [
     }
     function lineHTML(line, cls) {
       if (enLine && cls !== 'ja-line') return '<div class="line' + (cls ? ' ' + cls : '') + '">' + enLine(line) + '</div>';
-      return '<div class="line' + (cls ? ' ' + cls : '') + '">' + line.map(function (t) {
-        if (t.status === 'space') return ' ';
-        var c = ({ ok: ' ok', ng: ' ng', ja: ' ja', phrase: ' phrase', 'phrase-ok': ' phrase ok', 'phrase-ng': ' phrase ng', 'phrase-label': ' phrase-label', blank: ' blank' }[t.status] || '') + (t.blank ? ' was-blank' : '');
-        return '<span class="w' + c + '">' + esc(t.text) + '</span>';
-      }).join('') + '</div>';
+      return '<div class="line' + (cls ? ' ' + cls : '') + '">' + spansHTML(line) + '</div>';
+    }
+    function pairs(jaList, enList) {
+      var h = '';
+      if (jaList.length === enList.length) {
+        for (var q = 0; q < enList.length; q++) h += '<div class="pair">' + lineHTML(jaList[q], 'ja-line') + lineHTML(enList[q]) + '</div>';
+      } else {
+        // 文の数が合わないときは、日本語をまとめて上に、英語を1文ずつ下に
+        h += '<div class="pair">' + jaList.map(function (x) { return lineHTML(x, 'ja-line'); }).join('') +
+          enList.map(function (x) { return lineHTML(x); }).join('') + '</div>';
+      }
+      return h;
+    }
+    // 日本語の行がなく、和訳欄の文の数が英文と同じなら組にする
+    var hasJaLine = lines.some(function (l) { return kind(l) === 'ja'; });
+    if (!hasJaLine && opts.jaSentences && opts.jaSentences.length) {
+      var allEn = [];
+      lines.forEach(function (l) { if (kind(l) === 'en') allEn = allEn.concat(splitEnLine(l)); });
+      if (allEn.length === opts.jaSentences.length) {
+        return pairs(opts.jaSentences.map(function (x) { return [{ text: x, status: 'ja' }]; }), allEn);
+      }
     }
     var html = '', i = 0;
     while (i < lines.length) {
       var k = kind(lines[i]), k2 = i + 1 < lines.length ? kind(lines[i + 1]) : null;
       if ((k === 'en' && k2 === 'ja') || (k === 'ja' && k2 === 'en')) {
         var ja = k === 'ja' ? lines[i] : lines[i + 1], en = k === 'en' ? lines[i] : lines[i + 1];
-        html += '<div class="pair">' + lineHTML(ja, 'ja-line') + lineHTML(en) + '</div>';
+        html += pairs(splitJaLine(ja), splitEnLine(en));
         i += 2;
       } else {
-        html += k === 'blank' ? '<div class="gap"></div>' : lineHTML(lines[i], k === 'ja' ? 'ja-line' : '');
+        if (k === 'blank') html += '<div class="gap"></div>';
+        else if (k === 'ja') html += splitJaLine(lines[i]).map(function (x) { return lineHTML(x, 'ja-line'); }).join('');
+        else html += splitEnLine(lines[i]).map(function (x) { return lineHTML(x); }).join('');
         i += 1;
       }
     }
@@ -2675,6 +2755,16 @@ window.SAMPLE_ASSIGNMENTS = [
     var hasJa = Scoring.tokenize(opt.text).some(function (t) { return t.ja; });
     var jaFixed = type === 4 || type === 5;           // 日本語を常に表示する種類
     var showJaBox = jaFixed && !hasJa && opt.ja;      // 日本語の行がない場合は和訳を表示
+    // 和訳欄の文の数が英文の文の数と同じなら、英文と1文ずつ組にして表示（和訳の箱は出さない）
+    var jaSent = opt.ja ? splitJaText(String(opt.ja).replace(/\n/g, '')) : [];
+    var enCount = 0;
+    if (showJaBox) {
+      var lns = [[]];
+      plainTokens(opt.text).forEach(function (t) { if (t.status === 'space' && /\n/.test(t.text)) lns.push([]); else lns[lns.length - 1].push(t); });
+      lns.forEach(function (l) { if (l.some(function (t) { return t.status !== 'space' && t.status !== 'ja'; })) enCount += splitEnLine(l).length; });
+    }
+    var jaPaired = showJaBox && jaSent.length > 0 && jaSent.length === enCount;
+    if (jaPaired) showJaBox = false;
     var shuffleCache = {};
     function isEn(t) { return t.word || (t.status !== 'space' && t.status !== 'ja' && !/^phrase/.test(t.status) && t.status !== 'blank' && /[A-Za-z0-9]/.test(t.text)); }
     // ③ スペースとピリオドをなくす
@@ -2703,7 +2793,6 @@ window.SAMPLE_ASSIGNMENTS = [
         seenWord = true;
         var w = t.text.replace(/^["“'‘(]+/, '').replace(/[.,!?;:"”’)]+$/, '');
         if (w) groups[groups.length - 1].push(w);
-        if (/[.!?]["”’)]?$/.test(t.text)) groups.push([]);
       });
       var key = line.map(function (t) { return t.text; }).join(' ');
       if (!shuffleCache[key]) {
@@ -2727,9 +2816,10 @@ window.SAMPLE_ASSIGNMENTS = [
         Blanks.apply(tokens, blanks);
         if (!revealed) tokens = Blanks.mask(tokens);
       }
-      if (type === 3 && !revealed) tokens = noSpace(tokens);
-      if (type === 4 && !revealed) return passageHTML(tokens, shuffleLine);
-      return passageHTML(tokens);
+      if (type === 3 && !revealed) return passageHTML(tokens, { enLine: function (line) { return spansHTML(noSpace(line)); }, jaSentences: jaPaired ? jaSent : null });
+      var jaS = jaPaired ? jaSent : null;
+      if (type === 4 && !revealed) return passageHTML(tokens, { enLine: shuffleLine, jaSentences: jaS });
+      return passageHTML(tokens, { jaSentences: jaS });
     }
     bottomNav('none'); // 練習中は下のメニューを隠して、マイクボタンを画面下に固定
     var html = '<a class="back" href="' + (opt.back || '#/home') + '">← もどる</a>';
@@ -2756,7 +2846,7 @@ window.SAMPLE_ASSIGNMENTS = [
       (hasJa && !jaFixed ? '<button class="btn-small" id="bJaInline">' + (p.hideJa ? '日本語を表示' : '日本語を隠す') + '</button>' : '') +
       (opt.ja && !jaFixed ? '<button class="btn-small" id="bJa">和訳</button>' : '') +
       '</div>';
-    if (showJaBox) html += '<div class="ja-box">' + esc(opt.ja).replace(/\n/g, '<br>') + '</div>';
+    if (showJaBox) html += '<div class="ja-box">' + splitJaText(String(opt.ja).replace(/\n/g, '')).map(esc).join('<br>') + '</div>';
     html += '<div class="passage ' + (p.size === 'mid' ? '' : p.size) + (hasJa && p.hideJa && !jaFixed ? ' hide-ja' : '') + (type === 5 ? ' mode-trans' : '') + (type === 4 ? ' mode-shuffle' : '') + (type === 3 ? ' mode-nospace' : '') + '" id="passage">' + display(plainTokens(opt.text), false) + '</div>';
     if (opt.ja && !jaFixed) html += '<div class="ja-text hidden" id="jaText">' + esc(opt.ja) + '</div>';
     html += '<div class="live" id="live">（ここに聞き取った英語が表示されます）</div>' +
