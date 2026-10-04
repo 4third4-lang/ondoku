@@ -1,0 +1,2429 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f6f8b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>音読チャレンジ</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="manifest" href="manifest.json">
+  <style>
+:root {
+  --bg: #f4f6fa;
+  --card: #ffffff;
+  --text: #1d2433;
+  --muted: #677086;
+  --line: #e2e6ee;
+  --primary: #1f6f8b;
+  --primary-dark: #17566c;
+  --primary-soft: #e3f1f6;
+  --accent: #f08a24;
+  --accent-soft: #fff1e3;
+  --ok: #1a9b6c;
+  --ok-soft: #e2f6ee;
+  --ng: #d93a3a;
+  --ng-soft: #fde8e8;
+  --gold: #d4a017;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(20, 30, 60, .06), 0 4px 14px rgba(20, 30, 60, .06);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  font-size: 16px; line-height: 1.6; -webkit-text-size-adjust: 100%;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+a { color: var(--primary); }
+h1, h2, h3 { line-height: 1.35; margin: 0 0 .5em; }
+h1 { font-size: 1.45rem; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+p { margin: 0 0 .75em; }
+small, .muted { color: var(--muted); }
+.hidden { display: none !important; }
+
+/* ---- ヘッダー ---- */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top));
+  background: var(--primary); color: #fff;
+}
+.brand { display: flex; align-items: center; gap: 8px; color: #fff; text-decoration: none; font-weight: 700; font-size: 1.1rem; }
+.brand img { background: #fff; border-radius: 8px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+.topbar-right button { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.35); }
+.demo-banner { background: var(--accent-soft); color: #8a4a0b; text-align: center; font-size: .85rem; padding: 6px 12px; }
+
+.container { max-width: 880px; margin: 0 auto; padding: 16px; }
+.wide { max-width: 1100px; }
+
+/* ---- カード ---- */
+.card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+.card.tight { padding: 12px 14px; }
+.card-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.card-title h2 { margin: 0; }
+.grid { display: grid; gap: 16px; }
+.grid.two { grid-template-columns: 1fr 1fr; }
+.grid.three { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 640px) { .grid.two, .grid.three { grid-template-columns: 1fr; } }
+
+/* ---- ボタン ---- */
+button, .btn {
+  -webkit-appearance: none; appearance: none; font: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line);
+  background: #fff; color: var(--text); font-weight: 600; text-decoration: none; min-height: 44px;
+}
+button:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-danger { color: var(--ng); border-color: #f2c2c2; }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--primary); }
+.btn-small { padding: 6px 10px; min-height: 34px; font-size: .88rem; }
+.btn-big { padding: 14px 22px; font-size: 1.1rem; min-height: 56px; border-radius: 14px; }
+.btn-block { width: 100%; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ---- 入力 ---- */
+label { display: block; font-weight: 600; margin: 10px 0 4px; font-size: .95rem; }
+input[type=text], input[type=password], input[type=number], input[type=date], select, textarea {
+  width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--text);
+}
+textarea { min-height: 140px; resize: vertical; line-height: 1.6; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 500; margin: 8px 0; }
+.check input { width: 20px; height: 20px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .form-row { grid-template-columns: 1fr; } }
+.error { color: var(--ng); font-weight: 600; margin-top: 8px; }
+
+/* ---- ログイン ---- */
+.hero { text-align: center; padding: 18px 0 6px; }
+.hero h1 { font-size: 1.7rem; }
+.hero p { color: var(--muted); }
+.login-card { max-width: 440px; margin: 0 auto 16px; }
+.role-switch { display: flex; gap: 8px; margin-bottom: 8px; }
+.role-switch button { flex: 1; }
+.role-switch button.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
+
+/* ---- ホーム ---- */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+.stat { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px; text-align: center; }
+.stat .v { font-size: 1.5rem; font-weight: 800; color: var(--primary-dark); line-height: 1.2; }
+.stat .l { font-size: .8rem; color: var(--muted); }
+.level-card { display: flex; align-items: center; gap: 16px; }
+.level-badge {
+  flex: none; width: 84px; height: 84px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 30% 30%, #fff6d8, #f6c94c); color: #6b4a00; font-weight: 800; font-size: 1.15rem;
+  border: 3px solid #e8b52f;
+}
+.level-badge small { font-size: .65rem; color: #8a6a10; font-weight: 600; }
+.level-info { flex: 1; }
+.bar { height: 12px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 6px 0 4px; }
+.bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #f6c94c); border-radius: 99px; }
+
+.proverb { background: linear-gradient(135deg, #e3f1f6, #fdf3e6); }
+.proverb .en { font-size: 1.2rem; font-weight: 700; font-family: Georgia, "Times New Roman", serif; }
+.proverb .ja { color: var(--muted); font-size: .9rem; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { border-top: 1px solid var(--line); }
+.list li:first-child { border-top: 0; }
+.item { display: flex; align-items: center; gap: 12px; padding: 12px 4px; text-decoration: none; color: inherit; }
+.item:hover { background: #fafbfd; }
+.item .main { flex: 1; min-width: 0; }
+.item .title { font-weight: 700; }
+.item .sub { font-size: .82rem; color: var(--muted); }
+.pill { display: inline-block; font-size: .75rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--primary-soft); color: var(--primary-dark); white-space: nowrap; }
+.pill.contest { background: #fff3c9; color: #8a6200; }
+.pill.done { background: var(--ok-soft); color: var(--ok); }
+.pill.todo { background: var(--ng-soft); color: var(--ng); }
+.pill.gray { background: #eef0f4; color: var(--muted); }
+.score-chip { font-weight: 800; font-size: 1.1rem; color: var(--primary-dark); min-width: 60px; text-align: right; }
+
+/* ---- 練習画面 ---- */
+.passage {
+  font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; line-height: 2.0;
+  background: #fff; border-radius: var(--radius); padding: 18px 20px; border: 1px solid var(--line);
+  word-break: normal; overflow-wrap: anywhere;
+}
+.passage.small { font-size: 1.1rem; }
+.passage.large { font-size: 1.7rem; }
+.passage.blur .w:not(.ja) { filter: blur(6px); }
+.passage .w.ja {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+  font-size: .72em; color: var(--muted); background: transparent; text-decoration: none;
+}
+.passage.hide-ja .w.ja { display: none; }
+.passage .w { border-radius: 4px; padding: 0 1px; transition: background .2s; }
+.passage .w.ok { color: var(--ok); }
+.passage .w.ng { color: var(--ng); background: var(--ng-soft); text-decoration: underline wavy rgba(217,58,58,.5); text-underline-offset: 5px; }
+.ja-text { color: var(--muted); font-size: .95rem; margin-top: 10px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.toolbar .sep { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.seg button { border: 0; border-radius: 0; min-height: 38px; padding: 6px 12px; font-size: .88rem; }
+.seg button.active { background: var(--primary-soft); color: var(--primary-dark); }
+
+.mic-dock {
+  position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin: 14px -18px -18px; padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(255,255,255,.96); border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.mic-text { text-align: left; min-width: 0; }
+.mic-btn {
+  flex: none; width: 76px; height: 76px; border-radius: 50%; border: 0; font-size: 2rem; color: #fff;
+  background: var(--accent); box-shadow: 0 6px 18px rgba(240,138,36,.4);
+}
+.mic-btn.rec { background: var(--ng); animation: pulse 1.2s infinite; box-shadow: 0 6px 18px rgba(217,58,58,.45); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(217,58,58,.5); } 70% { box-shadow: 0 0 0 18px rgba(217,58,58,0); } 100% { box-shadow: 0 0 0 0 rgba(217,58,58,0); } }
+.mic-label { font-weight: 700; }
+.live { min-height: 2.4em; color: var(--muted); font-size: .95rem; background: #fafbfd; border: 1px dashed var(--line); border-radius: 10px; padding: 8px 12px; margin-top: 10px; text-align: left; }
+.timer { font-variant-numeric: tabular-nums; color: var(--muted); }
+
+.result { text-align: center; }
+.result .big { font-size: 3.2rem; font-weight: 900; line-height: 1; }
+.result .big.good { color: var(--ok); }
+.result .big.mid { color: var(--accent); }
+.result .big.low { color: var(--ng); }
+.result .detail { color: var(--muted); }
+.ring { width: 150px; height: 150px; margin: 6px auto; position: relative; }
+.ring svg { transform: rotate(-90deg); }
+.ring .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.celebrate { background: #fff7d6; border: 1px solid #f2d36b; color: #7a5a00; border-radius: 12px; padding: 10px 12px; font-weight: 700; margin: 10px 0; }
+
+/* ---- ランキング ---- */
+.rank-row { display: flex; align-items: center; gap: 12px; padding: 10px 6px; border-top: 1px solid var(--line); }
+.rank-row:first-child { border-top: 0; }
+.rank-row.me { background: var(--accent-soft); border-radius: 10px; }
+.rank-no { width: 40px; text-align: center; font-weight: 900; font-size: 1.1rem; color: var(--muted); }
+.rank-no.r1 { color: #c99400; } .rank-no.r2 { color: #8a96a8; } .rank-no.r3 { color: #b0703a; }
+.rank-name { flex: 1; font-weight: 600; }
+.rank-val { font-weight: 800; color: var(--primary-dark); }
+
+/* ---- 棒グラフ（14日） ---- */
+.chart { display: flex; align-items: flex-end; gap: 4px; height: 120px; padding: 8px 0 0; }
+.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.chart .b { width: 100%; max-width: 26px; background: var(--primary); border-radius: 6px 6px 2px 2px; min-height: 2px; }
+.chart .b.zero { background: var(--line); }
+.chart .d { font-size: .65rem; color: var(--muted); margin-top: 3px; }
+
+/* ---- 表 ---- */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { background: #f7f8fb; font-size: .82rem; color: var(--muted); position: sticky; top: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: #fafbfd; }
+.cell-good { color: var(--ok); font-weight: 700; }
+.cell-mid { color: var(--accent); font-weight: 700; }
+.cell-low { color: var(--ng); font-weight: 700; }
+.cell-none { color: #b5bccb; }
+
+/* ---- タブ ---- */
+.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 14px; overflow-x: auto; }
+.tabs a { padding: 10px 14px; text-decoration: none; color: var(--muted); font-weight: 700; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+.tabs a.active { color: var(--primary-dark); border-color: var(--primary); }
+
+/* ---- 下部ナビ（生徒） ---- */
+.bottom-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: #fff; border-top: 1px solid var(--line);
+  display: flex; justify-content: space-around; padding: 4px 0 calc(4px + env(safe-area-inset-bottom));
+}
+.bottom-nav a { flex: 1; text-align: center; text-decoration: none; color: var(--muted); font-size: .72rem; font-weight: 700; padding: 4px 0; }
+.bottom-nav a .ic { display: block; font-size: 1.35rem; line-height: 1.2; }
+.bottom-nav a.active { color: var(--primary); }
+body.has-nav main { padding-bottom: 90px; }
+
+/* ---- トースト ---- */
+.toast {
+  position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 50;
+  background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow); max-width: 90vw; font-size: .95rem;
+}
+.toast.err { background: var(--ng); }
+
+.loading { text-align: center; color: var(--muted); padding: 40px 0; }
+.spinner { width: 34px; height: 34px; border: 4px solid var(--line); border-top-color: var(--primary); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.notice { background: var(--primary-soft); color: var(--primary-dark); border-radius: 10px; padding: 10px 12px; font-size: .92rem; }
+.notice.warn { background: var(--accent-soft); color: #8a4a0b; }
+.empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+.back { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 700; margin-bottom: 10px; }
+.kpi-inline { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: .9rem; }
+.kpi-inline b { color: var(--text); font-size: 1.05rem; }
+.passes { width: 100%; }
+@media print {
+  .topbar, .bottom-nav, .demo-banner, .no-print, .tabs { display: none !important; }
+  body { background: #fff; }
+  .card { box-shadow: none; border: 1px solid #ccc; }
+  .pass-slip { page-break-inside: avoid; }
+}
+.pass-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pass-slip { border: 1px dashed #aab; border-radius: 8px; padding: 10px; font-size: .9rem; }
+.pass-slip b { font-size: 1.1rem; }
+.ring .big { font-size: 2.3rem; letter-spacing: -.02em; }
+
+/* 日本語（上）＋英語（下）の組 */
+.passage .pair { margin-bottom: .55em; }
+.passage .pair:last-child { margin-bottom: 0; }
+.passage .line.ja-line { line-height: 1.5; margin-bottom: .05em; }
+.passage .line.ja-line .w.ja { font-size: .72em; }
+.passage.hide-ja .line.ja-line { display: none; }
+.passage .gap { height: .8em; }
+
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/" class="brand"><img src="icon.svg" alt="" width="28" height="28"><span id="appTitle">音読チャレンジ</span></a>
+    <div class="topbar-right" id="topRight"></div>
+  </header>
+  <div id="demoBanner" class="demo-banner" hidden>デモモードで動いています（データはこの端末の中だけに保存されます）</div>
+  <main id="app" class="container" aria-live="polite"></main>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script>
+/*
+ * ===== 設定ファイル =====
+ * Apps Script を公開したら、表示された「ウェブアプリのURL」を下の API_URL に貼り付けてください。
+ * 空欄のままだと「デモモード」で動きます（データはその端末の中だけに保存されます）。
+ */
+window.APP_CONFIG = {
+  // 例: 'https://script.google.com/macros/s/XXXXXXXXXXXX/exec'
+  API_URL: '',
+
+  // アプリ名（画面上部に表示されます。スプレッドシートの「設定」シートの値が優先されます）
+  APP_TITLE: '音読チャレンジ',
+
+  // 音声認識の言語（en-US：アメリカ英語 / en-GB：イギリス英語）
+  SPEECH_LANG: 'en-US'
+};
+
+</script>
+  <script>
+/*
+ * 発音判定エンジン
+ * 音声認識の結果（transcript）と課題の英文（target）を照合して、
+ * 正確さ（％）・単語ごとの正誤・読めた単語数を計算します。
+ * ブラウザでも Node.js（テスト用）でも動きます。
+ */
+(function (root) {
+  'use strict';
+
+  // ---- 短縮形の展開（両側を同じ形にそろえるため） ----
+  var CONTRACTIONS = {
+    "i'm": 'i am', "you're": 'you are', "we're": 'we are', "they're": 'they are',
+    "he's": 'he is', "she's": 'she is', "it's": 'it is', "that's": 'that is',
+    "what's": 'what is', "where's": 'where is', "who's": 'who is', "how's": 'how is',
+    "there's": 'there is', "here's": 'here is', "let's": 'let us',
+    "i've": 'i have', "you've": 'you have', "we've": 'we have', "they've": 'they have',
+    "i'll": 'i will', "you'll": 'you will', "he'll": 'he will', "she'll": 'she will',
+    "it'll": 'it will', "we'll": 'we will', "they'll": 'they will', "that'll": 'that will',
+    "i'd": 'i would', "you'd": 'you would', "he'd": 'he would', "she'd": 'she would',
+    "we'd": 'we would', "they'd": 'they would',
+    "don't": 'do not', "doesn't": 'does not', "didn't": 'did not',
+    "isn't": 'is not', "aren't": 'are not', "wasn't": 'was not', "weren't": 'were not',
+    "haven't": 'have not', "hasn't": 'has not', "hadn't": 'had not',
+    "won't": 'will not', "wouldn't": 'would not', "can't": 'can not', "cannot": 'can not',
+    "couldn't": 'could not', "shouldn't": 'should not', "mustn't": 'must not',
+    "needn't": 'need not', "ain't": 'is not', "o'clock": 'oclock',
+    'gonna': 'going to', 'wanna': 'want to', 'gotta': 'got to'
+  };
+
+  // ---- 同音語・表記ゆれ（どちらで認識されても正解にする） ----
+  var HOMOPHONE_GROUPS = [
+    ['to', 'too', 'two'], ['there', 'their'], ['your', 'yore'], ['its', 'it is'],
+    ['for', 'four', 'fore'], ['right', 'write', 'rite'], ['know', 'no'], ['knew', 'new'],
+    ['hear', 'here'], ['see', 'sea'], ['by', 'buy', 'bye'], ['one', 'won'], ['eight', 'ate'],
+    ['meet', 'meat'], ['weak', 'week'], ['son', 'sun'], ['hour', 'our'], ['whole', 'hole'],
+    ['wear', 'where', 'ware'], ['flower', 'flour'], ['tail', 'tale'], ['mail', 'male'],
+    ['piece', 'peace'], ['blue', 'blew'], ['i', 'eye'], ['be', 'bee'], ['dear', 'deer'],
+    ['sail', 'sale'], ['road', 'rode'], ['made', 'maid'], ['plane', 'plain'],
+    ['night', 'knight'], ['ok', 'okay'], ['mr', 'mister'], ['dr', 'doctor'],
+    ['wait', 'weight'], ['way', 'weigh'], ['would', 'wood'], ['not', 'knot'],
+    ['some', 'sum'], ['which', 'witch'], ['whether', 'weather'], ['threw', 'through'],
+    ['brake', 'break'], ['steal', 'steel'], ['stair', 'stare'], ['pair', 'pear'],
+    ['fair', 'fare'], ['hair', 'hare'], ['hi', 'high'], ['so', 'sew'], ['rain', 'reign'],
+    ['red', 'read'], ['led', 'lead'], ['passed', 'past'], ['allowed', 'aloud'],
+    ['cent', 'scent', 'sent'], ['caught', 'court'], ['grate', 'great'], ['bored', 'board'],
+    ['nose', 'knows'], ['wore', 'war'], ['tee', 'tea'], ['oh', 'o'], ['all right', 'alright'],
+    ['color', 'colour'], ['favorite', 'favourite'], ['center', 'centre'], ['theater', 'theatre'],
+    ['gray', 'grey'], ['realize', 'realise'], ['honor', 'honour'], ['neighbor', 'neighbour'],
+    ['mom', 'mum', 'mam'], ['e-mail', 'email'], ['t-shirt', 'tshirt'], ['okay', 'k']
+  ];
+  var CANON = {};
+  HOMOPHONE_GROUPS.forEach(function (g) {
+    g.forEach(function (w) { if (w.indexOf(' ') < 0) CANON[w] = g[0]; });
+  });
+
+  // ---- 数字 → 英単語 ----
+  var ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+    'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen',
+    'eighteen', 'nineteen'];
+  var TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  var ORD = { one: 'first', two: 'second', three: 'third', five: 'fifth', eight: 'eighth',
+    nine: 'ninth', twelve: 'twelfth' };
+
+  function under100(n) {
+    if (n < 20) return [ONES[n]];
+    var t = TENS[Math.floor(n / 10)], o = n % 10;
+    return o ? [t, ONES[o]] : [t];
+  }
+  function under1000(n) {
+    var h = Math.floor(n / 100), r = n % 100, out = [];
+    if (h) out.push(ONES[h], 'hundred');
+    if (r || !h) out = out.concat(under100(r));
+    return out;
+  }
+  function numberToWords(n) {
+    if (n >= 1000000) return [String(n)];
+    if (n >= 1100 && n < 10000 && n % 100 !== 0 && n % 1000 >= 100) {
+      // 西暦などは「twenty twenty-six」型で読むことが多い → 認識側も数字で返るので数字同士で比較される
+      return under100(Math.floor(n / 100)).concat(n % 100 < 10 ? ['oh'].concat(under100(n % 100)) : under100(n % 100));
+    }
+    var th = Math.floor(n / 1000), r = n % 1000, out = [];
+    if (th) out = out.concat(under1000(th), ['thousand']);
+    if (r || !th) out = out.concat(under1000(r));
+    return out;
+  }
+  function ordinalWords(n) {
+    var w = numberToWords(n), last = w[w.length - 1];
+    if (ORD[last]) w[w.length - 1] = ORD[last];
+    else if (/y$/.test(last)) w[w.length - 1] = last.replace(/y$/, 'ieth');
+    else w[w.length - 1] = last + 'th';
+    return w;
+  }
+
+  // 1語（表示上の単語）を、比較用の単位（小文字・記号なし）の配列に変換
+  function toUnits(raw) {
+    var w = String(raw).toLowerCase()
+      .replace(/[‘’ʼ`´]/g, "'")
+      .replace(/[“”"]/g, '')
+      .replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, '');   // 前後の記号を除去
+    if (!w) return [];
+    // ハイフン・スラッシュ等でつながった語は分割
+    var parts = w.split(/[-‐-―\/_.,!?;:()\[\]{}]+/).filter(Boolean);
+    var units = [];
+    parts.forEach(function (p) {
+      p = p.replace(/^'+|'+$/g, '');
+      if (!p) return;
+      if (CONTRACTIONS[p]) { units = units.concat(CONTRACTIONS[p].split(' ')); return; }
+      var m;
+      if ((m = p.match(/^(\d+)(st|nd|rd|th)$/))) { units = units.concat(ordinalWords(+m[1])); return; }
+      if (/^\d+$/.test(p)) { units = units.concat(numberToWords(+p)); return; }
+      if ((m = p.match(/^(\d+)(am|pm)$/))) { units = units.concat(numberToWords(+m[1]), [m[2]]); return; }
+      // 所有格の 's は単語本体だけで比較（Tom's → tom）
+      if (/'s$/.test(p) && p.length > 2) p = p.slice(0, -2);
+      p = p.replace(/'/g, '');
+      if (!p) return;
+      units.push(p);
+    });
+    return units.map(function (u) { return CANON[u] || u; });
+  }
+
+  // 表示用のトークン列（空白区切り）
+  // 日本語（かな・漢字・全角文字・和文の句読点）は「表示だけ」の部分として扱い、音読の対象にしない
+  var JA_RE = /([\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]+)/;
+  var JA_TEST = /^[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]+$/;
+
+  function tokenize(text) {
+    var tokens = [];
+    String(text || '').replace(/\r/g, '').split(/(\s+)/).forEach(function (part) {
+      if (part === '') return;
+      if (/^\s+$/.test(part)) { tokens.push({ text: part, space: true, units: [] }); return; }
+      part.split(JA_RE).forEach(function (seg) {
+        if (seg === '') return;
+        if (JA_TEST.test(seg)) { tokens.push({ text: seg, space: false, ja: true, units: [] }); return; }
+        tokens.push({ text: seg, space: false, units: toUnits(seg) });
+      });
+    });
+    return tokens;
+  }
+
+  // 英語の部分だけを取り出す（お手本の読み上げ用）
+  function englishOnly(text) {
+    return String(text || '').split(/\n/).map(function (line) {
+      return line.split(JA_RE).filter(function (seg) { return seg && !JA_TEST.test(seg); }).join(' ')
+        .replace(/\s+/g, ' ').trim();
+    }).filter(function (line) { return /[A-Za-z0-9]/.test(line); }).join('\n');
+  }
+
+  function levenshtein(a, b) {
+    if (a === b) return 0;
+    var prev = [], cur = [], i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+
+  // 単位どうしが一致とみなせるか
+  function same(a, b, opts) {
+    if (a === b) return true;
+    if (opts && opts.strict) return false;
+    // 長い単語は1文字程度の違い（綴りゆれ・複数形の聞き取り揺れ）を許容
+    var L = Math.max(a.length, b.length);
+    if (L >= 6) return levenshtein(a, b) <= 1;
+    return false;
+  }
+
+  /**
+   * 判定のメイン関数
+   * @param {string} target 課題の英文
+   * @param {string} transcript 音声認識の結果
+   * @param {object} [opts] {strict:boolean}
+   * @return {{accuracy:number, total:number, correct:number, tokens:Array}}
+   */
+  function score(target, transcript, opts) {
+    var tokens = tokenize(target);
+    // 対象側の単位列（どの表示トークンの何番目か）
+    var A = [];
+    tokens.forEach(function (t, ti) {
+      t.units.forEach(function (u) { A.push({ u: u, ti: ti }); });
+    });
+    var B = [];
+    String(transcript || '').split(/\s+/).forEach(function (w) {
+      toUnits(w).forEach(function (u) { B.push(u); });
+    });
+
+    var n = A.length, m = B.length;
+    // LCS（最長共通部分列）で位置合わせ
+    var dp = new Array(n + 1);
+    for (var i = 0; i <= n; i++) { dp[i] = new Uint16Array(m + 1); }
+    for (i = 1; i <= n; i++) {
+      for (var j = 1; j <= m; j++) {
+        dp[i][j] = same(A[i - 1].u, B[j - 1], opts) ? dp[i - 1][j - 1] + 1
+          : (dp[i - 1][j] >= dp[i][j - 1] ? dp[i - 1][j] : dp[i][j - 1]);
+      }
+    }
+    var matched = new Array(n);
+    i = n; j = m;
+    while (i > 0 && j > 0) {
+      if (same(A[i - 1].u, B[j - 1], opts) && dp[i][j] === dp[i - 1][j - 1] + 1) {
+        matched[i - 1] = true; i--; j--;
+      } else if (dp[i - 1][j] >= dp[i][j - 1]) { i--; } else { j--; }
+    }
+
+    // 表示トークンごとに集計（全ての単位が一致したら正解）
+    var unitOk = tokens.map(function () { return { all: 0, ok: 0 }; });
+    A.forEach(function (a, k) { unitOk[a.ti].all++; if (matched[k]) unitOk[a.ti].ok++; });
+
+    var total = 0, correct = 0;
+    var out = tokens.map(function (t, ti) {
+      if (t.space) return { text: t.text, status: 'space' };
+      if (t.ja) return { text: t.text, status: 'ja' };
+      if (!t.units.length) return { text: t.text, status: 'none' };
+      total++;
+      var ok = unitOk[ti].ok === unitOk[ti].all;
+      if (ok) correct++;
+      return { text: t.text, status: ok ? 'ok' : 'ng' };
+    });
+    var accuracy = total ? Math.round((correct / total) * 1000) / 10 : 0;
+    return { accuracy: accuracy, total: total, correct: correct, tokens: out };
+  }
+
+  function countWords(text) {
+    return tokenize(text).filter(function (t) { return !t.space && t.units.length; }).length;
+  }
+
+  var api = { score: score, tokenize: tokenize, englishOnly: englishOnly, toUnits: toUnits, countWords: countWords,
+    numberToWords: numberToWords };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Scoring = api;
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/*
+ * アプリの中心となる処理（サーバー側ロジック）
+ * - 本番：Google Apps Script の中で動きます（gas/Code.gs に自動で同梱）
+ * - デモ：ブラウザの中で動きます（データは端末内に保存）
+ * データの読み書きは「store」を通して行うので、保存先が違っても同じ処理になります。
+ */
+(function (root) {
+  'use strict';
+  var Sc = (typeof Scoring !== 'undefined') ? Scoring
+    : (typeof require !== 'undefined' ? require('./scoring.js') : null);
+
+  // ---------------- 級・段 ----------------
+  var LEVELS = [
+    [0, '10級'], [300, '9級'], [700, '8級'], [1200, '7級'], [2000, '6級'], [3000, '5級'],
+    [4500, '4級'], [6500, '3級'], [9000, '2級'], [12000, '1級'], [16000, '初段'],
+    [21000, '二段'], [27000, '三段'], [34000, '四段'], [42000, '五段'], [51000, '六段'],
+    [61000, '七段'], [72000, '八段'], [84000, '九段'], [100000, '十段'], [130000, '名人']
+  ];
+  function levelOf(words) {
+    var idx = 0;
+    for (var i = 0; i < LEVELS.length; i++) if (words >= LEVELS[i][0]) idx = i;
+    var next = LEVELS[idx + 1];
+    return {
+      name: LEVELS[idx][1], index: idx,
+      next: next ? next[1] : null, nextAt: next ? next[0] : null,
+      from: LEVELS[idx][0],
+      progress: next ? Math.min(1, (words - LEVELS[idx][0]) / (next[0] - LEVELS[idx][0])) : 1
+    };
+  }
+
+  // ---------------- 日付（日本時間） ----------------
+  function jstDate(d) {
+    return new Date(d.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+  function addDays(dateStr, n) {
+    var d = new Date(dateStr + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  function weekStart(dateStr) { // 月曜始まり
+    var d = new Date(dateStr + 'T00:00:00Z');
+    var dow = (d.getUTCDay() + 6) % 7;
+    return addDays(dateStr, -dow);
+  }
+  function monthStart(dateStr) { return dateStr.slice(0, 8) + '01'; }
+
+  // ---------------- ユーティリティ ----------------
+  function err(msg) { var e = new Error(msg); e.userMessage = msg; return e; }
+  function str(v) { return v === null || v === undefined ? '' : String(v).trim(); }
+  function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+  function bool(v) { return v === true || v === 'TRUE' || v === 'true' || v === 1 || v === '1' || v === 'はい' || v === 'ON'; }
+  function splitClasses(v) { return str(v).split(/[,、\s]+/).filter(Boolean); }
+  function displayName(s, allowNick) {
+    if (allowNick && str(s.nick)) return str(s.nick);
+    return s.cls + ' ' + s.no + '番';
+  }
+  function studentPublic(s) {
+    var lv = levelOf(num(s.totalWords));
+    return {
+      id: s.id, cls: s.cls, no: s.no, nick: str(s.nick),
+      totalWords: num(s.totalWords), streak: num(s.streak), bestStreak: num(s.bestStreak),
+      lastDate: str(s.lastDate), todayWords: num(s.todayWords), todayDate: str(s.todayDate),
+      level: lv
+    };
+  }
+  function assignmentVisibleTo(a, s, today) {
+    if (!bool(a.published)) return false;
+    var cl = splitClasses(a.classes);
+    return !cl.length || cl.indexOf('全員') >= 0 || cl.indexOf(s.cls) >= 0;
+  }
+
+  // ---------------- トークン ----------------
+  function makeToken(ctx, payload) {
+    var body = ctx.b64(JSON.stringify(payload));
+    return body + '.' + ctx.sign(body);
+  }
+  function readToken(ctx, token, role) {
+    if (!token || typeof token !== 'string' || token.indexOf('.') < 0) throw err('ログインしてください。');
+    var parts = token.split('.');
+    if (ctx.sign(parts[0]) !== parts[1]) throw err('ログインの有効期限が切れました。もう一度ログインしてください。');
+    var p = JSON.parse(ctx.unb64(parts[0]));
+    if (p.exp < ctx.now().getTime()) throw err('ログインの有効期限が切れました。もう一度ログインしてください。');
+    if (role && p.role !== role) throw err('この操作はできません。');
+    return p;
+  }
+
+  // ログイン失敗の回数制限（5回失敗で10分ロック）
+  function checkLock(ctx, key) {
+    var n = num(ctx.cacheGet('fail:' + key));
+    if (n >= 5) throw err('パスコードを何度もまちがえたため、10分間ログインできません。');
+  }
+  function addFail(ctx, key) {
+    var n = num(ctx.cacheGet('fail:' + key)) + 1;
+    ctx.cachePut('fail:' + key, String(n), 600);
+  }
+
+  // ---------------- 処理本体 ----------------
+  var handlers = {};
+
+  handlers.publicInfo = function (p, store) {
+    var classes = {};
+    store.getStudents().forEach(function (s) { if (s.cls) classes[s.cls] = true; });
+    return {
+      appTitle: str(store.getSetting('アプリ名')),
+      classes: Object.keys(classes).sort()
+    };
+  };
+
+  handlers.studentLogin = function (p, store, ctx) {
+    var id = str(p.cls) + '-' + str(p.no);
+    checkLock(ctx, id);
+    var s = store.getStudent(id);
+    if (!s || str(s.pass) !== str(p.pass)) {
+      addFail(ctx, id);
+      throw err('クラス・番号・パスコードのどれかがちがいます。');
+    }
+    var days = num(store.getSetting('ログイン有効日数')) || 30;
+    var token = makeToken(ctx, { role: 'student', id: id, exp: ctx.now().getTime() + days * 86400000 });
+    return { token: token, student: studentPublic(s) };
+  };
+
+  handlers.teacherLogin = function (p, store, ctx) {
+    checkLock(ctx, '__teacher');
+    var pass = str(store.getSetting('先生パスワード'));
+    if (!pass || str(p.pass) !== pass) {
+      addFail(ctx, '__teacher');
+      throw err('パスワードがちがいます。');
+    }
+    var token = makeToken(ctx, { role: 'teacher', id: 'teacher', exp: ctx.now().getTime() + 7 * 86400000 });
+    return { token: token };
+  };
+
+  function currentStudent(p, store, ctx) {
+    var t = readToken(ctx, p.token, 'student');
+    var s = store.getStudent(t.id);
+    if (!s) throw err('名簿にありません。先生に確認してください。');
+    return s;
+  }
+
+  function settingsForClient(store) {
+    return {
+      allowNick: bool(store.getSetting('ニックネームを使う')),
+      showRanking: bool(store.getSetting('ランキングを表示')),
+      appTitle: str(store.getSetting('アプリ名'))
+    };
+  }
+
+  handlers.home = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var today = jstDate(ctx.now());
+    var list = store.getAssignments().filter(function (a) { return assignmentVisibleTo(a, s, today); })
+      .map(function (a) {
+        var b = store.getBest(s.id, a.id);
+        return {
+          id: a.id, title: a.title, due: str(a.due), contest: bool(a.contest), words: num(a.words),
+          created: str(a.created), best: b ? num(b.best) : null, attempts: b ? num(b.attempts) : 0
+        };
+      });
+    list.sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
+    var pub = studentPublic(s);
+    if (pub.todayDate !== today) pub.todayWords = 0;
+    if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
+    return { student: pub, assignments: list, settings: settingsForClient(store), today: today };
+  };
+
+  handlers.getAssignment = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var a = store.getAssignment(str(p.aid));
+    if (!a || !assignmentVisibleTo(a, s)) throw err('この課題は見つかりません。');
+    var b = store.getBest(s.id, a.id);
+    return {
+      assignment: { id: a.id, title: a.title, text: a.text, ja: str(a.ja), due: str(a.due), contest: bool(a.contest) },
+      best: b ? num(b.best) : null, attempts: b ? num(b.attempts) : 0
+    };
+  };
+
+  handlers.submit = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var now = ctx.now(), today = jstDate(now);
+    var text, aid = str(p.aid), kind;
+    if (aid) {
+      var a = store.getAssignment(aid);
+      if (!a || !assignmentVisibleTo(a, s)) throw err('この課題は見つかりません。');
+      text = a.text; kind = bool(a.contest) ? '大会' : '課題';
+    } else {
+      text = str(p.text).slice(0, 3000);
+      if (!text) throw err('英文がありません。');
+      kind = p.kind === 'proverb' ? 'ことわざ' : '自主練';
+    }
+    var transcript = str(p.transcript).slice(0, 6000);
+    var r = Sc.score(text, transcript);
+    var dur = Math.max(0, Math.min(3600, num(p.duration)));
+
+    // 生徒の累計を更新
+    var before = levelOf(num(s.totalWords));
+    var upd = {};
+    upd.totalWords = num(s.totalWords) + r.correct;
+    if (r.correct > 0) {
+      if (str(s.lastDate) === today) upd.streak = num(s.streak) || 1;
+      else if (str(s.lastDate) === addDays(today, -1)) upd.streak = num(s.streak) + 1;
+      else upd.streak = 1;
+      upd.lastDate = today;
+      upd.bestStreak = Math.max(num(s.bestStreak), upd.streak);
+    }
+    upd.todayWords = (str(s.todayDate) === today ? num(s.todayWords) : 0) + r.correct;
+    upd.todayDate = today;
+    store.updateStudent(s.id, upd);
+    for (var k in upd) s[k] = upd[k];
+    var after = levelOf(num(s.totalWords));
+
+    var newBest = false;
+    if (aid) {
+      var b = store.getBest(s.id, aid);
+      if (!b || r.accuracy > num(b.best)) newBest = true;
+      store.setBest(s.id, aid, {
+        best: b ? Math.max(num(b.best), r.accuracy) : r.accuracy,
+        attempts: (b ? num(b.attempts) : 0) + 1,
+        last: now.toISOString(),
+        bestAt: newBest ? now.toISOString() : (b ? b.bestAt : now.toISOString())
+      });
+    }
+    store.appendRecord({
+      time: now.toISOString(), date: today, sid: s.id, aid: aid, kind: kind,
+      accuracy: r.accuracy, correct: r.correct, total: r.total, duration: dur,
+      transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
+    });
+    return {
+      result: r, student: studentPublic(s), newBest: newBest,
+      levelUp: after.index > before.index ? after.name : null
+    };
+  };
+
+  handlers.ranking = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    if (!bool(store.getSetting('ランキングを表示'))) throw err('ランキングは先生が非表示にしています。');
+    var allowNick = bool(store.getSetting('ニックネームを使う'));
+    var today = jstDate(ctx.now());
+    var period = p.period === 'week' || p.period === 'month' ? p.period : 'total';
+    var scope = p.scope === 'all' ? 'all' : 'class';
+    var students = store.getStudents().filter(function (x) { return scope === 'all' || x.cls === s.cls; });
+    var score = {};
+    if (period === 'total') {
+      students.forEach(function (x) { score[x.id] = num(x.totalWords); });
+    } else {
+      var since = period === 'week' ? weekStart(today) : monthStart(today);
+      store.getRecordsSince(since).forEach(function (r) { score[r.sid] = (score[r.sid] || 0) + num(r.correct); });
+    }
+    var list = students.map(function (x) {
+      return { id: x.id, name: displayName(x, allowNick), words: score[x.id] || 0, level: levelOf(num(x.totalWords)).name };
+    }).sort(function (a, b) { return b.words - a.words; });
+    var rank = 0, prev = -1, mine = null;
+    list.forEach(function (x, i) {
+      if (x.words !== prev) { rank = i + 1; prev = x.words; }
+      x.rank = rank;
+      x.me = x.id === s.id;
+      if (x.me) mine = { rank: x.rank, words: x.words };
+    });
+    var top = list.slice(0, 30).map(function (x) { return { rank: x.rank, name: x.name, words: x.words, level: x.level, me: x.me }; });
+    return { list: top, mine: mine, count: list.length, period: period, scope: scope };
+  };
+
+  handlers.contest = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var a = store.getAssignment(str(p.aid));
+    if (!a || !assignmentVisibleTo(a, s) || !bool(a.contest)) throw err('この大会は見つかりません。');
+    var allowNick = bool(store.getSetting('ニックネームを使う'));
+    var byId = {};
+    store.getStudents().forEach(function (x) { byId[x.id] = x; });
+    var list = store.getBestsByAssignment(a.id).filter(function (b) { return byId[b.sid]; })
+      .map(function (b) { return { sid: b.sid, name: displayName(byId[b.sid], allowNick), best: num(b.best), at: str(b.bestAt) }; })
+      .sort(function (x, y) { return y.best - x.best || x.at.localeCompare(y.at); });
+    var mine = null;
+    list.forEach(function (x, i) {
+      x.rank = (i > 0 && list[i - 1].best === x.best) ? list[i - 1].rank : i + 1;
+      x.me = x.sid === s.id;
+      if (x.me) mine = { rank: x.rank, best: x.best };
+    });
+    return {
+      title: a.title, due: str(a.due), mine: mine, count: list.length,
+      list: list.slice(0, 30).map(function (x) { return { rank: x.rank, name: x.name, best: x.best, me: x.me }; })
+    };
+  };
+
+  handlers.history = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var titles = {};
+    store.getAssignments().forEach(function (a) { titles[a.id] = a.title; });
+    var recs = store.getRecordsByStudent(s.id, 50).map(function (r) {
+      return {
+        time: r.time, date: r.date, kind: r.kind, title: r.aid ? (titles[r.aid] || '（削除された課題）') : str(r.text).slice(0, 40),
+        accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total)
+      };
+    });
+    // 直近14日の単語数
+    var today = jstDate(ctx.now()), days = [];
+    var map = {};
+    store.getRecordsByStudent(s.id, 2000).forEach(function (r) {
+      if (r.date >= addDays(today, -13)) map[r.date] = (map[r.date] || 0) + num(r.correct);
+    });
+    for (var i = 13; i >= 0; i--) { var d = addDays(today, -i); days.push({ date: d, words: map[d] || 0 }); }
+    return { records: recs, days: days };
+  };
+
+  handlers.setNick = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    if (!bool(store.getSetting('ニックネームを使う'))) throw err('ニックネームは使えない設定です。');
+    var nick = str(p.nick).replace(/[<>&"'\\]/g, '').slice(0, 10);
+    store.updateStudent(s.id, { nick: nick });
+    return { nick: nick };
+  };
+
+  // ---------------- 先生用 ----------------
+  function teacher(p, ctx) { return readToken(ctx, p.token, 'teacher'); }
+
+  handlers.t_overview = function (p, store, ctx) {
+    teacher(p, ctx);
+    var today = jstDate(ctx.now());
+    var students = store.getStudents();
+    var bests = store.getAllBests();
+    var assignments = store.getAssignments().map(function (a) {
+      var cl = splitClasses(a.classes);
+      var targets = students.filter(function (s) { return !cl.length || cl.indexOf('全員') >= 0 || cl.indexOf(s.cls) >= 0; });
+      var tset = {};
+      targets.forEach(function (s) { tset[s.id] = true; });
+      var done = 0, sum = 0;
+      bests.forEach(function (b) { if (b.aid === a.id && tset[b.sid]) { done++; sum += num(b.best); } });
+      return {
+        id: a.id, title: a.title, classes: str(a.classes), due: str(a.due), contest: bool(a.contest),
+        published: bool(a.published), created: str(a.created), words: num(a.words),
+        targets: targets.length, done: done, avg: done ? Math.round(sum / done * 10) / 10 : null
+      };
+    }).sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
+    var weekSince = weekStart(today);
+    var week = {};
+    store.getRecordsSince(weekSince).forEach(function (r) { week[r.sid] = (week[r.sid] || 0) + num(r.correct); });
+    var list = students.map(function (s) {
+      var pub = studentPublic(s);
+      pub.name = str(s.name);
+      pub.weekWords = week[s.id] || 0;
+      if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
+      return pub;
+    });
+    var classes = {};
+    students.forEach(function (s) { classes[s.cls] = true; });
+    var settings = {
+      allowNick: bool(store.getSetting('ニックネームを使う')),
+      showRanking: bool(store.getSetting('ランキングを表示')),
+      appTitle: str(store.getSetting('アプリ名'))
+    };
+    return { assignments: assignments, students: list, classes: Object.keys(classes).sort(), today: today, settings: settings };
+  };
+
+  handlers.t_getAssignment = function (p, store, ctx) {
+    teacher(p, ctx);
+    var a = store.getAssignment(str(p.aid));
+    if (!a) throw err('課題が見つかりません。');
+    return { assignment: {
+      id: a.id, title: a.title, text: a.text, ja: str(a.ja), classes: str(a.classes),
+      due: str(a.due), contest: bool(a.contest), published: bool(a.published)
+    } };
+  };
+
+  handlers.t_saveAssignment = function (p, store, ctx) {
+    teacher(p, ctx);
+    var a = p.assignment || {};
+    var title = str(a.title).slice(0, 80), text = str(a.text).slice(0, 5000);
+    if (!title) throw err('タイトルを入力してください。');
+    if (!text) throw err('英文を入力してください。');
+    var data = {
+      title: title, text: text, ja: str(a.ja).slice(0, 5000), classes: splitClasses(a.classes).join(','),
+      due: str(a.due).slice(0, 10), contest: !!a.contest, published: a.published !== false,
+      words: Sc.countWords(text)
+    };
+    if (a.id && store.getAssignment(a.id)) {
+      store.updateAssignment(a.id, data);
+      return { id: a.id };
+    }
+    data.id = 'A' + ctx.now().getTime().toString(36).toUpperCase();
+    data.created = ctx.now().toISOString();
+    store.addAssignment(data);
+    return { id: data.id };
+  };
+
+  handlers.t_deleteAssignment = function (p, store, ctx) {
+    teacher(p, ctx);
+    store.deleteAssignment(str(p.aid));
+    return {};
+  };
+
+  handlers.t_assignmentResults = function (p, store, ctx) {
+    teacher(p, ctx);
+    var a = store.getAssignment(str(p.aid));
+    if (!a) throw err('課題が見つかりません。');
+    var cl = splitClasses(a.classes);
+    var bests = {};
+    store.getBestsByAssignment(a.id).forEach(function (b) { bests[b.sid] = b; });
+    var rows = store.getStudents().filter(function (s) {
+      return !cl.length || cl.indexOf('全員') >= 0 || cl.indexOf(s.cls) >= 0 || bests[s.id];
+    }).map(function (s) {
+      var b = bests[s.id];
+      return { id: s.id, cls: s.cls, no: s.no, name: str(s.name),
+        best: b ? num(b.best) : null, attempts: b ? num(b.attempts) : 0, last: b ? str(b.last) : '' };
+    });
+    return { assignment: { id: a.id, title: a.title, text: a.text, due: str(a.due), contest: bool(a.contest), classes: str(a.classes) }, rows: rows };
+  };
+
+  handlers.t_studentDetail = function (p, store, ctx) {
+    teacher(p, ctx);
+    var s = store.getStudent(str(p.sid));
+    if (!s) throw err('生徒が見つかりません。');
+    var titles = {};
+    store.getAssignments().forEach(function (a) { titles[a.id] = a.title; });
+    var recs = store.getRecordsByStudent(s.id, 200).map(function (r) {
+      return { time: r.time, kind: r.kind, title: r.aid ? (titles[r.aid] || '（削除された課題）') : str(r.text).slice(0, 40),
+        accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total), transcript: str(r.transcript) };
+    });
+    var pub = studentPublic(s); pub.name = str(s.name);
+    return { student: pub, records: recs };
+  };
+
+  handlers.t_export = function (p, store, ctx) {
+    teacher(p, ctx);
+    var cls = str(p.cls);
+    var assignments = store.getAssignments().slice().sort(function (x, y) { return (x.created || '').localeCompare(y.created || ''); });
+    var bests = {};
+    store.getAllBests().forEach(function (b) { bests[b.sid + '|' + b.aid] = b; });
+    var header = ['クラス', '番号', '名前', '累計単語数', '級・段', '連続日数', '最終音読日'];
+    assignments.forEach(function (a) { header.push(a.title + '（最高%）', a.title + '（回数）'); });
+    var rows = [header];
+    store.getStudents().filter(function (s) { return !cls || s.cls === cls; })
+      .sort(function (x, y) { return x.cls.localeCompare(y.cls) || num(x.no) - num(y.no); })
+      .forEach(function (s) {
+        var row = [s.cls, num(s.no), str(s.name), num(s.totalWords), levelOf(num(s.totalWords)).name, num(s.streak), str(s.lastDate)];
+        assignments.forEach(function (a) {
+          var b = bests[s.id + '|' + a.id];
+          row.push(b ? num(b.best) : '', b ? num(b.attempts) : '');
+        });
+        rows.push(row);
+      });
+    return { rows: rows };
+  };
+
+  handlers.t_importStudents = function (p, store, ctx) {
+    teacher(p, ctx);
+    var rows = p.rows || [];
+    var added = 0, updated = 0;
+    rows.forEach(function (r) {
+      var cls = str(r.cls), no = str(r.no);
+      if (!cls || !no) return;
+      var id = cls + '-' + no;
+      var pass = str(r.pass) || String(1000 + Math.floor(Math.random() * 9000));
+      if (store.getStudent(id)) { store.updateStudent(id, { name: str(r.name), pass: pass }); updated++; }
+      else {
+        store.addStudent({ id: id, cls: cls, no: no, name: str(r.name), pass: pass, nick: '', totalWords: 0,
+          streak: 0, bestStreak: 0, lastDate: '', todayDate: '', todayWords: 0 });
+        added++;
+      }
+    });
+    return { added: added, updated: updated };
+  };
+
+  handlers.t_studentPasses = function (p, store, ctx) {
+    teacher(p, ctx);
+    return { rows: store.getStudents().map(function (s) { return { id: s.id, cls: s.cls, no: s.no, name: str(s.name), pass: str(s.pass) }; }) };
+  };
+
+  handlers.t_saveSettings = function (p, store, ctx) {
+    teacher(p, ctx);
+    var st = p.settings || {};
+    if ('allowNick' in st) store.setSetting('ニックネームを使う', st.allowNick ? 'TRUE' : 'FALSE');
+    if ('showRanking' in st) store.setSetting('ランキングを表示', st.showRanking ? 'TRUE' : 'FALSE');
+    if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
+    if (st.teacherPass) {
+      if (str(st.teacherPass).length < 6) throw err('パスワードは6文字以上にしてください。');
+      store.setSetting('先生パスワード', str(st.teacherPass));
+    }
+    return {};
+  };
+
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
+    t_importStudents: 1, t_saveSettings: 1 };
+
+  function handle(action, payload, store, ctx) {
+    var fn = handlers[action];
+    if (!fn) return { ok: false, error: '不明な操作です：' + action };
+    try {
+      var res = fn(payload || {}, store, ctx);
+      res.ok = true;
+      return res;
+    } catch (e) {
+      return { ok: false, error: e.userMessage || ('エラーが発生しました：' + (e && e.message)) };
+    }
+  }
+
+  var api = { handle: handle, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Core = api;
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/*
+ * デモモード用の保存先（端末の中に保存）
+ * Apps Script 版の保存先（スプレッドシート）と同じ使い方ができるようにしたものです。
+ */
+(function (root) {
+  'use strict';
+
+  function MemStore(data, onChange) {
+    this.d = data;
+    this.d.students = this.d.students || [];
+    this.d.assignments = this.d.assignments || [];
+    this.d.bests = this.d.bests || {};
+    this.d.records = this.d.records || [];
+    this.d.settings = this.d.settings || {};
+    this.onChange = onChange || function () {};
+  }
+  var P = MemStore.prototype;
+  P._changed = function () { this.onChange(this.d); };
+
+  P.getStudents = function () { return this.d.students.slice(); };
+  P.getStudent = function (id) {
+    for (var i = 0; i < this.d.students.length; i++) if (this.d.students[i].id === id) return this.d.students[i];
+    return null;
+  };
+  P.updateStudent = function (id, f) {
+    var s = this.getStudent(id); if (!s) return;
+    for (var k in f) s[k] = f[k];
+    this._changed();
+  };
+  P.addStudent = function (s) { this.d.students.push(s); this._changed(); };
+
+  P.getAssignments = function () { return this.d.assignments.slice(); };
+  P.getAssignment = function (id) {
+    for (var i = 0; i < this.d.assignments.length; i++) if (this.d.assignments[i].id === id) return this.d.assignments[i];
+    return null;
+  };
+  P.addAssignment = function (a) { this.d.assignments.push(a); this._changed(); };
+  P.updateAssignment = function (id, f) {
+    var a = this.getAssignment(id); if (!a) return;
+    for (var k in f) a[k] = f[k];
+    this._changed();
+  };
+  P.deleteAssignment = function (id) {
+    this.d.assignments = this.d.assignments.filter(function (a) { return a.id !== id; });
+    this._changed();
+  };
+
+  P.getBest = function (sid, aid) { return this.d.bests[sid + '|' + aid] || null; };
+  P.setBest = function (sid, aid, f) {
+    var k = sid + '|' + aid, b = this.d.bests[k] || { sid: sid, aid: aid };
+    for (var x in f) b[x] = f[x];
+    this.d.bests[k] = b;
+    this._changed();
+  };
+  P.getAllBests = function () {
+    var out = [], b = this.d.bests;
+    for (var k in b) out.push(b[k]);
+    return out;
+  };
+  P.getBestsByAssignment = function (aid) {
+    return this.getAllBests().filter(function (b) { return b.aid === aid; });
+  };
+
+  P.appendRecord = function (r) { this.d.records.push(r); this._changed(); };
+  P.getRecordsSince = function (date) {
+    return this.d.records.filter(function (r) { return r.date >= date; });
+  };
+  P.getRecordsByStudent = function (sid, limit) {
+    var out = [];
+    for (var i = this.d.records.length - 1; i >= 0 && out.length < limit; i--) {
+      if (this.d.records[i].sid === sid) out.push(this.d.records[i]);
+    }
+    return out;
+  };
+
+  P.getSetting = function (k) { return this.d.settings[k]; };
+  P.setSetting = function (k, v) { this.d.settings[k] = v; this._changed(); };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = MemStore;
+  else root.MemStore = MemStore;
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+</script>
+  <script>
+/*
+ * 今日のことわざ（英語のことわざ）
+ * 日付ごとに1つずつ表示されます。自由に追加・変更してかまいません。
+ */
+window.PROVERBS = [
+  ['Practice makes perfect.', '練習を重ねれば完璧になる。'],
+  ['Where there is a will, there is a way.', '意志あるところに道は開ける。'],
+  ['Rome was not built in a day.', 'ローマは一日にして成らず。'],
+  ['Every cloud has a silver lining.', 'どんな雲にも銀の裏地がある（悪いことにも良い面がある）。'],
+  ['Actions speak louder than words.', '行動は言葉よりも雄弁である。'],
+  ['Better late than never.', '遅くてもしないよりはまし。'],
+  ['Slow and steady wins the race.', 'ゆっくり着実に進む者が勝つ。'],
+  ['Time is money.', '時は金なり。'],
+  ['Seeing is believing.', '百聞は一見にしかず。'],
+  ['When in Rome, do as the Romans do.', '郷に入っては郷に従え。'],
+  ['Two heads are better than one.', '三人寄れば文殊の知恵。'],
+  ['The early bird catches the worm.', '早起きは三文の徳。'],
+  ['No pain, no gain.', '苦労なくして得るものなし。'],
+  ['A friend in need is a friend indeed.', 'まさかの時の友こそ真の友。'],
+  ['Honesty is the best policy.', '正直は最良の策。'],
+  ['Knowledge is power.', '知識は力なり。'],
+  ['Easy come, easy go.', '得やすいものは失いやすい。'],
+  ['Don\'t judge a book by its cover.', '見た目で判断してはいけない。'],
+  ['Look before you leap.', '跳ぶ前に見よ（転ばぬ先の杖）。'],
+  ['Haste makes waste.', '急いては事を仕損じる。'],
+  ['All\'s well that ends well.', '終わりよければすべてよし。'],
+  ['Little by little, one goes far.', '少しずつでも、遠くまで行ける。'],
+  ['It is never too late to learn.', '学ぶのに遅すぎることはない。'],
+  ['Don\'t put off until tomorrow what you can do today.', '今日できることを明日に延ばすな。'],
+  ['Many hands make light work.', '人手が多ければ仕事は楽になる。'],
+  ['Birds of a feather flock together.', '類は友を呼ぶ。'],
+  ['The pen is mightier than the sword.', 'ペンは剣よりも強し。'],
+  ['Laughter is the best medicine.', '笑いは最良の薬。'],
+  ['Health is better than wealth.', '健康は富にまさる。'],
+  ['Strike while the iron is hot.', '鉄は熱いうちに打て。'],
+  ['Every dog has its day.', '誰にでも良い時が来る。'],
+  ['Practice what you preach.', '人に説くことは自分でも実行せよ。'],
+  ['Don\'t cry over spilt milk.', '覆水盆に返らず。'],
+  ['A journey of a thousand miles begins with a single step.', '千里の道も一歩から。'],
+  ['Failure teaches success.', '失敗は成功のもと。'],
+  ['Kill two birds with one stone.', '一石二鳥。'],
+  ['Out of sight, out of mind.', '去る者は日々に疎し。'],
+  ['Great minds think alike.', '賢い人は同じように考える。'],
+  ['Hope for the best, but prepare for the worst.', '最善を望み、最悪に備えよ。'],
+  ['There is no place like home.', 'わが家にまさる所はない。'],
+  ['You are never too old to learn.', '学ぶのに年を取りすぎていることはない。'],
+  ['Don\'t count your chickens before they hatch.', '取らぬ狸の皮算用。'],
+  ['Necessity is the mother of invention.', '必要は発明の母。'],
+  ['Variety is the spice of life.', '変化は人生のスパイス。'],
+  ['The best things in life are free.', '人生で最良のものはお金がかからない。'],
+  ['Good things come to those who wait.', '待てば海路の日和あり。'],
+  ['Even monkeys fall from trees.', '猿も木から落ちる。'],
+  ['After a storm comes a calm.', '雨降って地固まる。'],
+  ['Learn from your mistakes.', '失敗から学びなさい。'],
+  ['One step at a time.', '一歩ずつ着実に。'],
+  ['Believe in yourself.', '自分を信じよう。'],
+  ['Every day is a new beginning.', '毎日が新しい始まりだ。'],
+  ['Small steps lead to big changes.', '小さな一歩が大きな変化につながる。'],
+  ['Mistakes are proof that you are trying.', 'まちがいは挑戦している証拠だ。'],
+  ['Keep calm and carry on.', '落ち着いて、続けよう。'],
+  ['Dreams come true when you work hard.', '努力すれば夢はかなう。'],
+  ['Read aloud every day, and your English will grow.', '毎日音読すれば、英語の力は伸びていく。'],
+  ['Do your best and forget the rest.', 'ベストを尽くしたら、あとは気にしない。'],
+  ['Today is a gift.', '今日という日は贈り物だ。'],
+  ['A smile is the shortest distance between two people.', '笑顔は人と人をいちばん近づける。']
+];
+
+/* デモモード用のサンプル課題（オリジナルの英文） */
+window.SAMPLE_ASSIGNMENTS = [
+  {
+    title: 'Self-introduction（自己紹介）',
+    text: "Hello, everyone. My name is Aoi. I'm from Hiroshima. I like music and basketball. I practice the piano every day. I want to visit Canada someday. Nice to meet you.",
+    ja: 'みなさん、こんにちは。私の名前はアオイです。広島出身です。音楽とバスケットボールが好きです。毎日ピアノを練習しています。いつかカナダを訪れたいです。よろしくお願いします。'
+  },
+  {
+    title: 'My Weekend（週末のこと）',
+    text: "Last Sunday, I went to Miyajima with my family. We took a ferry from the station. The great torii gate was beautiful. We ate grilled oysters and maple cakes. I took a lot of pictures. It was a wonderful day.",
+    ja: 'この前の日曜日、家族と宮島へ行きました。駅からフェリーに乗りました。大鳥居はとても美しかったです。焼きがきともみじまんじゅうを食べました。たくさん写真を撮りました。すばらしい一日でした。'
+  },
+  {
+    title: '【音読大会】The Power of Reading Aloud',
+    text: "Reading aloud is a simple way to improve your English. When you read aloud, you use your eyes, your mouth, and your ears at the same time. You can learn new words and good sentences naturally. If you read aloud for just ten minutes a day, you will see a big change in a few months. Let's enjoy reading aloud together!",
+    ja: '音読は英語力を伸ばすシンプルな方法です。音読するとき、目と口と耳を同時に使います。新しい単語やよい文を自然に身につけることができます。1日たった10分音読するだけで、数か月後には大きな変化に気づくでしょう。いっしょに音読を楽しみましょう！',
+    contest: true
+  }
+];
+
+</script>
+  <script>
+/*
+ * サーバーとの通信
+ * API_URL が設定されていれば Apps Script と通信し、空欄ならデモモードで動きます。
+ */
+(function () {
+  'use strict';
+  var CFG = window.APP_CONFIG || {};
+  var DEMO_KEY = 'ondoku_demo_v1';
+
+  // ---------------- デモモード ----------------
+  function seedDemo() {
+    var now = new Date();
+    var d = { students: [], assignments: [], bests: {}, records: [], settings: {
+      '先生パスワード': 'teacher', 'ニックネームを使う': 'TRUE', 'ランキングを表示': 'TRUE',
+      'アプリ名': '', 'ログイン有効日数': '30'
+    } };
+    var names = ['青木 葵', '石田 樹', '上野 結衣', '岡本 蓮', '加藤 陽菜', '木村 湊', '佐藤 さくら', '田中 大和'];
+    ['1A', '1B'].forEach(function (cls, ci) {
+      for (var i = 1; i <= 8; i++) {
+        var words = (ci === 0 && i === 1) ? 0 : Math.floor(Math.random() * 3500);
+        d.students.push({ id: cls + '-' + i, cls: cls, no: String(i), name: names[(i - 1 + ci * 3) % 8], pass: '1234',
+          nick: '', totalWords: words, streak: words ? Math.floor(Math.random() * 6) : 0, bestStreak: 6,
+          lastDate: words ? Core.jstDate(now) : '', todayDate: '', todayWords: 0 });
+        if (words) {
+          d.records.push({ time: now.toISOString(), date: Core.jstDate(now), sid: cls + '-' + i, aid: '', kind: '自主練',
+            accuracy: 90, correct: Math.floor(words / 10), total: Math.floor(words / 10), duration: 60, transcript: '', text: '(sample)' });
+        }
+      }
+    });
+    (window.SAMPLE_ASSIGNMENTS || []).forEach(function (a, i) {
+      var id = 'ADEMO' + (i + 1);
+      d.assignments.push({ id: id, title: a.title, text: a.text, ja: a.ja || '', classes: '', due: Core.addDays(Core.jstDate(now), 7 + i * 3),
+        contest: !!a.contest, published: true, created: new Date(now.getTime() - (3 - i) * 86400000).toISOString(),
+        words: Scoring.countWords(a.text) });
+      if (a.contest) {
+        ['1A-2', '1A-3', '1B-1', '1B-4'].forEach(function (sid, k) {
+          d.bests[sid + '|' + id] = { sid: sid, aid: id, best: [96.6, 88.1, 93.2, 79.7][k], attempts: k + 1,
+            last: now.toISOString(), bestAt: now.toISOString() };
+        });
+      }
+    });
+    return d;
+  }
+
+  var demoStore = null, demoCache = {};
+  function getDemoStore() {
+    if (demoStore) return demoStore;
+    var data = null;
+    try { data = JSON.parse(localStorage.getItem(DEMO_KEY) || 'null'); } catch (e) { data = null; }
+    if (!data) data = seedDemo();
+    demoStore = new MemStore(data, function (d) {
+      try { localStorage.setItem(DEMO_KEY, JSON.stringify(d)); } catch (e) { /* 保存できない環境 */ }
+    });
+    demoStore._changed();
+    return demoStore;
+  }
+  var demoCtx = {
+    now: function () { return new Date(); },
+    sign: function (s) { // デモ用の簡易署名（本番は Apps Script 側で HMAC を使用）
+      var h = 0; s = 'demo-secret:' + s;
+      for (var i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+      return (h >>> 0).toString(36);
+    },
+    b64: function (s) { return btoa(unescape(encodeURIComponent(s))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'); },
+    unb64: function (s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); },
+    cacheGet: function (k) { var v = demoCache[k]; return v && v.exp > Date.now() ? v.v : null; },
+    cachePut: function (k, v, sec) { demoCache[k] = { v: v, exp: Date.now() + sec * 1000 }; }
+  };
+
+  // ---------------- 本番（Apps Script） ----------------
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  async function callRemote(action, payload) {
+    var body = JSON.stringify({ action: action, payload: payload });
+    var lastErr;
+    for (var i = 0; i < 3; i++) {
+      try {
+        // text/plain にすると、Apps Script でも余計な事前確認（CORS）なしで送れます
+        var res = await fetch(CFG.API_URL, { method: 'POST', body: body,
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var json = await res.json();
+        if (json && json.busy) { await sleep(800 * (i + 1)); lastErr = new Error('混み合っています'); continue; }
+        return json;
+      } catch (e) {
+        lastErr = e;
+        await sleep(700 * (i + 1));
+      }
+    }
+    return { ok: false, error: '通信できませんでした。インターネット接続を確認して、もう一度ためしてください。（' + (lastErr && lastErr.message) + '）' };
+  }
+
+  window.API = {
+    isDemo: function () { return !CFG.API_URL; },
+    call: async function (action, payload) {
+      if (!CFG.API_URL) {
+        await sleep(120);
+        return Core.handle(action, payload, getDemoStore(), demoCtx);
+      }
+      return callRemote(action, payload);
+    },
+    resetDemo: function () {
+      try { localStorage.removeItem(DEMO_KEY); } catch (e) { /* noop */ }
+      demoStore = null;
+    }
+  };
+})();
+
+</script>
+  <script>
+/*
+ * 音声まわり
+ *  - Recognizer：ブラウザ標準の音声認識（Chrome / Safari）
+ *  - Speaker：お手本の読み上げ（ブラウザ標準の音声合成）
+ */
+(function () {
+  'use strict';
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function cleanJoin(parts) { return parts.join(' ').replace(/\s+/g, ' ').trim(); }
+
+  // iPhone/iPad の Safari では、同じ内容が少しずつ伸びながら何度も返ることがあるため重複を取り除く
+  function dedupe(segs) {
+    var out = [];
+    segs.forEach(function (s) {
+      s = s.trim(); if (!s) return;
+      var last = out[out.length - 1];
+      if (last && s.toLowerCase().indexOf(last.toLowerCase()) === 0) out[out.length - 1] = s;
+      else if (last && last.toLowerCase().indexOf(s.toLowerCase()) === 0) { /* 既に含まれている */ }
+      else out.push(s);
+    });
+    return out;
+  }
+
+  function Recognizer(opts) {
+    this.lang = opts.lang || 'en-US';
+    this.onUpdate = opts.onUpdate || function () {};
+    this.onError = opts.onError || function () {};
+    this.active = false;
+    this.committed = [];
+    this.session = [];
+    this.rec = null;
+    this._resolve = null;
+  }
+  Recognizer.isSupported = function () { return !!SR; };
+
+  Recognizer.prototype._text = function () {
+    return cleanJoin(this.committed.concat(dedupe(this.session)));
+  };
+
+  Recognizer.prototype._startSession = function () {
+    var self = this;
+    var rec = new SR();
+    rec.lang = this.lang;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    this.session = [];
+    rec.onresult = function (e) {
+      var segs = [];
+      for (var i = 0; i < e.results.length; i++) segs.push(e.results[i][0].transcript);
+      self.session = segs;
+      self.onUpdate(self._text());
+    };
+    rec.onerror = function (e) {
+      if (e.error === 'no-speech' || e.error === 'aborted') return; // 無音などは自動で再開
+      if (e.error === 'not-allowed') {
+        self.active = false;
+        self.onError('マイクが使えません。ブラウザの設定でマイクの使用を「許可」にしてください。');
+      } else if (e.error === 'service-not-allowed') {
+        self.active = false;
+        self.onError('音声認識が使えません。iPhone・iPad の場合は「設定」→「一般」→「キーボード」→「音声入力」をオンにしてください。');
+      } else if (e.error === 'network') {
+        self.active = false;
+        self.onError('音声認識にはインターネット接続が必要です。接続を確認してください。');
+      } else if (e.error === 'audio-capture') {
+        self.active = false;
+        self.onError('マイクが見つかりません。マイクの接続を確認してください。');
+      }
+    };
+    rec.onend = function () {
+      self.committed = self.committed.concat(dedupe(self.session));
+      self.session = [];
+      if (self.active) {
+        // 話の途中で区切れたら自動で続きを聞き取る
+        try { self._startSession(); } catch (err) { self._finish(); }
+      } else {
+        self._finish();
+      }
+    };
+    this.rec = rec;
+    rec.start();
+  };
+
+  Recognizer.prototype._finish = function () {
+    if (this._resolve) { var r = this._resolve; this._resolve = null; r(cleanJoin(this.committed)); }
+  };
+
+  Recognizer.prototype.start = function () {
+    this.active = true;
+    this.committed = [];
+    this.session = [];
+    this._startSession();
+  };
+
+  // 停止して、聞き取った全文を返す
+  Recognizer.prototype.stop = function () {
+    var self = this;
+    this.active = false;
+    return new Promise(function (resolve) {
+      self._resolve = resolve;
+      try { self.rec && self.rec.stop(); } catch (e) { self._finish(); }
+      // onend が来ない場合の保険
+      setTimeout(function () {
+        if (self._resolve) {
+          self.committed = self.committed.concat(dedupe(self.session));
+          self.session = [];
+          self._finish();
+        }
+      }, 2500);
+    });
+  };
+
+  Recognizer.prototype.abort = function () {
+    this.active = false;
+    this._resolve = null;
+    try { this.rec && this.rec.abort(); } catch (e) { /* noop */ }
+  };
+
+  // ---------------- お手本の読み上げ ----------------
+  var Speaker = {
+    voice: null,
+    supported: 'speechSynthesis' in window,
+    pickVoice: function (lang) {
+      if (!this.supported) return null;
+      var voices = speechSynthesis.getVoices();
+      var prefer = ['Samantha', 'Google US English', 'Microsoft Aria', 'Microsoft Jenny', 'Alex', 'Daniel', 'Karen'];
+      var cands = voices.filter(function (v) { return v.lang && v.lang.replace('_', '-').indexOf(lang) === 0; });
+      if (!cands.length) cands = voices.filter(function (v) { return /^en/.test(v.lang); });
+      for (var i = 0; i < prefer.length; i++) {
+        for (var j = 0; j < cands.length; j++) if (cands[j].name.indexOf(prefer[i]) >= 0) return cands[j];
+      }
+      return cands[0] || null;
+    },
+    speak: function (text, rate, lang, onEnd) {
+      if (!this.supported) return false;
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = lang || 'en-US';
+      u.rate = rate || 1;
+      var v = this.voice || this.pickVoice(u.lang);
+      if (v) { u.voice = v; this.voice = v; }
+      u.onend = function () { onEnd && onEnd(); };
+      u.onerror = function () { onEnd && onEnd(); };
+      speechSynthesis.speak(u);
+      return true;
+    },
+    stop: function () { if (this.supported) speechSynthesis.cancel(); }
+  };
+  if (Speaker.supported && speechSynthesis.addEventListener) {
+    speechSynthesis.addEventListener('voiceschanged', function () { Speaker.voice = null; });
+  }
+
+  window.Recognizer = Recognizer;
+  window.Speaker = Speaker;
+})();
+
+</script>
+  <script>
+/*
+ * 画面の処理（生徒用・先生用）
+ */
+(function () {
+  'use strict';
+  var CFG = window.APP_CONFIG || {};
+  var $app = document.getElementById('app');
+  var SESSION_KEY = 'ondoku_session_v1';
+  var PREF_KEY = 'ondoku_prefs_v1';
+  var state = { session: null, settings: null, home: null, overview: null, freeText: '', recognizer: null };
+
+  // ================= 共通 =================
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function store(key, val) {
+    try {
+      if (val === undefined) return JSON.parse(localStorage.getItem(key) || 'null');
+      if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(val));
+    } catch (e) { return null; }
+  }
+  function prefs() { return store(PREF_KEY) || { rate: 0.9, size: 'mid' }; }
+  function setPref(k, v) { var p = prefs(); p[k] = v; store(PREF_KEY, p); }
+  function toast(msg, isErr) {
+    var t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'toast' + (isErr ? ' err' : ''); t.hidden = false;
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.hidden = true; }, isErr ? 5000 : 2600);
+  }
+  function loading(msg) { $app.innerHTML = '<div class="loading"><div class="spinner"></div>' + esc(msg || '読み込み中…') + '</div>'; }
+  function fmtDate(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d)) return esc(iso);
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+  function fmtDay(s) { if (!s) return ''; var p = String(s).slice(0, 10).split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : s; }
+  function scoreClass(v) { return v === null || v === undefined || v === '' ? 'cell-none' : v >= 90 ? 'cell-good' : v >= 70 ? 'cell-mid' : 'cell-low'; }
+  function n(v) { return Number(v || 0).toLocaleString('ja-JP'); }
+  function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
+
+  async function call(action, payload) {
+    payload = payload || {};
+    if (state.session && state.session.token) payload.token = state.session.token;
+    var res = await API.call(action, payload);
+    if (!res || !res.ok) {
+      var msg = (res && res.error) || 'エラーが発生しました。';
+      if (/ログイン/.test(msg) && /有効期限|ログインしてください/.test(msg)) { logout(true); }
+      throw new Error(msg);
+    }
+    return res;
+  }
+  function showError(e) { toast(e.message || String(e), true); }
+
+  function setTitle(t) {
+    var title = t || CFG.APP_TITLE || '音読チャレンジ';
+    document.getElementById('appTitle').textContent = title;
+    document.title = title;
+  }
+  function logout(silent) {
+    store(SESSION_KEY, null); state.session = null; state.home = null; state.overview = null;
+    if (!silent) toast('ログアウトしました');
+    go('#/');
+  }
+  function topRight() {
+    var el = document.getElementById('topRight');
+    var s = state.session;
+    if (!s) { el.innerHTML = ''; return; }
+    if (s.role === 'teacher') {
+      el.innerHTML = '<span>先生用</span><button class="btn-small" id="btnLogout">ログアウト</button>';
+    } else {
+      el.innerHTML = '<span>' + esc(s.label || '') + '</span>';
+    }
+    var b = $('#btnLogout'); if (b) b.onclick = function () { logout(); };
+  }
+  function bottomNav(active) {
+    var old = $('.bottom-nav'); if (old) old.remove();
+    document.body.classList.remove('has-nav');
+    if (!state.session || state.session.role !== 'student' || active === 'none') return;
+    var showRank = !state.home || !state.home.settings || state.home.settings.showRanking;
+    var items = [['home', '🏠', 'ホーム', '#/home'], ['free', '📖', '自主練', '#/free']];
+    if (showRank) items.push(['rank', '🏆', 'ランキング', '#/rank']);
+    items.push(['me', '📈', 'きろく', '#/me']);
+    var nav = document.createElement('nav');
+    nav.className = 'bottom-nav no-print';
+    nav.innerHTML = items.map(function (i) {
+      return '<a href="' + i[3] + '" class="' + (active === i[0] ? 'active' : '') + '"><span class="ic">' + i[1] + '</span>' + i[2] + '</a>';
+    }).join('');
+    document.body.appendChild(nav);
+    document.body.classList.add('has-nav');
+  }
+
+  function todayProverb() {
+    var list = window.PROVERBS || [];
+    var day = Math.floor((Date.now() + 9 * 3600000) / 86400000);
+    return list.length ? list[day % list.length] : ['Practice makes perfect.', '練習を重ねれば完璧になる。'];
+  }
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src; s.onload = resolve; s.onerror = function () { reject(new Error('読み込みに失敗しました：' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // 候補のURLを順にためして、最初に読み込めたものを使う（学校のフィルター対策）
+  async function loadFirst(urls) {
+    var last;
+    for (var i = 0; i < urls.length; i++) {
+      try { await loadScript(urls[i]); return; } catch (e) { last = e; }
+    }
+    throw last;
+  }
+
+  // ================= ログイン =================
+  async function viewLogin() {
+    bottomNav(); topRight();
+    var classes = [];
+    try { var info = await API.call('publicInfo', {}); if (info.ok) { classes = info.classes || []; if (info.appTitle) setTitle(info.appTitle); } } catch (e) { /* noop */ }
+    var role = sessionStorage.getItem('loginRole') || 'student';
+    var title = document.getElementById('appTitle').textContent;
+    $app.innerHTML =
+      '<div class="hero"><h1>' + esc(title) + '</h1><p>英語の音読を、毎日の習慣に。</p></div>' +
+      '<div class="card login-card">' +
+      '<div class="role-switch"><button data-role="student" class="' + (role === 'student' ? 'active' : '') + '">生徒</button>' +
+      '<button data-role="teacher" class="' + (role === 'teacher' ? 'active' : '') + '">先生</button></div>' +
+      '<form id="fStudent" class="' + (role === 'student' ? '' : 'hidden') + '">' +
+      '<label for="lCls">クラス</label>' +
+      (classes.length
+        ? '<select id="lCls" required><option value="">選んでください</option>' + classes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select>'
+        : '<input type="text" id="lCls" placeholder="例：1A" required autocomplete="off">') +
+      '<label for="lNo">出席番号</label><input type="number" id="lNo" inputmode="numeric" min="1" max="99" required>' +
+      '<label for="lPass">パスコード</label><input type="password" id="lPass" inputmode="numeric" required autocomplete="current-password">' +
+      '<div style="margin-top:16px"><button class="btn-primary btn-big btn-block" type="submit">はじめる</button></div>' +
+      '<div class="error" id="lErr"></div></form>' +
+      '<form id="fTeacher" class="' + (role === 'teacher' ? '' : 'hidden') + '">' +
+      '<label for="tPass">先生用パスワード</label><input type="password" id="tPass" required autocomplete="current-password">' +
+      '<div style="margin-top:16px"><button class="btn-primary btn-big btn-block" type="submit">先生用画面へ</button></div>' +
+      '<div class="error" id="tErr"></div></form>' +
+      '</div>' +
+      (API.isDemo() ? '<div class="card login-card notice warn"><b>デモ用のログイン情報</b><br>生徒：クラス「1A」番号「1」パスコード「1234」<br>先生：パスワード「teacher」</div>' : '');
+    var last = store('ondoku_last_login') || {};
+    if (last.cls && $('#lCls')) $('#lCls').value = last.cls;
+    if (last.no) $('#lNo').value = last.no;
+    $all('.role-switch button').forEach(function (b) {
+      b.onclick = function () { sessionStorage.setItem('loginRole', b.dataset.role); viewLogin(); };
+    });
+    $('#fStudent').onsubmit = async function (ev) {
+      ev.preventDefault();
+      var btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true;
+      $('#lErr').textContent = '';
+      try {
+        var cls = $('#lCls').value.trim(), no = String(parseInt($('#lNo').value, 10));
+        var r = await call('studentLogin', { cls: cls, no: no, pass: $('#lPass').value.trim() });
+        store('ondoku_last_login', { cls: cls, no: no });
+        state.session = { role: 'student', token: r.token, label: r.student.cls + ' ' + r.student.no + '番' };
+        store(SESSION_KEY, state.session);
+        go('#/home');
+      } catch (e) { $('#lErr').textContent = e.message; btn.disabled = false; }
+    };
+    $('#fTeacher').onsubmit = async function (ev) {
+      ev.preventDefault();
+      var btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true;
+      $('#tErr').textContent = '';
+      try {
+        var r = await call('teacherLogin', { pass: $('#tPass').value });
+        state.session = { role: 'teacher', token: r.token };
+        store(SESSION_KEY, state.session);
+        go('#/t');
+      } catch (e) { $('#tErr').textContent = e.message; btn.disabled = false; }
+    };
+  }
+
+  // ================= 生徒：ホーム =================
+  async function viewHome() {
+    loading();
+    var h;
+    try { h = await call('home'); } catch (e) { showError(e); return; }
+    state.home = h;
+    if (h.settings && h.settings.appTitle) setTitle(h.settings.appTitle);
+    bottomNav('home');
+    var s = h.student, lv = s.level, pv = todayProverb();
+    var todo = h.assignments.filter(function (a) { return a.best === null; });
+    var html = '';
+    html += '<div class="card level-card">' +
+      '<div class="level-badge"><small>いまの級</small>' + esc(lv.name) + '</div>' +
+      '<div class="level-info"><div><b>' + esc(s.nick || s.cls + ' ' + s.no + '番') + '</b> さん</div>' +
+      (lv.next ? '<div class="bar"><span style="width:' + Math.round(lv.progress * 100) + '%"></span></div>' +
+        '<small>' + esc(lv.next) + 'まで あと <b>' + n(lv.nextAt - s.totalWords) + '</b> 語</small>'
+        : '<div class="bar"><span style="width:100%"></span></div><small>最高位に到達！</small>') +
+      '</div></div>';
+    html += '<div class="stats">' +
+      '<div class="stat"><div class="v">' + n(s.todayWords) + '</div><div class="l">今日の単語数</div></div>' +
+      '<div class="stat"><div class="v">' + n(s.totalWords) + '</div><div class="l">累計の単語数</div></div>' +
+      '<div class="stat"><div class="v">' + n(s.streak) + '<small style="font-size:.9rem">日</small></div><div class="l">連続音読</div></div>' +
+      '<div class="stat"><div class="v">' + todo.length + '</div><div class="l">未提出の課題</div></div>' +
+      '</div><div style="height:16px"></div>';
+    html += '<div class="card proverb"><div class="card-title"><h2>🌱 今日のことわざ</h2>' +
+      '<a class="btn btn-small btn-primary" href="#/proverb">音読する</a></div>' +
+      '<div class="en">' + esc(pv[0]) + '</div><div class="ja">' + esc(pv[1]) + '</div></div>';
+    html += '<div class="card"><div class="card-title"><h2>📚 課題</h2></div>';
+    if (!h.assignments.length) html += '<div class="empty">今は課題がありません。自主練で音読してみましょう！</div>';
+    else html += '<ul class="list">' + h.assignments.map(function (a) {
+      var overdue = a.due && a.due < h.today && a.best === null;
+      return '<li><a class="item" href="#/a/' + encodeURIComponent(a.id) + '"><div class="main">' +
+        '<div class="title">' + (a.contest ? '<span class="pill contest">🏆 音読大会</span> ' : '') + esc(a.title) + '</div>' +
+        '<div class="sub">' + n(a.words) + '語' + (a.due ? '・締切 ' + fmtDay(a.due) : '') + (a.attempts ? '・' + a.attempts + '回挑戦' : '') + '</div></div>' +
+        (a.best !== null ? '<div class="score-chip">' + a.best + '%</div>' : '<span class="pill ' + (overdue ? 'todo' : 'gray') + '">' + (overdue ? '締切すぎ' : '未提出') + '</span>') +
+        '</a></li>';
+    }).join('') + '</ul>';
+    html += '</div>';
+    $app.innerHTML = html;
+  }
+
+  // ================= 生徒：練習 =================
+  function supportNotice() {
+    if (!Recognizer.isSupported()) {
+      return '<div class="notice warn">このブラウザは音声認識に対応していません。<br>' +
+        'パソコン・Android・Chromebook は <b>Google Chrome</b>、iPhone・iPad は <b>Safari</b> で開いてください。</div>';
+    }
+    if (/Edg\//.test(navigator.userAgent)) {
+      return '<div class="notice warn">Microsoft Edge ではうまく聞き取れないことがあります。<b>Google Chrome</b> で開くのがおすすめです。</div>';
+    }
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      return '<div class="notice warn">マイクを使うには https のページで開く必要があります。</div>';
+    }
+    return '';
+  }
+
+  // 英文の表示：行ごとに分け、「英語の行」と「日本語だけの行」が隣り合っていれば
+  // 入力の順番に関係なく「日本語（上）→ 英語（下）」の組にして表示する
+  function passageHTML(tokens) {
+    var lines = [], cur = [];
+    tokens.forEach(function (t) {
+      if (t.status === 'space' && /\n/.test(t.text)) {
+        lines.push(cur); cur = [];
+        if ((t.text.match(/\n/g) || []).length >= 2) lines.push(null); // 空行
+      } else cur.push(t);
+    });
+    lines.push(cur);
+    function kind(line) {
+      if (line === null) return 'blank';
+      var words = line.filter(function (t) { return t.status !== 'space'; });
+      if (!words.length) return 'blank';
+      return words.every(function (t) { return t.status === 'ja'; }) ? 'ja' : 'en';
+    }
+    function lineHTML(line, cls) {
+      return '<div class="line' + (cls ? ' ' + cls : '') + '">' + line.map(function (t) {
+        if (t.status === 'space') return ' ';
+        var c = t.status === 'ok' ? ' ok' : t.status === 'ng' ? ' ng' : t.status === 'ja' ? ' ja' : '';
+        return '<span class="w' + c + '">' + esc(t.text) + '</span>';
+      }).join('') + '</div>';
+    }
+    var html = '', i = 0;
+    while (i < lines.length) {
+      var k = kind(lines[i]), k2 = i + 1 < lines.length ? kind(lines[i + 1]) : null;
+      if ((k === 'en' && k2 === 'ja') || (k === 'ja' && k2 === 'en')) {
+        var ja = k === 'ja' ? lines[i] : lines[i + 1], en = k === 'en' ? lines[i] : lines[i + 1];
+        html += '<div class="pair">' + lineHTML(ja, 'ja-line') + lineHTML(en) + '</div>';
+        i += 2;
+      } else {
+        html += k === 'blank' ? '<div class="gap"></div>' : lineHTML(lines[i], k === 'ja' ? 'ja-line' : '');
+        i += 1;
+      }
+    }
+    return html;
+  }
+  function plainTokens(text) {
+    return Scoring.tokenize(text).map(function (t) { return { text: t.text, status: t.space ? 'space' : t.ja ? 'ja' : 'none' }; });
+  }
+  function ringSVG(pct) {
+    var r = 64, c = 2 * Math.PI * r, off = c * (1 - Math.max(0, Math.min(100, pct)) / 100);
+    var color = pct >= 90 ? 'var(--ok)' : pct >= 70 ? 'var(--accent)' : 'var(--ng)';
+    return '<svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="' + r + '" fill="none" stroke="#e8ebf1" stroke-width="12"/>' +
+      '<circle cx="75" cy="75" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '"/></svg>';
+  }
+
+  /**
+   * 練習画面
+   * opt: {title, text, ja, aid, kind, contest, best, back}
+   */
+  function practiceView(opt) {
+    var p = prefs();
+    var hasJa = Scoring.tokenize(opt.text).some(function (t) { return t.ja; });
+    bottomNav('none'); // 練習中は下のメニューを隠して、マイクボタンを画面下に固定
+    var html = '<a class="back" href="' + (opt.back || '#/home') + '">← もどる</a>';
+    html += '<div class="card"><div class="card-title"><h2>' + (opt.contest ? '<span class="pill contest">🏆 音読大会</span> ' : '') + esc(opt.title) + '</h2>' +
+      (opt.best !== null && opt.best !== undefined ? '<span class="pill done">自己ベスト ' + opt.best + '%</span>' : '') + '</div>';
+    html += supportNotice();
+    html += '<div class="toolbar">' +
+      '<button class="btn-small" id="bModel">🔊 お手本</button>' +
+      '<div class="seg" id="segRate">' + [[0.7, 'ゆっくり'], [0.9, 'ふつう'], [1.05, 'はやい']].map(function (r) {
+        return '<button data-v="' + r[0] + '" class="' + (p.rate == r[0] ? 'active' : '') + '">' + r[1] + '</button>';
+      }).join('') + '</div><span class="sep"></span>' +
+      '<div class="seg" id="segSize">' + [['small', '小'], ['mid', '中'], ['large', '大']].map(function (r) {
+        return '<button data-v="' + r[0] + '" class="' + (p.size === r[0] ? 'active' : '') + '">' + r[1] + '</button>';
+      }).join('') + '</div>' +
+      '<button class="btn-small" id="bHide">🙈 英文を隠す</button>' +
+      (hasJa ? '<button class="btn-small" id="bJaInline">' + (p.hideJa ? '日本語を表示' : '日本語を隠す') + '</button>' : '') +
+      (opt.ja ? '<button class="btn-small" id="bJa">和訳</button>' : '') +
+      '</div>';
+    html += '<div class="passage ' + (p.size === 'mid' ? '' : p.size) + (hasJa && p.hideJa ? ' hide-ja' : '') + '" id="passage">' + passageHTML(plainTokens(opt.text)) + '</div>';
+    if (opt.ja) html += '<div class="ja-text hidden" id="jaText">' + esc(opt.ja) + '</div>';
+    html += '<div class="live" id="live">（ここに聞き取った英語が表示されます）</div>' +
+      '<div class="mic-dock"><button class="mic-btn" id="bMic" aria-label="音読をはじめる">🎤</button>' +
+      '<div class="mic-text"><div class="mic-label" id="micLabel">ボタンを押して音読スタート</div><div class="timer" id="timer"></div></div></div>';
+    html += '</div><div id="resultArea"></div>';
+    $app.innerHTML = html;
+
+    var passage = $('#passage');
+    $('#bModel').onclick = function () {
+      var b = this;
+      if (b.dataset.playing) { Speaker.stop(); delete b.dataset.playing; b.textContent = '🔊 お手本'; return; }
+      var ok = Speaker.speak(Scoring.englishOnly(opt.text), prefs().rate, CFG.SPEECH_LANG || 'en-US', function () { delete b.dataset.playing; b.textContent = '🔊 お手本'; });
+      if (!ok) { toast('このブラウザは読み上げに対応していません', true); return; }
+      b.dataset.playing = '1'; b.textContent = '⏹ 止める';
+    };
+    $all('#segRate button').forEach(function (b) {
+      b.onclick = function () { setPref('rate', +b.dataset.v); $all('#segRate button').forEach(function (x) { x.classList.toggle('active', x === b); }); };
+    });
+    $all('#segSize button').forEach(function (b) {
+      b.onclick = function () {
+        setPref('size', b.dataset.v);
+        passage.classList.remove('small', 'large'); if (b.dataset.v !== 'mid') passage.classList.add(b.dataset.v);
+        $all('#segSize button').forEach(function (x) { x.classList.toggle('active', x === b); });
+      };
+    });
+    $('#bHide').onclick = function () { passage.classList.toggle('blur'); this.textContent = passage.classList.contains('blur') ? '👀 英文を見る' : '🙈 英文を隠す'; };
+    if ($('#bJaInline')) $('#bJaInline').onclick = function () {
+      var hide = !passage.classList.contains('hide-ja');
+      passage.classList.toggle('hide-ja', hide); setPref('hideJa', hide);
+      this.textContent = hide ? '日本語を表示' : '日本語を隠す';
+    };
+    if ($('#bJa')) $('#bJa').onclick = function () { $('#jaText').classList.toggle('hidden'); };
+
+    var micBtn = $('#bMic'), label = $('#micLabel'), live = $('#live'), timerEl = $('#timer');
+    var recording = false, startedAt = 0, timerId = null, busy = false;
+    if (!Recognizer.isSupported()) micBtn.disabled = true;
+
+    function tick() {
+      var sec = Math.floor((Date.now() - startedAt) / 1000);
+      timerEl.textContent = Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2);
+      if (sec >= 300) stopRec(); // 5分で自動終了
+    }
+    async function startRec() {
+      Speaker.stop();
+      $('#resultArea').innerHTML = '';
+      passage.innerHTML = passageHTML(plainTokens(opt.text));
+      var rec = new Recognizer({
+        lang: CFG.SPEECH_LANG || 'en-US',
+        onUpdate: function (t) { live.textContent = t || '…'; },
+        onError: function (m) { toast(m, true); resetUI(); }
+      });
+      state.recognizer = rec;
+      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした：' + e.message, true); return; }
+      recording = true; startedAt = Date.now();
+      micBtn.classList.add('rec'); micBtn.textContent = '⏹'; micBtn.setAttribute('aria-label', '音読をおわる');
+      label.textContent = '聞き取り中… 読み終えたら■を押す';
+      live.textContent = '…';
+      timerId = setInterval(tick, 500); tick();
+    }
+    function resetUI() {
+      recording = false; clearInterval(timerId);
+      micBtn.classList.remove('rec'); micBtn.textContent = '🎤'; micBtn.setAttribute('aria-label', '音読をはじめる');
+      label.textContent = 'ボタンを押して音読スタート';
+      if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; }
+    }
+    async function stopRec() {
+      if (!recording || busy) return;
+      busy = true; recording = false; clearInterval(timerId);
+      var dur = Math.round((Date.now() - startedAt) / 1000);
+      micBtn.disabled = true; label.textContent = '判定中…';
+      var transcript = await state.recognizer.stop();
+      state.recognizer = null;
+      live.textContent = transcript || '（聞き取れませんでした）';
+      micBtn.classList.remove('rec'); micBtn.textContent = '🎤';
+      if (!transcript) {
+        label.textContent = '声が聞き取れませんでした。マイクに近づいて、もう一度ためしてね';
+        micBtn.disabled = false; busy = false; return;
+      }
+      // まず端末で判定して表示 → サーバーに記録
+      var local = Scoring.score(opt.text, transcript);
+      passage.innerHTML = passageHTML(local.tokens);
+      showResult(local, null, true);
+      try {
+        var r = await call('submit', { aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur });
+        passage.innerHTML = passageHTML(r.result.tokens);
+        showResult(r.result, r, false);
+        if (opt.aid && (opt.best === null || opt.best === undefined || r.result.accuracy > opt.best)) { opt.best = r.result.accuracy; }
+        if (state.home) state.home.student = r.student;
+      } catch (e) {
+        showError(e);
+        $('#saveState').textContent = '⚠️ 記録を保存できませんでした。もう一度ためしてください。';
+      }
+      label.textContent = 'もう一度読むときはボタンを押してね';
+      micBtn.disabled = false; busy = false;
+    }
+    micBtn.onclick = function () { if (recording) stopRec(); else startRec(); };
+
+    function showResult(r, server, pending) {
+      var pct = r.accuracy;
+      var cls = pct >= 90 ? 'good' : pct >= 70 ? 'mid' : 'low';
+      var msg = pct >= 95 ? 'すばらしい！ほぼ完ぺきです 🎉' : pct >= 85 ? 'とてもよくできました！' : pct >= 70 ? 'いい調子！赤い単語をもう一度練習しよう' : 'お手本を聞いてから、もう一度チャレンジしよう';
+      var html = '<div class="card result">';
+      html += '<div class="ring">' + ringSVG(pct) + '<div class="center"><div class="big ' + cls + '">' + pct + '<small style="font-size:1.2rem">%</small></div><div class="detail">正確さ</div></div></div>';
+      html += '<div class="detail">' + r.correct + ' / ' + r.total + ' 語 読めました</div>';
+      html += '<p style="margin-top:8px;font-weight:700">' + msg + '</p>';
+      if (server && server.levelUp) html += '<div class="celebrate">🎊 レベルアップ！「' + esc(server.levelUp) + '」になりました！</div>';
+      if (server && server.newBest && opt.aid && opt.best !== null && opt.best !== undefined) html += '<div class="celebrate">⭐ 自己ベスト更新！（前回まで ' + opt.best + '%）</div>';
+      if (server && opt.aid && (opt.best === null || opt.best === undefined)) html += '<div class="celebrate">🎉 はじめての記録です！</div>';
+      html += '<div class="muted" id="saveState">' + (pending ? '記録を保存中…' : '✅ 記録しました（+' + r.correct + '語）') + '</div>';
+      html += '<div class="btn-row" style="justify-content:center;margin-top:12px">' +
+        '<button class="btn-primary" id="bAgain">🔁 もう一度</button>' +
+        (opt.contest && opt.aid ? '<a class="btn" href="#/contest/' + encodeURIComponent(opt.aid) + '">🏆 大会ランキング</a>' : '') +
+        '<a class="btn" href="' + (opt.back || '#/home') + '">もどる</a></div>';
+      html += '</div>';
+      $('#resultArea').innerHTML = html;
+      $('#bAgain').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); startRec(); };
+      if (!pending) $('#resultArea').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  async function viewAssignment(aid) {
+    loading();
+    try {
+      var r = await call('getAssignment', { aid: aid });
+      bottomNav('home');
+      practiceView({ title: r.assignment.title, text: r.assignment.text, ja: r.assignment.ja, aid: r.assignment.id,
+        contest: r.assignment.contest, best: r.best, kind: 'assignment' });
+    } catch (e) { showError(e); go('#/home'); }
+  }
+
+  function viewProverb() {
+    bottomNav('home');
+    var pv = todayProverb();
+    practiceView({ title: '今日のことわざ', text: pv[0], ja: pv[1], kind: 'proverb' });
+  }
+
+  // ================= 生徒：自主練（カメラ取り込み） =================
+  function viewFree() {
+    bottomNav('free');
+    var html = '<div class="card"><h2>📖 自主練</h2><p class="muted">教科書の英文を写真で取り込むか、入力・貼り付けして音読できます。</p>' +
+      '<div class="btn-row"><label class="btn" style="margin:0" for="ocrFile">📷 写真から取り込む</label>' +
+      '<input type="file" id="ocrFile" accept="image/*" capture="environment" hidden></div>' +
+      '<div id="ocrStatus" class="muted" style="margin-top:8px"></div>' +
+      '<label for="freeText">英文</label><textarea id="freeText" placeholder="ここに英文を入力してください（日本語も書けますが、表示だけで判定の対象にはなりません）">' + esc(state.freeText) + '</textarea>' +
+      '<div class="muted" id="wc"></div>' +
+      '<div style="margin-top:12px"><button class="btn-primary btn-big btn-block" id="bStartFree">この英文で音読する</button></div></div>';
+    $app.innerHTML = html;
+    var ta = $('#freeText');
+    function wc() { $('#wc').textContent = Scoring.countWords(ta.value) + ' 語'; state.freeText = ta.value; }
+    ta.oninput = wc; wc();
+    $('#ocrFile').onchange = function () { if (this.files[0]) runOCR(this.files[0], ta, $('#ocrStatus'), wc); this.value = ''; };
+    $('#bStartFree').onclick = function () {
+      var t = ta.value.trim();
+      if (!t || !Scoring.countWords(t)) { toast('英文を入力してください', true); return; }
+      if (/[぀-ヿ一-龯]/.test(t)) toast('日本語の部分は表示だけで、判定の対象にはなりません');
+      state.freeText = t;
+      practiceView({ title: '自主練', text: t, kind: 'free', back: '#/free' });
+    };
+  }
+
+  // 画像から英文を読み取る（Tesseract.js・端末内で処理）
+  async function runOCR(file, ta, statusEl, after) {
+    statusEl.textContent = '文字認識の準備中…（初回は少し時間がかかります）';
+    try {
+      if (!window.Tesseract) await loadFirst(['https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js', 'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js']);
+      var img = await shrinkImage(file, 2000);
+      var worker = await Tesseract.createWorker('eng', 1, {
+        logger: function (m) { if (m.status === 'recognizing text') statusEl.textContent = '読み取り中… ' + Math.round(m.progress * 100) + '%'; }
+      });
+      var res = await worker.recognize(img);
+      await worker.terminate();
+      var text = cleanOCR(res.data.text);
+      if (!text) { statusEl.textContent = '英文が見つかりませんでした。明るい場所で、英文が大きく写るように撮ってください。'; return; }
+      ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + text;
+      statusEl.textContent = '✅ 読み取りました。まちがいがあれば直してください。';
+      after && after();
+    } catch (e) {
+      statusEl.textContent = '読み取りに失敗しました：' + e.message;
+    }
+  }
+  function shrinkImage(file, max) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var scale = Math.min(1, max / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        var g = c.getContext('2d');
+        g.filter = 'grayscale(1) contrast(1.3)';
+        g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c);
+      };
+      img.onerror = function () { reject(new Error('画像を開けませんでした')); };
+      img.src = url;
+    });
+  }
+  function cleanOCR(t) {
+    return String(t || '')
+      .replace(/[^\x20-\x7E\n‘’“”]/g, ' ')   // 英数字・記号以外を除去
+      .replace(/-\n(?=[a-z])/g, '')                                // 行末ハイフンをつなぐ
+      .split(/\n{2,}/).map(function (p) { return p.replace(/\s*\n\s*/g, ' ').replace(/[ \t]+/g, ' ').trim(); })
+      .filter(function (p) { return /[A-Za-z]{2,}/.test(p); })
+      .join('\n\n').trim();
+  }
+
+  // ================= 生徒：ランキング =================
+  async function viewRank(period, scope) {
+    period = period || 'week'; scope = scope || 'class';
+    bottomNav('rank'); loading();
+    try {
+      var r = await call('ranking', { period: period, scope: scope });
+      var tabs = function (cur, list, key) {
+        return '<div class="seg">' + list.map(function (x) {
+          return '<button data-k="' + key + '" data-v="' + x[0] + '" class="' + (cur === x[0] ? 'active' : '') + '">' + x[1] + '</button>';
+        }).join('') + '</div>';
+      };
+      var html = '<div class="card"><div class="card-title"><h2>🏆 音読量ランキング</h2></div>' +
+        '<div class="toolbar">' + tabs(period, [['week', '今週'], ['month', '今月'], ['total', '累計']], 'p') +
+        tabs(scope, [['class', 'クラス'], ['all', '全体']], 's') + '</div>';
+      if (r.mine) html += '<div class="notice">あなたは <b>' + r.mine.rank + '位</b>（' + n(r.mine.words) + '語）／' + r.count + '人中</div><div style="height:10px"></div>';
+      html += r.list.map(function (x) {
+        return '<div class="rank-row' + (x.me ? ' me' : '') + '"><div class="rank-no r' + x.rank + '">' + (x.rank <= 3 ? ['🥇', '🥈', '🥉'][x.rank - 1] : x.rank) + '</div>' +
+          '<div class="rank-name">' + esc(x.name) + ' <small class="muted">' + esc(x.level) + '</small></div><div class="rank-val">' + n(x.words) + '語</div></div>';
+      }).join('') + '</div>';
+      // 大会
+      var contests = (state.home && state.home.assignments || []).filter(function (a) { return a.contest; });
+      if (contests.length) {
+        html += '<div class="card"><h2>🎤 音読大会</h2><ul class="list">' + contests.map(function (a) {
+          return '<li><a class="item" href="#/contest/' + encodeURIComponent(a.id) + '"><div class="main"><div class="title">' + esc(a.title) + '</div>' +
+            '<div class="sub">' + (a.due ? '締切 ' + fmtDay(a.due) : '') + '</div></div><span class="pill contest">ランキング</span></a></li>';
+        }).join('') + '</ul></div>';
+      }
+      $app.innerHTML = html;
+      $all('.seg button').forEach(function (b) {
+        b.onclick = function () {
+          if (b.dataset.k === 'p') viewRank(b.dataset.v, scope); else viewRank(period, b.dataset.v);
+        };
+      });
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  async function viewContest(aid) {
+    bottomNav('rank'); loading();
+    try {
+      var r = await call('contest', { aid: aid });
+      var html = '<a class="back" href="#/rank">← もどる</a><div class="card"><div class="card-title"><h2>🏆 ' + esc(r.title) + '</h2>' +
+        (r.due ? '<span class="pill gray">締切 ' + fmtDay(r.due) + '</span>' : '') + '</div>' +
+        '<p class="muted">自己ベストの正確さで競います。同じ点数なら、先に出した人が上位です。</p>';
+      html += r.mine ? '<div class="notice">あなたは <b>' + r.mine.rank + '位</b>（' + r.mine.best + '%）／' + r.count + '人中</div>'
+        : '<div class="notice warn">まだ参加していません。<a href="#/a/' + encodeURIComponent(aid) + '">音読して参加する</a></div>';
+      html += '<div style="height:10px"></div>';
+      html += r.list.length ? r.list.map(function (x) {
+        return '<div class="rank-row' + (x.me ? ' me' : '') + '"><div class="rank-no r' + x.rank + '">' + (x.rank <= 3 ? ['🥇', '🥈', '🥉'][x.rank - 1] : x.rank) + '</div>' +
+          '<div class="rank-name">' + esc(x.name) + '</div><div class="rank-val">' + x.best + '%</div></div>';
+      }).join('') : '<div class="empty">まだ参加者がいません。一番乗りをめざそう！</div>';
+      html += '<div style="margin-top:14px"><a class="btn btn-primary btn-block" href="#/a/' + encodeURIComponent(aid) + '">🎤 挑戦する</a></div></div>';
+      $app.innerHTML = html;
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ================= 生徒：きろく =================
+  async function viewMe() {
+    bottomNav('me'); loading();
+    try {
+      var r = await call('history');
+      var h = state.home || await call('home');
+      state.home = h;
+      var s = h.student, max = Math.max.apply(null, r.days.map(function (d) { return d.words; }).concat([1]));
+      var html = '<div class="card"><h2>📈 最近14日間の単語数</h2><div class="chart">' + r.days.map(function (d) {
+        var hgt = Math.round(d.words / max * 100);
+        return '<div class="col" title="' + d.date + '：' + d.words + '語"><div class="b' + (d.words ? '' : ' zero') + '" style="height:' + Math.max(2, hgt) + '%"></div><div class="d">' + fmtDay(d.date).split('/')[1] + '</div></div>';
+      }).join('') + '</div>' +
+        '<div class="kpi-inline" style="margin-top:10px"><span>累計 <b>' + n(s.totalWords) + '</b> 語</span><span>連続 <b>' + s.streak + '</b> 日</span><span>最長連続 <b>' + s.bestStreak + '</b> 日</span><span>級・段 <b>' + esc(s.level.name) + '</b></span></div></div>';
+      html += '<div class="card"><h2>📝 音読のきろく</h2>';
+      html += r.records.length ? '<div class="table-wrap"><table><thead><tr><th>日時</th><th>内容</th><th class="num">正確さ</th><th class="num">単語</th></tr></thead><tbody>' +
+        r.records.map(function (x) {
+          return '<tr><td>' + fmtDate(x.time) + '</td><td>' + (x.kind === '大会' ? '🏆 ' : x.kind === 'ことわざ' ? '🌱 ' : x.kind === '自主練' ? '📖 ' : '') + esc(x.title) + '</td>' +
+            '<td class="num ' + scoreClass(x.accuracy) + '">' + x.accuracy + '%</td><td class="num">' + x.correct + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '<div class="empty">まだきろくがありません。</div>';
+      html += '</div>';
+      if (h.settings && h.settings.allowNick) {
+        html += '<div class="card"><h2>🙂 ニックネーム</h2><p class="muted">ランキングに表示される名前です（10文字まで）。空欄にすると「クラス・番号」で表示されます。</p>' +
+          '<div class="btn-row"><input type="text" id="nick" maxlength="10" value="' + esc(s.nick) + '" style="flex:1;min-width:160px"><button class="btn-primary" id="bNick">保存</button></div></div>';
+      }
+      html += '<div class="card"><button class="btn btn-block" id="bOut">ログアウト</button></div>';
+      $app.innerHTML = html;
+      if ($('#bNick')) $('#bNick').onclick = async function () {
+        try { var x = await call('setNick', { nick: $('#nick').value }); state.home.student.nick = x.nick; toast('保存しました'); } catch (e) { showError(e); }
+      };
+      $('#bOut').onclick = function () { logout(); };
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ================= 先生：ダッシュボード =================
+  function teacherTabs(active) {
+    return '<div class="tabs no-print">' + [['assign', '課題', '#/t'], ['students', '生徒', '#/t/students'], ['settings', '設定', '#/t/settings']].map(function (t) {
+      return '<a href="' + t[2] + '" class="' + (active === t[0] ? 'active' : '') + '">' + t[1] + '</a>';
+    }).join('') + '</div>';
+  }
+  async function loadOverview(force) {
+    if (!state.overview || force) state.overview = await call('t_overview');
+    if (state.overview.settings && state.overview.settings.appTitle) setTitle(state.overview.settings.appTitle);
+    return state.overview;
+  }
+
+  async function viewTeacher() {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var o = await loadOverview(true);
+      var weekTotal = o.students.reduce(function (s, x) { return s + x.weekWords; }, 0);
+      var activeToday = o.students.filter(function (x) { return x.lastDate === o.today; }).length;
+      var html = teacherTabs('assign');
+      html += '<div class="stats"><div class="stat"><div class="v">' + o.students.length + '</div><div class="l">生徒数</div></div>' +
+        '<div class="stat"><div class="v">' + activeToday + '</div><div class="l">今日音読した生徒</div></div>' +
+        '<div class="stat"><div class="v">' + n(weekTotal) + '</div><div class="l">今週の音読単語数</div></div>' +
+        '<div class="stat"><div class="v">' + o.assignments.length + '</div><div class="l">課題数</div></div></div><div style="height:16px"></div>';
+      html += '<div class="card"><div class="card-title"><h2>課題一覧</h2><a class="btn btn-primary" href="#/t/new">＋ 新しい課題</a></div>';
+      html += o.assignments.length ? '<div class="table-wrap"><table><thead><tr><th>タイトル</th><th>対象</th><th>締切</th><th class="num">提出</th><th class="num">平均</th><th>状態</th></tr></thead><tbody>' +
+        o.assignments.map(function (a) {
+          return '<tr class="clickable" data-href="#/t/results/' + encodeURIComponent(a.id) + '"><td>' + (a.contest ? '🏆 ' : '') + esc(a.title) + '<br><small class="muted">' + a.words + '語</small></td>' +
+            '<td>' + esc(a.classes || '全員') + '</td><td>' + (a.due ? fmtDay(a.due) : '—') + '</td>' +
+            '<td class="num">' + a.done + ' / ' + a.targets + '</td><td class="num ' + scoreClass(a.avg) + '">' + (a.avg === null ? '—' : a.avg + '%') + '</td>' +
+            '<td>' + (a.published ? '<span class="pill done">公開中</span>' : '<span class="pill gray">非公開</span>') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '<div class="empty">まだ課題がありません。「＋ 新しい課題」から作成しましょう。</div>';
+      html += '</div>';
+      $app.innerHTML = html;
+      bindRows();
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+  function bindRows() {
+    $all('tr.clickable').forEach(function (tr) { tr.onclick = function () { go(tr.dataset.href); }; });
+  }
+
+  // ---- 課題の作成・編集 ----
+  async function viewEdit(aid) {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var o = await loadOverview();
+      var a = { title: '', text: '', ja: '', classes: '', due: '', contest: false, published: true };
+      if (aid) a = (await call('t_getAssignment', { aid: aid })).assignment;
+      var cls = splitCls(a.classes);
+      var html = '<a class="back" href="' + (aid ? '#/t/results/' + encodeURIComponent(aid) : '#/t') + '">← もどる</a>';
+      html += '<div class="card"><h2>' + (aid ? '課題を編集' : '新しい課題') + '</h2>' +
+        '<label for="eTitle">タイトル</label><input type="text" id="eTitle" maxlength="80" value="' + esc(a.title) + '" placeholder="例：Unit 3 Part 1">' +
+        '<label for="eText">英文 <small class="muted">（日本語を混ぜて書くと、日本語は表示のみ・判定の対象外になります）</small></label>' +
+        '<div class="btn-row" style="margin-bottom:6px"><label class="btn btn-small" for="eFile" style="margin:0">📷 写真から取り込む</label><input type="file" id="eFile" accept="image/*" hidden>' +
+        '<button class="btn-small" id="ePlay" type="button">🔊 読み上げて確認</button><span class="muted" id="eWc"></span></div>' +
+        '<div id="eOcr" class="muted"></div>' +
+        '<textarea id="eText" placeholder="英文を入力または貼り付けてください&#10;日本語も書けます（画面に表示されるだけで、音読・判定の対象にはなりません）&#10;例）私は音楽が好きです。&#10;　　I like music.&#10;（日本語は英語の上に表示されます）">' + esc(a.text) + '</textarea>' +
+        '<label for="eJa">和訳（任意・生徒が「和訳」ボタンで見られます）</label><textarea id="eJa" style="min-height:80px">' + esc(a.ja) + '</textarea>' +
+        '<label>対象クラス（どれも選ばないと全員）</label><div class="btn-row">' +
+        o.classes.map(function (c) { return '<label class="check" style="margin:0 12px 0 0"><input type="checkbox" class="eCls" value="' + esc(c) + '"' + (cls.indexOf(c) >= 0 ? ' checked' : '') + '>' + esc(c) + '</label>'; }).join('') +
+        (o.classes.length ? '' : '<span class="muted">名簿にクラスがありません</span>') + '</div>' +
+        '<div class="form-row"><div><label for="eDue">締切（任意）</label><input type="date" id="eDue" value="' + esc(a.due) + '"></div><div></div></div>' +
+        '<label class="check"><input type="checkbox" id="eContest"' + (a.contest ? ' checked' : '') + '>🏆 音読大会にする（自己ベストの正確さでランキング）</label>' +
+        '<label class="check"><input type="checkbox" id="ePub"' + (a.published !== false ? ' checked' : '') + '>生徒に公開する</label>' +
+        '<div class="btn-row" style="margin-top:14px"><button class="btn-primary btn-big" id="eSave">保存する</button>' +
+        (aid ? '<button class="btn-danger" id="eDel">削除</button>' : '') + '</div><div class="error" id="eErr"></div></div>';
+      $app.innerHTML = html;
+      var ta = $('#eText');
+      function wc() { $('#eWc').textContent = Scoring.countWords(ta.value) + ' 語'; }
+      ta.oninput = wc; wc();
+      $('#eFile').onchange = function () { if (this.files[0]) runOCR(this.files[0], ta, $('#eOcr'), wc); this.value = ''; };
+      $('#ePlay').onclick = function () { if (ta.value.trim()) Speaker.speak(Scoring.englishOnly(ta.value), 0.9, CFG.SPEECH_LANG || 'en-US'); };
+      $('#eSave').onclick = async function () {
+        var btn = this; btn.disabled = true; $('#eErr').textContent = '';
+        try {
+          var data = { id: aid || '', title: $('#eTitle').value, text: ta.value, ja: $('#eJa').value,
+            classes: $all('.eCls').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }).join(','),
+            due: $('#eDue').value, contest: $('#eContest').checked, published: $('#ePub').checked };
+          var r = await call('t_saveAssignment', { assignment: data });
+          state.overview = null;
+          toast('保存しました');
+          go('#/t/results/' + encodeURIComponent(r.id));
+        } catch (e) { $('#eErr').textContent = e.message; btn.disabled = false; }
+      };
+      if ($('#eDel')) $('#eDel').onclick = async function () {
+        if (!confirm('この課題を削除しますか？（生徒の記録は残ります）')) return;
+        try { await call('t_deleteAssignment', { aid: aid }); state.overview = null; toast('削除しました'); go('#/t'); } catch (e) { showError(e); }
+      };
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+  function splitCls(v) { return String(v || '').split(/[,、\s]+/).filter(Boolean); }
+
+  // ---- 課題ごとの結果 ----
+  async function viewResults(aid) {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var r = await call('t_assignmentResults', { aid: aid });
+      var a = r.assignment;
+      var done = r.rows.filter(function (x) { return x.best !== null; });
+      var avg = done.length ? Math.round(done.reduce(function (s, x) { return s + x.best; }, 0) / done.length * 10) / 10 : null;
+      var html = '<a class="back" href="#/t">← 課題一覧</a>';
+      html += '<div class="card"><div class="card-title"><h2>' + (a.contest ? '🏆 ' : '') + esc(a.title) + '</h2>' +
+        '<div class="btn-row"><a class="btn btn-small" href="#/t/edit/' + encodeURIComponent(a.id) + '">✏️ 編集</a><button class="btn-small" id="bExp">⬇ Excel</button></div></div>' +
+        '<div class="kpi-inline"><span>対象 <b>' + esc(a.classes || '全員') + '</b></span><span>締切 <b>' + (a.due ? fmtDay(a.due) : '—') + '</b></span>' +
+        '<span>提出 <b>' + done.length + ' / ' + r.rows.length + '</b></span><span>平均 <b>' + (avg === null ? '—' : avg + '%') + '</b></span></div>' +
+        '<details style="margin-top:10px"><summary class="muted">英文を表示</summary><div class="passage small" style="margin-top:8px">' + esc(a.text) + '</div></details></div>';
+      html += '<div class="card"><div class="toolbar"><select id="fCls" style="width:auto"><option value="">全クラス</option>' +
+        uniq(r.rows.map(function (x) { return x.cls; })).map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select>' +
+        '<label class="check" style="margin:0"><input type="checkbox" id="fTodo">未提出のみ</label></div>' +
+        '<div class="table-wrap"><table><thead><tr><th>クラス</th><th class="num">番号</th><th>名前</th><th class="num">最高</th><th class="num">回数</th><th>最終</th></tr></thead><tbody id="rBody"></tbody></table></div></div>';
+      $app.innerHTML = html;
+      function draw() {
+        var c = $('#fCls').value, todo = $('#fTodo').checked;
+        var rows = r.rows.filter(function (x) { return (!c || x.cls === c) && (!todo || x.best === null); })
+          .sort(function (x, y) { return x.cls.localeCompare(y.cls) || (+x.no) - (+y.no); });
+        $('#rBody').innerHTML = rows.map(function (x) {
+          return '<tr class="clickable" data-href="#/t/student/' + encodeURIComponent(x.id) + '"><td>' + esc(x.cls) + '</td><td class="num">' + esc(x.no) + '</td><td>' + esc(x.name) + '</td>' +
+            '<td class="num ' + scoreClass(x.best) + '">' + (x.best === null ? '未提出' : x.best + '%') + '</td><td class="num">' + (x.attempts || '') + '</td><td>' + fmtDate(x.last) + '</td></tr>';
+        }).join('') || '<tr><td colspan="6" class="empty">該当する生徒はいません</td></tr>';
+        bindRows();
+      }
+      $('#fCls').onchange = draw; $('#fTodo').onchange = draw; draw();
+      $('#bExp').onclick = function () {
+        var rows = [['クラス', '番号', '名前', '最高正確さ(%)', '回数', '最終音読日時']].concat(
+          r.rows.slice().sort(function (x, y) { return x.cls.localeCompare(y.cls) || (+x.no) - (+y.no); })
+            .map(function (x) { return [x.cls, +x.no, x.name, x.best === null ? '' : x.best, x.attempts, x.last ? new Date(x.last).toLocaleString('ja-JP') : '']; }));
+        exportXlsx(rows, a.title.replace(/[\\\/:*?"<>|]/g, '_') + '_結果');
+      };
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+  function uniq(a) { var m = {}; return a.filter(function (x) { if (m[x]) return false; m[x] = 1; return true; }).sort(); }
+
+  // ---- 生徒一覧 ----
+  async function viewStudents() {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var o = await loadOverview(true);
+      var html = teacherTabs('students');
+      html += '<div class="card"><div class="toolbar"><select id="sCls" style="width:auto"><option value="">全クラス</option>' +
+        o.classes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select><span class="sep"></span>' +
+        '<button class="btn-small" id="bExpAll">⬇ Excel（全課題の成績）</button><a class="btn btn-small" href="#/t/import">＋ 名簿の登録</a><a class="btn btn-small" href="#/t/passes">🖨 パスコード表</a></div>' +
+        '<div class="table-wrap"><table><thead><tr><th>クラス</th><th class="num">番号</th><th>名前</th><th>級・段</th><th class="num">累計</th><th class="num">今週</th><th class="num">連続</th><th>最終音読日</th></tr></thead><tbody id="sBody"></tbody></table></div></div>';
+      $app.innerHTML = html;
+      function draw() {
+        var c = $('#sCls').value;
+        var rows = o.students.filter(function (x) { return !c || x.cls === c; }).sort(function (x, y) { return x.cls.localeCompare(y.cls) || (+x.no) - (+y.no); });
+        $('#sBody').innerHTML = rows.map(function (x) {
+          return '<tr class="clickable" data-href="#/t/student/' + encodeURIComponent(x.id) + '"><td>' + esc(x.cls) + '</td><td class="num">' + esc(x.no) + '</td><td>' + esc(x.name) + (x.nick ? ' <small class="muted">(' + esc(x.nick) + ')</small>' : '') + '</td>' +
+            '<td>' + esc(x.level.name) + '</td><td class="num">' + n(x.totalWords) + '</td><td class="num">' + n(x.weekWords) + '</td><td class="num">' + x.streak + '</td>' +
+            '<td>' + (x.lastDate ? fmtDay(x.lastDate) : '<span class="cell-none">—</span>') + '</td></tr>';
+        }).join('') || '<tr><td colspan="8" class="empty">生徒が登録されていません。「名簿の登録」から追加してください。</td></tr>';
+        bindRows();
+      }
+      $('#sCls').onchange = draw; draw();
+      $('#bExpAll').onclick = async function () {
+        try {
+          var c = $('#sCls').value;
+          var r = await call('t_export', { cls: c });
+          exportXlsx(r.rows, '音読成績_' + (c || '全クラス') + '_' + o.today);
+        } catch (e) { showError(e); }
+      };
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  async function viewStudentDetail(sid) {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var r = await call('t_studentDetail', { sid: sid });
+      var s = r.student;
+      var html = '<a class="back" href="#/t/students">← 生徒一覧</a>';
+      html += '<div class="card"><h2>' + esc(s.cls) + ' ' + esc(s.no) + '番 ' + esc(s.name) + (s.nick ? ' <small class="muted">(' + esc(s.nick) + ')</small>' : '') + '</h2>' +
+        '<div class="kpi-inline"><span>級・段 <b>' + esc(s.level.name) + '</b></span><span>累計 <b>' + n(s.totalWords) + '</b> 語</span><span>連続 <b>' + s.streak + '</b> 日</span><span>最長連続 <b>' + s.bestStreak + '</b> 日</span><span>最終 <b>' + (s.lastDate ? fmtDay(s.lastDate) : '—') + '</b></span></div></div>';
+      html += '<div class="card"><h2>音読のきろく（最新200件）</h2>';
+      html += r.records.length ? '<div class="table-wrap"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th class="num">正確さ</th><th class="num">単語</th></tr></thead><tbody>' +
+        r.records.map(function (x, i) {
+          return '<tr class="clickable" data-i="' + i + '"><td>' + fmtDate(x.time) + '</td><td>' + esc(x.kind) + '</td><td>' + esc(x.title) + '</td><td class="num ' + scoreClass(x.accuracy) + '">' + x.accuracy + '%</td><td class="num">' + x.correct + '/' + x.total + '</td></tr>' +
+            '<tr class="hidden" id="tr' + i + '"><td colspan="5" style="white-space:normal"><small class="muted">聞き取り結果：</small>' + esc(x.transcript || '—') + '</td></tr>';
+        }).join('') + '</tbody></table></div><p class="muted" style="margin-top:6px">行をタップすると、聞き取った英文を確認できます。</p>' : '<div class="empty">まだきろくがありません。</div>';
+      html += '</div>';
+      $app.innerHTML = html;
+      $all('tr[data-i]').forEach(function (tr) { tr.onclick = function () { $('#tr' + tr.dataset.i).classList.toggle('hidden'); }; });
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ---- 名簿の登録 ----
+  function viewImport() {
+    bottomNav(); $app.classList.add('wide');
+    var html = '<a class="back" href="#/t/students">← 生徒一覧</a><div class="card"><h2>名簿の登録</h2>' +
+      '<p>Excel などから「<b>クラス・番号・名前・パスコード</b>」の順に4列をコピーして貼り付けてください（1行に1人）。パスコードの列を空にすると、4けたの番号を自動で作ります。</p>' +
+      '<p class="muted">すでに登録されている生徒（同じクラス・番号）は、名前とパスコードが上書きされます。' + (API.isDemo() ? '' : 'スプレッドシートの「生徒」シートを直接編集してもかまいません。') + '</p>' +
+      '<textarea id="iText" placeholder="1A\t1\t青木 葵\t4821&#10;1A\t2\t石田 樹\t&#10;1B\t1\t上野 結衣\t7310"></textarea>' +
+      '<div class="btn-row" style="margin-top:10px"><button class="btn" id="iPrev">確認する</button><button class="btn-primary" id="iGo" disabled>登録する</button></div>' +
+      '<div id="iOut" style="margin-top:12px"></div></div>';
+    $app.innerHTML = html;
+    var rows = [];
+    $('#iPrev').onclick = function () {
+      rows = $('#iText').value.split(/\r?\n/).map(function (l) { return l.split(/\t|,/).map(function (x) { return x.trim(); }); })
+        .filter(function (c) { return c[0] && c[1]; })
+        .map(function (c) { return { cls: c[0].replace(/\s/g, ''), no: String(parseInt(c[1], 10) || c[1]), name: c[2] || '', pass: c[3] || '' }; });
+      $('#iOut').innerHTML = rows.length ? '<div class="table-wrap"><table><thead><tr><th>クラス</th><th>番号</th><th>名前</th><th>パスコード</th></tr></thead><tbody>' +
+        rows.map(function (r) { return '<tr><td>' + esc(r.cls) + '</td><td>' + esc(r.no) + '</td><td>' + esc(r.name) + '</td><td>' + (esc(r.pass) || '<span class="muted">自動</span>') + '</td></tr>'; }).join('') +
+        '</tbody></table></div><p>' + rows.length + '人を登録します。</p>' : '<div class="error">読み取れる行がありません。</div>';
+      $('#iGo').disabled = !rows.length;
+    };
+    $('#iGo').onclick = async function () {
+      this.disabled = true;
+      try { var r = await call('t_importStudents', { rows: rows }); state.overview = null; toast('追加 ' + r.added + '人・更新 ' + r.updated + '人'); go('#/t/students'); }
+      catch (e) { showError(e); this.disabled = false; }
+    };
+  }
+
+  // ---- パスコード表（印刷用） ----
+  async function viewPasses() {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var r = await call('t_studentPasses');
+      var url = location.href.split('#')[0];
+      var classes = uniq(r.rows.map(function (x) { return x.cls; }));
+      var html = '<a class="back no-print" href="#/t/students">← 生徒一覧</a><div class="card no-print"><h2>パスコード表</h2>' +
+        '<p>切り取って生徒に配れる形で印刷できます。</p><div class="toolbar"><select id="pCls" style="width:auto"><option value="">全クラス</option>' +
+        classes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select><button class="btn-primary" onclick="window.print()">🖨 印刷</button></div></div>' +
+        '<div class="pass-grid" id="pGrid"></div>';
+      $app.innerHTML = html;
+      function draw() {
+        var c = $('#pCls').value;
+        $('#pGrid').innerHTML = r.rows.filter(function (x) { return !c || x.cls === c; })
+          .sort(function (x, y) { return x.cls.localeCompare(y.cls) || (+x.no) - (+y.no); })
+          .map(function (x) {
+            return '<div class="pass-slip"><div>' + esc(document.getElementById('appTitle').textContent) + '</div><div><b>' + esc(x.cls) + ' ' + esc(x.no) + '番</b> ' + esc(x.name) + '</div>' +
+              '<div>パスコード：<b>' + esc(x.pass) + '</b></div><div style="font-size:.7rem;word-break:break-all;color:#667">' + esc(url) + '</div></div>';
+          }).join('');
+      }
+      $('#pCls').onchange = draw; draw();
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ---- 設定 ----
+  async function viewSettings() {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var o = await loadOverview(true);
+      var st = o.settings;
+      var html = teacherTabs('settings');
+      html += '<div class="card"><h2>アプリの設定</h2>' +
+        '<label for="sTitle">アプリ名（空欄なら「' + esc(CFG.APP_TITLE || '音読チャレンジ') + '」）</label><input type="text" id="sTitle" maxlength="30" value="' + esc(st.appTitle) + '">' +
+        '<label class="check"><input type="checkbox" id="sRank"' + (st.showRanking ? ' checked' : '') + '>生徒にランキングを表示する</label>' +
+        '<label class="check"><input type="checkbox" id="sNick"' + (st.allowNick ? ' checked' : '') + '>生徒がニックネームを使えるようにする（ランキングの表示名）</label>' +
+        '<label for="sPass">先生用パスワードの変更（変更しない場合は空欄）</label><input type="password" id="sPass" autocomplete="new-password" placeholder="6文字以上">' +
+        '<div style="margin-top:14px"><button class="btn-primary" id="sSave">保存する</button></div></div>';
+      html += '<div class="card"><h2>使い方のヒント</h2><ul>' +
+        '<li>生徒には、このページのURLと「パスコード表」を配ってください。</li>' +
+        '<li>音声認識は <b>Chrome</b>（PC・Android・Chromebook）と <b>iPhone/iPad の Safari</b> で使えます。</li>' +
+        '<li>ホーム画面に追加すると、アプリのように起動できます。</li>' +
+        (API.isDemo() ? '' : '<li>データはスプレッドシートに保存されています。直接開いて確認・編集もできます。</li>') + '</ul></div>';
+      if (API.isDemo()) html += '<div class="card"><h2>デモデータ</h2><p class="muted">デモ用のデータを最初の状態に戻します。</p><button class="btn-danger" id="sReset">デモデータをリセット</button></div>';
+      $app.innerHTML = html;
+      $('#sSave').onclick = async function () {
+        try {
+          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, teacherPass: $('#sPass').value } });
+          state.overview = null; setTitle($('#sTitle').value); toast('保存しました'); $('#sPass').value = '';
+        } catch (e) { showError(e); }
+      };
+      if ($('#sReset')) $('#sReset').onclick = function () {
+        if (!confirm('デモデータをリセットしますか？')) return;
+        API.resetDemo(); logout(true); toast('リセットしました');
+      };
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ---- Excel出力 ----
+  async function exportXlsx(rows, name) {
+    try {
+      if (!window.XLSX) await loadFirst(['https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js']);
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = rows[0].map(function (h, i) { return { wch: i === 2 ? 14 : Math.max(8, Math.min(30, String(h).length * 2)) }; });
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '成績');
+      XLSX.writeFile(wb, name + '.xlsx');
+    } catch (e) {
+      // 読み込めない場合は CSV（Excelで開けます）
+      var csv = '﻿' + rows.map(function (r) { return r.map(function (c) { c = String(c === null || c === undefined ? '' : c); return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(','); }).join('\r\n');
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = name + '.csv'; a.click();
+    }
+  }
+
+  // ================= ルーター =================
+  function render() {
+    if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; }
+    Speaker.stop();
+    $app.classList.remove('wide');
+    window.scrollTo(0, 0);
+    var hash = location.hash.replace(/^#/, '') || '/';
+    var parts = hash.split('/').filter(Boolean).map(decodeURIComponent);
+    state.session = state.session || store(SESSION_KEY);
+    topRight();
+    var s = state.session;
+    if (!s) return viewLogin();
+    if (s.role === 'student') {
+      switch (parts[0]) {
+        case 'a': return viewAssignment(parts[1]);
+        case 'proverb': return viewProverb();
+        case 'free': return viewFree();
+        case 'rank': return viewRank();
+        case 'contest': return viewContest(parts[1]);
+        case 'me': return viewMe();
+        case 'home': return viewHome();
+        default: return go('#/home');
+      }
+    }
+    if (s.role === 'teacher') {
+      if (parts[0] !== 't') return go('#/t');
+      switch (parts[1]) {
+        case 'new': return viewEdit(null);
+        case 'edit': return viewEdit(parts[2]);
+        case 'results': return viewResults(parts[2]);
+        case 'students': return viewStudents();
+        case 'student': return viewStudentDetail(parts[2]);
+        case 'import': return viewImport();
+        case 'passes': return viewPasses();
+        case 'settings': return viewSettings();
+        default: return viewTeacher();
+      }
+    }
+  }
+
+  setTitle();
+  if (API.isDemo()) document.getElementById('demoBanner').hidden = false;
+  window.addEventListener('hashchange', render);
+  render();
+})();
+
+</script>
+</body>
+</html>
