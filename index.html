@@ -281,6 +281,23 @@ body.has-nav main { padding-bottom: 90px; }
 .passage.hide-ja .line.ja-line { display: none; }
 .passage .gap { height: .8em; }
 
+/* ---- 合言葉・不正防止 ---- */
+.passage .w.phrase { font-family: system-ui, sans-serif; font-weight: 800; font-size: .85em; background: #fff3c9; color: #7a5600; border: 1px solid #f0cf63; border-radius: 6px; padding: 1px 6px; text-decoration: none; }
+.passage .w.phrase.ok { background: var(--ok-soft); color: var(--ok); border-color: #9fdcc4; }
+.passage .w.phrase.ng { background: var(--ng-soft); color: var(--ng); border-color: #f2b5b5; }
+.passage .w.phrase-label { font-size: .9em; }
+.phrase-note { background: #fff3c9; border: 1px solid #f0cf63; color: #6b4a00; border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; font-size: .95rem; }
+.rec-note { color: var(--muted); font-size: .82rem; margin-top: 8px; }
+.cheat-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(110, 0, 0, .6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.cheat-box { background: #fff; border: 5px solid var(--ng); border-radius: 18px; max-width: 540px; width: 100%; padding: 24px 22px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.35); animation: shake .45s; }
+.cheat-icon { font-size: 4rem; line-height: 1; }
+.cheat-box h2 { color: var(--ng); font-size: 1.6rem; margin: 10px 0; }
+.cheat-box p { font-size: 1rem; line-height: 1.8; }
+.cheat-box button { background: var(--ng); border-color: var(--ng); color: #fff; margin-top: 8px; }
+.cheat-inline { color: var(--ng); font-weight: 800; font-size: 1.1rem; }
+@keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
+.pill.flag { background: var(--ng-soft); color: var(--ng); }
+
 </style>
 </head>
 <body>
@@ -490,7 +507,47 @@ window.APP_CONFIG = {
    * @return {{accuracy:number, total:number, correct:number, tokens:Array}}
    */
   function score(target, transcript, opts) {
-    var tokens = tokenize(target);
+    return scoreTokens(tokenize(target), transcript, opts);
+  }
+
+  // ---------------- 合言葉（録音の使い回し対策） ----------------
+  var PHRASE_WORDS = {
+    color: ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'brown', 'black', 'white'],
+    animal: ['cat', 'dog', 'lion', 'tiger', 'rabbit', 'monkey', 'panda', 'horse', 'bear', 'fox', 'zebra', 'koala'],
+    number: ['three', 'five', 'six', 'seven', 'nine']
+  };
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function makePhrase() {
+    return pick(PHRASE_WORDS.color) + ' ' + pick(PHRASE_WORDS.animal) + ' ' + pick(PHRASE_WORDS.number);
+  }
+  // 合言葉を入れる位置（英文の途中の文の切れ目。なければ最後）
+  function phrasePosition(text) {
+    var tokens = tokenize(text), cands = [], words = 0, total = 0;
+    tokens.forEach(function (t) { if (t.units.length) total++; });
+    tokens.forEach(function (t, i) {
+      if (t.units.length) words++;
+      if (!t.space && /[.!?]["'”’)]?$/.test(t.text) && words >= 3 && total - words >= 3) cands.push(i + 1);
+    });
+    if (!cands.length) return tokens.length;
+    // 真ん中あたりの切れ目を中心にランダムに選ぶ
+    var mid = cands.filter(function (c, k) { return k >= Math.floor(cands.length / 4) && k <= Math.ceil(cands.length * 3 / 4); });
+    return pick(mid.length ? mid : cands);
+  }
+  function phraseTokens(text, phrase, at) {
+    var tokens = tokenize(text);
+    if (at === null || at === undefined || at < 0 || at > tokens.length) at = tokens.length;
+    var sp = { text: ' ', space: true, units: [] };
+    var pt = tokenize(phrase).filter(function (t) { return !t.space; }).map(function (t) { t.phrase = true; return t; });
+    var mid = [];
+    pt.forEach(function (t, k) { if (k) mid.push(sp); mid.push(t); });
+    return tokens.slice(0, at).concat([sp, { text: '🔑', space: false, units: [], phraseLabel: true }, sp], mid, [sp], tokens.slice(at));
+  }
+  // 合言葉つきで判定（合言葉の部分は正確さに含めない）
+  function scoreWithPhrase(text, transcript, phrase, at, opts) {
+    return scoreTokens(phraseTokens(text, phrase, at), transcript, opts);
+  }
+
+  function scoreTokens(tokens, transcript, opts) {
     // 対象側の単位列（どの表示トークンの何番目か）
     var A = [];
     tokens.forEach(function (t, ti) {
@@ -523,9 +580,14 @@ window.APP_CONFIG = {
     var unitOk = tokens.map(function () { return { all: 0, ok: 0 }; });
     A.forEach(function (a, k) { unitOk[a.ti].all++; if (matched[k]) unitOk[a.ti].ok++; });
 
-    var total = 0, correct = 0;
+    var total = 0, correct = 0, pAll = 0, pOk = 0;
     var out = tokens.map(function (t, ti) {
       if (t.space) return { text: t.text, status: 'space' };
+      if (t.phraseLabel) return { text: t.text, status: 'phrase-label' };
+      if (t.phrase) {
+        pAll += unitOk[ti].all; pOk += unitOk[ti].ok;
+        return { text: t.text, status: unitOk[ti].ok === unitOk[ti].all ? 'phrase-ok' : 'phrase-ng' };
+      }
       if (t.ja) return { text: t.text, status: 'ja' };
       if (!t.units.length) return { text: t.text, status: 'none' };
       total++;
@@ -534,14 +596,18 @@ window.APP_CONFIG = {
       return { text: t.text, status: ok ? 'ok' : 'ng' };
     });
     var accuracy = total ? Math.round((correct / total) * 1000) / 10 : 0;
-    return { accuracy: accuracy, total: total, correct: correct, tokens: out };
+    var res = { accuracy: accuracy, total: total, correct: correct, tokens: out };
+    // 合言葉は3語中2語以上聞き取れれば確認できたとみなす（聞き取りミスへの配慮）
+    if (pAll) res.phrase = { ok: pOk >= Math.max(1, pAll - 1), matched: pOk, total: pAll };
+    return res;
   }
 
   function countWords(text) {
     return tokenize(text).filter(function (t) { return !t.space && t.units.length; }).length;
   }
 
-  var api = { score: score, tokenize: tokenize, englishOnly: englishOnly, toUnits: toUnits, countWords: countWords,
+  var api = { score: score, scoreWithPhrase: scoreWithPhrase, phraseTokens: phraseTokens,
+    makePhrase: makePhrase, phrasePosition: phrasePosition, tokenize: tokenize, englishOnly: englishOnly, toUnits: toUnits, countWords: countWords,
     numberToWords: numberToWords };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Scoring = api;
@@ -688,13 +754,18 @@ window.APP_CONFIG = {
     return s;
   }
 
+  // 未設定（空欄）のときは既定値を使う
+  function boolDef(v, def) { return (v === '' || v === null || v === undefined) ? def : bool(v); }
   function settingsForClient(store) {
     return {
       allowNick: bool(store.getSetting('ニックネームを使う')),
       showRanking: bool(store.getSetting('ランキングを表示')),
-      appTitle: str(store.getSetting('アプリ名'))
+      appTitle: str(store.getSetting('アプリ名')),
+      phraseCheck: boolDef(store.getSetting('合言葉チェック'), true),
+      saveAudio: boolDef(store.getSetting('音声を保存'), true)
     };
   }
+  var FLAG_LABEL = { tts: 'お手本音声を検知', phrase: '合言葉が確認できない' };
 
   handlers.home = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx);
@@ -739,8 +810,33 @@ window.APP_CONFIG = {
       kind = p.kind === 'proverb' ? 'ことわざ' : '自主練';
     }
     var transcript = str(p.transcript).slice(0, 6000);
-    var r = Sc.score(text, transcript);
+    var cfg = settingsForClient(store);
+    var hasPhrase = !!str(p.phrase);
+    var r = hasPhrase ? Sc.scoreWithPhrase(text, transcript, str(p.phrase).slice(0, 60), num(p.phraseAt)) : Sc.score(text, transcript);
     var dur = Math.max(0, Math.min(3600, num(p.duration)));
+
+    // 不正防止：お手本音声の検知、合言葉の確認
+    var flag = FLAG_LABEL[p.flag] ? p.flag : '';
+    if (!flag && cfg.phraseCheck && (!hasPhrase || !r.phrase || !r.phrase.ok)) flag = 'phrase';
+
+    // 音声の保存（先生が確認できるように）
+    var audioId = '';
+    if (cfg.saveAudio && p.audio && p.audio.b64 && store.saveAudio && String(p.audio.b64).length < 4000000) {
+      try {
+        audioId = store.saveAudio({ mime: str(p.audio.mime).slice(0, 60) || 'audio/webm', b64: String(p.audio.b64),
+          name: s.id + '_' + now.toISOString().replace(/[:.]/g, '-') });
+      } catch (e) { audioId = ''; }
+    }
+
+    if (flag) {
+      // 記録には残すが、単語数・自己ベストには加えない
+      store.appendRecord({
+        time: now.toISOString(), date: today, sid: s.id, aid: aid, kind: kind, flag: FLAG_LABEL[flag],
+        accuracy: r.accuracy, correct: 0, total: r.total, duration: dur, audio: audioId,
+        transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
+      });
+      return { flagged: flag, result: r, student: studentPublic(s) };
+    }
 
     // 生徒の累計を更新
     var before = levelOf(num(s.totalWords));
@@ -772,7 +868,7 @@ window.APP_CONFIG = {
     }
     store.appendRecord({
       time: now.toISOString(), date: today, sid: s.id, aid: aid, kind: kind,
-      accuracy: r.accuracy, correct: r.correct, total: r.total, duration: dur,
+      accuracy: r.accuracy, correct: r.correct, total: r.total, duration: dur, audio: audioId, flag: '',
       transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
     });
     return {
@@ -882,22 +978,22 @@ window.APP_CONFIG = {
       };
     }).sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
     var weekSince = weekStart(today);
-    var week = {};
-    store.getRecordsSince(weekSince).forEach(function (r) { week[r.sid] = (week[r.sid] || 0) + num(r.correct); });
+    var week = {}, flags = {};
+    store.getRecordsSince(weekSince).forEach(function (r) {
+      week[r.sid] = (week[r.sid] || 0) + num(r.correct);
+      if (str(r.flag)) flags[r.sid] = (flags[r.sid] || 0) + 1;
+    });
     var list = students.map(function (s) {
       var pub = studentPublic(s);
       pub.name = str(s.name);
       pub.weekWords = week[s.id] || 0;
+      pub.weekFlags = flags[s.id] || 0;
       if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
       return pub;
     });
     var classes = {};
     students.forEach(function (s) { classes[s.cls] = true; });
-    var settings = {
-      allowNick: bool(store.getSetting('ニックネームを使う')),
-      showRanking: bool(store.getSetting('ランキングを表示')),
-      appTitle: str(store.getSetting('アプリ名'))
-    };
+    var settings = settingsForClient(store);
     return { assignments: assignments, students: list, classes: Object.keys(classes).sort(), today: today, settings: settings };
   };
 
@@ -963,7 +1059,8 @@ window.APP_CONFIG = {
     store.getAssignments().forEach(function (a) { titles[a.id] = a.title; });
     var recs = store.getRecordsByStudent(s.id, 200).map(function (r) {
       return { time: r.time, kind: r.kind, title: r.aid ? (titles[r.aid] || '（削除された課題）') : (Sc.englishOnly(r.text).replace(/\n/g, ' ') || str(r.text)).slice(0, 40),
-        accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total), transcript: str(r.transcript) };
+        accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total), transcript: str(r.transcript),
+        flag: str(r.flag), audio: str(r.audio) };
     });
     var pub = studentPublic(s); pub.name = str(s.name);
     return { student: pub, records: recs };
@@ -1021,11 +1118,21 @@ window.APP_CONFIG = {
     if ('allowNick' in st) store.setSetting('ニックネームを使う', st.allowNick ? 'TRUE' : 'FALSE');
     if ('showRanking' in st) store.setSetting('ランキングを表示', st.showRanking ? 'TRUE' : 'FALSE');
     if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
+    if ('phraseCheck' in st) store.setSetting('合言葉チェック', st.phraseCheck ? 'TRUE' : 'FALSE');
+    if ('saveAudio' in st) store.setSetting('音声を保存', st.saveAudio ? 'TRUE' : 'FALSE');
     if (st.teacherPass) {
       if (str(st.teacherPass).length < 6) throw err('パスワードは6文字以上にしてください。');
       store.setSetting('先生パスワード', str(st.teacherPass));
     }
     return {};
+  };
+
+  handlers.t_audio = function (p, store, ctx) {
+    teacher(p, ctx);
+    if (!store.getAudio) throw err('音声を読み込めません。');
+    var a = store.getAudio(str(p.id));
+    if (!a) throw err('音声が見つかりません（削除されたか、デモモードで前回のページ表示より前の録音です）。');
+    return { mime: a.mime, b64: a.b64 };
   };
 
   var WRITE_ACTIONS = { submit: 1, setNick: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
@@ -1125,6 +1232,15 @@ window.APP_CONFIG = {
     }
     return out;
   };
+
+  // 音声（デモモードでは、ページを開いている間だけメモリに保持）
+  var AUDIO = {};
+  P.saveAudio = function (a) {
+    var id = 'AU' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    AUDIO[id] = { mime: a.mime, b64: a.b64 };
+    return id;
+  };
+  P.getAudio = function (id) { return AUDIO[id] || null; };
 
   P.getSetting = function (k) { return this.d.settings[k]; };
   P.setSetting = function (k, v) { this.d.settings[k] = v; this._changed(); };
@@ -1487,6 +1603,58 @@ window.SAMPLE_ASSIGNMENTS = [
     speechSynthesis.addEventListener('voiceschanged', function () { Speaker.voice = null; });
   }
 
+  // ---------------- 音声の保存（先生が確認するため） ----------------
+  function AudioCapture() { this.chunks = []; this.rec = null; this.stream = null; this.mime = ''; }
+  AudioCapture.isSupported = function () {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  };
+  AudioCapture.prototype.start = async function () {
+    var self = this;
+    var gum = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    this.stream = await Promise.race([gum, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, 5000); })]);
+    var types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'];
+    for (var i = 0; i < types.length; i++) {
+      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) { this.mime = types[i]; break; }
+    }
+    var opts = { audioBitsPerSecond: 24000 };
+    if (this.mime) opts.mimeType = this.mime;
+    this.rec = new MediaRecorder(this.stream, opts);
+    this.rec.ondataavailable = function (e) { if (e.data && e.data.size) self.chunks.push(e.data); };
+    this.rec.start(1000);
+  };
+  AudioCapture.prototype._release = function () {
+    if (this.stream) this.stream.getTracks().forEach(function (t) { t.stop(); });
+    this.stream = null;
+  };
+  // 停止して {mime, b64} を返す（失敗時は null）
+  AudioCapture.prototype.stop = function () {
+    var self = this;
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish(v) { if (!done) { done = true; self._release(); resolve(v); } }
+      if (!self.rec || self.rec.state === 'inactive') return finish(null);
+      self.rec.onstop = function () {
+        var type = (self.rec.mimeType || self.mime || 'audio/webm');
+        var blob = new Blob(self.chunks, { type: type });
+        if (blob.size < 1000) return finish(null);
+        var fr = new FileReader();
+        fr.onload = function () {
+          var b64 = String(fr.result).split(',')[1] || '';
+          finish(b64.length && b64.length < 3900000 ? { mime: type, b64: b64 } : null);
+        };
+        fr.onerror = function () { finish(null); };
+        fr.readAsDataURL(blob);
+      };
+      try { self.rec.stop(); } catch (e) { finish(null); }
+      setTimeout(function () { finish(null); }, 4000);
+    });
+  };
+  AudioCapture.prototype.cancel = function () {
+    try { if (this.rec && this.rec.state !== 'inactive') this.rec.stop(); } catch (e) { /* noop */ }
+    this._release();
+  };
+
+  window.AudioCapture = AudioCapture;
   window.Recognizer = Recognizer;
   window.Speaker = Speaker;
 })();
@@ -1745,7 +1913,7 @@ window.SAMPLE_ASSIGNMENTS = [
     function lineHTML(line, cls) {
       return '<div class="line' + (cls ? ' ' + cls : '') + '">' + line.map(function (t) {
         if (t.status === 'space') return ' ';
-        var c = t.status === 'ok' ? ' ok' : t.status === 'ng' ? ' ng' : t.status === 'ja' ? ' ja' : '';
+        var c = { ok: ' ok', ng: ' ng', ja: ' ja', phrase: ' phrase', 'phrase-ok': ' phrase ok', 'phrase-ng': ' phrase ng', 'phrase-label': ' phrase-label' }[t.status] || '';
         return '<span class="w' + c + '">' + esc(t.text) + '</span>';
       }).join('') + '</div>';
     }
@@ -1777,6 +1945,23 @@ window.SAMPLE_ASSIGNMENTS = [
    * 練習画面
    * opt: {title, text, ja, aid, kind, contest, best, back}
    */
+  // 不正の可能性があるときの大きな警告
+  function showCheatWarning(flag) {
+    var msg = {
+      tts: ['お手本の音声が流れていました', 'お手本の音声をマイクに聞かせて判定することはできません。<br>この音読は記録されず、「お手本音声を検知」として先生に届きます。<br>自分の声で読み直しましょう。'],
+      phrase: ['合言葉が確認できませんでした', '🔑 のところで合言葉を声に出して読みましたか？<br>録音した音声や読み上げ音声を使うと、合言葉が入らないため記録されません。<br>この音読は「合言葉が確認できない」として先生に届きます。<br>もう一度、合言葉も自分の声で読みましょう。']
+    }[flag] || ['確認できませんでした', 'もう一度、自分の声で読みましょう。'];
+    var old = $('.cheat-overlay'); if (old) old.remove();
+    var el = document.createElement('div');
+    el.className = 'cheat-overlay';
+    el.setAttribute('role', 'alertdialog');
+    el.innerHTML = '<div class="cheat-box"><div class="cheat-icon">⚠️</div><h2>' + esc(msg[0]) + '</h2><p>' + msg[1] + '</p>' +
+      '<button class="btn-big btn-block" id="bCheatOk">わかりました</button></div>';
+    document.body.appendChild(el);
+    $('#bCheatOk').onclick = function () { el.remove(); };
+    $('#bCheatOk').focus();
+  }
+
   function practiceView(opt) {
     var p = prefs();
     var hasJa = Scoring.tokenize(opt.text).some(function (t) { return t.ja; });
@@ -1833,62 +2018,135 @@ window.SAMPLE_ASSIGNMENTS = [
 
     var micBtn = $('#bMic'), label = $('#micLabel'), live = $('#live'), timerEl = $('#timer');
     var recording = false, startedAt = 0, timerId = null, busy = false;
+    var settings = (state.home && state.home.settings) || { phraseCheck: true, saveAudio: true };
+    var phrase = '', phraseAt = 0, ttsDetected = false, ttsTimer = null, capture = null;
     if (!Recognizer.isSupported()) micBtn.disabled = true;
+    if (settings.saveAudio && AudioCapture.isSupported() && !prefs().captureOff) {
+      $('#live').insertAdjacentHTML('beforebegin', '<div class="rec-note">🎙 音読の音声は保存され、先生が聞くことがあります。</div>');
+    }
+
+    // 画面を切り替えたら中断（別の画面で音声を流す使い方を防ぐ）
+    if (state.visHandler) document.removeEventListener('visibilitychange', state.visHandler);
+    state.visHandler = function () {
+      if (document.hidden && recording) {
+        resetUI();
+        if (capture) { capture.cancel(); capture = null; }
+        toast('画面を切り替えたため、音読を中断しました。もう一度はじめてください。', true);
+      }
+    };
+    document.addEventListener('visibilitychange', state.visHandler);
 
     function tick() {
       var sec = Math.floor((Date.now() - startedAt) / 1000);
       timerEl.textContent = Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2);
       if (sec >= 300) stopRec(); // 5分で自動終了
     }
+    function previewTokens() {
+      if (!phrase) return plainTokens(opt.text);
+      return Scoring.phraseTokens(opt.text, phrase, phraseAt).map(function (t) {
+        return { text: t.text, status: t.space ? 'space' : t.phraseLabel ? 'phrase-label' : t.phrase ? 'phrase' : t.ja ? 'ja' : 'none' };
+      });
+    }
     async function startRec() {
+      if (busy) return;
       Speaker.stop();
       $('#resultArea').innerHTML = '';
-      passage.innerHTML = passageHTML(plainTokens(opt.text));
+      ttsDetected = false;
+      // 合言葉（毎回変わる）を英文の途中に入れる
+      if (settings.phraseCheck) { phrase = Scoring.makePhrase(); phraseAt = Scoring.phrasePosition(opt.text); }
+      else { phrase = ''; phraseAt = 0; }
+      passage.innerHTML = passageHTML(previewTokens());
+      if (phrase) {
+        passage.insertAdjacentHTML('beforebegin', '<div class="phrase-note" id="phraseNote">🔑 のところで、合言葉「<b>' + esc(phrase) + '</b>」も声に出して読んでね</div>');
+      }
+      // 音声の保存（対応端末のみ）
+      capture = null;
+      if (settings.saveAudio && AudioCapture.isSupported() && !prefs().captureOff) {
+        capture = new AudioCapture();
+        try { await capture.start(); } catch (e) { capture = null; }
+      }
       var rec = new Recognizer({
         lang: CFG.SPEECH_LANG || 'en-US',
         onUpdate: function (t) { live.textContent = t || '…'; },
-        onError: function (m) { toast(m, true); resetUI(); }
+        onError: function (m) { toast(m, true); resetUI(); if (capture) { capture.cancel(); capture = null; } }
       });
       state.recognizer = rec;
-      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした：' + e.message, true); return; }
+      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした：' + e.message, true); if (capture) { capture.cancel(); capture = null; } return; }
       recording = true; startedAt = Date.now();
+      $('#bModel').disabled = true;
+      // お手本音声（読み上げ）が流れていないか見張る
+      clearInterval(ttsTimer);
+      ttsTimer = setInterval(function () {
+        if (recording && window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) ttsDetected = true;
+      }, 200);
       micBtn.classList.add('rec'); micBtn.textContent = '⏹'; micBtn.setAttribute('aria-label', '音読をおわる');
       label.textContent = '聞き取り中… 読み終えたら■を押す';
       live.textContent = '…';
       timerId = setInterval(tick, 500); tick();
     }
     function resetUI() {
-      recording = false; clearInterval(timerId);
+      recording = false; clearInterval(timerId); clearInterval(ttsTimer);
       micBtn.classList.remove('rec'); micBtn.textContent = '🎤'; micBtn.setAttribute('aria-label', '音読をはじめる');
       label.textContent = 'ボタンを押して音読スタート';
+      $('#bModel').disabled = false;
+      var pn = $('#phraseNote'); if (pn) pn.remove();
       if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; }
     }
     async function stopRec() {
       if (!recording || busy) return;
-      busy = true; recording = false; clearInterval(timerId);
+      busy = true; recording = false; clearInterval(timerId); clearInterval(ttsTimer);
       var dur = Math.round((Date.now() - startedAt) / 1000);
       micBtn.disabled = true; label.textContent = '判定中…';
       var transcript = await state.recognizer.stop();
       state.recognizer = null;
+      var audio = capture ? await capture.stop() : null;
+      var hadCapture = !!capture; capture = null;
+      $('#bModel').disabled = false;
+      var pn = $('#phraseNote'); if (pn) pn.remove();
       live.textContent = transcript || '（聞き取れませんでした）';
       micBtn.classList.remove('rec'); micBtn.textContent = '🎤';
       if (!transcript) {
-        label.textContent = '声が聞き取れませんでした。マイクに近づいて、もう一度ためしてね';
+        if (hadCapture && /iPad|iPhone|iPod/.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? ' iPad' : ''))) {
+          // iPhone・iPad で録音と聞き取りがぶつかった可能性 → この端末では録音をやめる
+          setPref('captureOff', true);
+          var rn = $('.rec-note'); if (rn) rn.remove();
+          label.textContent = '聞き取れませんでした。設定を調整したので、もう一度ためしてね';
+        } else {
+          label.textContent = '声が聞き取れませんでした。マイクに近づいて、もう一度ためしてね';
+        }
         micBtn.disabled = false; busy = false; return;
       }
-      // まず端末で判定して表示 → サーバーに記録
-      var local = Scoring.score(opt.text, transcript);
+      // まず端末で判定
+      var local = phrase ? Scoring.scoreWithPhrase(opt.text, transcript, phrase, phraseAt) : Scoring.score(opt.text, transcript);
+      var flag = ttsDetected ? 'tts' : (phrase && !(local.phrase && local.phrase.ok)) ? 'phrase' : '';
       passage.innerHTML = passageHTML(local.tokens);
+      var payload = { aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur,
+        phrase: phrase, phraseAt: phraseAt, flag: flag };
+      if (audio && settings.saveAudio) payload.audio = audio;
+      if (flag) {
+        showCheatWarning(flag);
+        $('#resultArea').innerHTML = '<div class="card result"><div class="cheat-inline">⚠️ この音読は記録されませんでした</div>' +
+          '<div class="btn-row" style="justify-content:center;margin-top:12px"><button class="btn-primary" id="bAgain">🔁 もう一度読む</button></div></div>';
+        $('#bAgain').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); startRec(); };
+        try { await call('submit', payload); } catch (e) { /* 警告の記録に失敗しても続行 */ }
+        label.textContent = 'もう一度読むときはボタンを押してね';
+        micBtn.disabled = false; busy = false; return;
+      }
       showResult(local, null, true);
       try {
-        var r = await call('submit', { aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur });
+        var r = await call('submit', payload);
         passage.innerHTML = passageHTML(r.result.tokens);
-        showResult(r.result, r, false);
-        if (opt.aid && (opt.best === null || opt.best === undefined || r.result.accuracy > opt.best)) { opt.best = r.result.accuracy; }
-        if (state.home) state.home.student = r.student;
+        if (r.flagged) {
+          showCheatWarning(r.flagged);
+          $('#resultArea').innerHTML = '<div class="card result"><div class="cheat-inline">⚠️ この音読は記録されませんでした</div></div>';
+        } else {
+          showResult(r.result, r, false);
+          if (opt.aid && (opt.best === null || opt.best === undefined || r.result.accuracy > opt.best)) { opt.best = r.result.accuracy; }
+          if (state.home) state.home.student = r.student;
+        }
       } catch (e) {
         showError(e);
-        $('#saveState').textContent = '⚠️ 記録を保存できませんでした。もう一度ためしてください。';
+        if ($('#saveState')) $('#saveState').textContent = '⚠️ 記録を保存できませんでした。もう一度ためしてください。';
       }
       label.textContent = 'もう一度読むときはボタンを押してね';
       micBtn.disabled = false; busy = false;
@@ -1918,8 +2176,14 @@ window.SAMPLE_ASSIGNMENTS = [
     }
   }
 
+  // 練習画面の前に設定（合言葉・音声保存など）を読み込んでおく
+  async function ensureHome() {
+    if (!state.home) { try { state.home = await call('home'); } catch (e) { /* 既定値で続行 */ } }
+  }
+
   async function viewAssignment(aid) {
     loading();
+    await ensureHome();
     try {
       var r = await call('getAssignment', { aid: aid });
       bottomNav('home');
@@ -1928,7 +2192,8 @@ window.SAMPLE_ASSIGNMENTS = [
     } catch (e) { showError(e); go('#/home'); }
   }
 
-  function viewProverb() {
+  async function viewProverb() {
+    await ensureHome();
     bottomNav('home');
     var pv = todayProverb();
     // 日本語（上）＋英語（下）で表示。日本語は「日本語を隠す」で消せる（判定は英語のみ）
@@ -1950,7 +2215,8 @@ window.SAMPLE_ASSIGNMENTS = [
     function wc() { $('#wc').textContent = Scoring.countWords(ta.value) + ' 語'; state.freeText = ta.value; }
     ta.oninput = wc; wc();
     $('#ocrFile').onchange = function () { if (this.files[0]) runOCR(this.files[0], ta, $('#ocrStatus'), wc); this.value = ''; };
-    $('#bStartFree').onclick = function () {
+    $('#bStartFree').onclick = async function () {
+      await ensureHome();
       var t = ta.value.trim();
       if (!t || !Scoring.countWords(t)) { toast('英文を入力してください', true); return; }
       if (/[぀-ヿ一-龯]/.test(t)) toast('日本語の部分は表示だけで、判定の対象にはなりません');
@@ -2233,7 +2499,7 @@ window.SAMPLE_ASSIGNMENTS = [
       html += '<div class="card"><div class="toolbar"><select id="sCls" style="width:auto"><option value="">全クラス</option>' +
         o.classes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select><span class="sep"></span>' +
         '<button class="btn-small" id="bExpAll">⬇ Excel（全課題の成績）</button><a class="btn btn-small" href="#/t/import">＋ 名簿の登録</a><a class="btn btn-small" href="#/t/passes">🖨 パスコード表</a></div>' +
-        '<div class="table-wrap"><table><thead><tr><th>クラス</th><th class="num">番号</th><th>名前</th><th>級・段</th><th class="num">累計</th><th class="num">今週</th><th class="num">連続</th><th>最終音読日</th></tr></thead><tbody id="sBody"></tbody></table></div></div>';
+        '<div class="table-wrap"><table><thead><tr><th>クラス</th><th class="num">番号</th><th>名前</th><th>級・段</th><th class="num">累計</th><th class="num">今週</th><th class="num">連続</th><th>最終音読日</th><th class="num">注意<br><small>今週</small></th></tr></thead><tbody id="sBody"></tbody></table></div></div>';
       $app.innerHTML = html;
       function draw() {
         var c = $('#sCls').value;
@@ -2241,8 +2507,9 @@ window.SAMPLE_ASSIGNMENTS = [
         $('#sBody').innerHTML = rows.map(function (x) {
           return '<tr class="clickable" data-href="#/t/student/' + encodeURIComponent(x.id) + '"><td>' + esc(x.cls) + '</td><td class="num">' + esc(x.no) + '</td><td>' + esc(x.name) + (x.nick ? ' <small class="muted">(' + esc(x.nick) + ')</small>' : '') + '</td>' +
             '<td>' + esc(x.level.name) + '</td><td class="num">' + n(x.totalWords) + '</td><td class="num">' + n(x.weekWords) + '</td><td class="num">' + x.streak + '</td>' +
-            '<td>' + (x.lastDate ? fmtDay(x.lastDate) : '<span class="cell-none">—</span>') + '</td></tr>';
-        }).join('') || '<tr><td colspan="8" class="empty">生徒が登録されていません。「名簿の登録」から追加してください。</td></tr>';
+            '<td>' + (x.lastDate ? fmtDay(x.lastDate) : '<span class="cell-none">—</span>') + '</td>' +
+            '<td class="num">' + (x.weekFlags ? '<span class="pill flag">⚠ ' + x.weekFlags + '</span>' : '') + '</td></tr>';
+        }).join('') || '<tr><td colspan="9" class="empty">生徒が登録されていません。「名簿の登録」から追加してください。</td></tr>';
         bindRows();
       }
       $('#sCls').onchange = draw; draw();
@@ -2265,14 +2532,30 @@ window.SAMPLE_ASSIGNMENTS = [
       html += '<div class="card"><h2>' + esc(s.cls) + ' ' + esc(s.no) + '番 ' + esc(s.name) + (s.nick ? ' <small class="muted">(' + esc(s.nick) + ')</small>' : '') + '</h2>' +
         '<div class="kpi-inline"><span>級・段 <b>' + esc(s.level.name) + '</b></span><span>累計 <b>' + n(s.totalWords) + '</b> 語</span><span>連続 <b>' + s.streak + '</b> 日</span><span>最長連続 <b>' + s.bestStreak + '</b> 日</span><span>最終 <b>' + (s.lastDate ? fmtDay(s.lastDate) : '—') + '</b></span></div></div>';
       html += '<div class="card"><h2>音読のきろく（最新200件）</h2>';
-      html += r.records.length ? '<div class="table-wrap"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th class="num">正確さ</th><th class="num">単語</th></tr></thead><tbody>' +
+      html += r.records.length ? '<div class="table-wrap"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th class="num">正確さ</th><th class="num">単語</th><th>音声</th></tr></thead><tbody>' +
         r.records.map(function (x, i) {
-          return '<tr class="clickable" data-i="' + i + '"><td>' + fmtDate(x.time) + '</td><td>' + esc(x.kind) + '</td><td>' + esc(x.title) + '</td><td class="num ' + scoreClass(x.accuracy) + '">' + x.accuracy + '%</td><td class="num">' + x.correct + '/' + x.total + '</td></tr>' +
-            '<tr class="hidden" id="tr' + i + '"><td colspan="5" style="white-space:normal"><small class="muted">聞き取り結果：</small>' + esc(x.transcript || '—') + '</td></tr>';
+          return '<tr class="clickable" data-i="' + i + '"><td>' + fmtDate(x.time) + '</td><td>' + esc(x.kind) + (x.flag ? '<br><span class="pill flag">⚠ ' + esc(x.flag) + '</span>' : '') + '</td><td>' + esc(x.title) + '</td><td class="num ' + scoreClass(x.accuracy) + '">' + (x.flag ? '<s>' + x.accuracy + '%</s>' : x.accuracy + '%') + '</td><td class="num">' + x.correct + '/' + x.total + '</td>' +
+            '<td>' + (x.audio ? '<button class="btn-small" data-audio="' + esc(x.audio) + '">▶ 再生</button>' : '') + '</td></tr>' +
+            '<tr class="hidden" id="tr' + i + '"><td colspan="6" style="white-space:normal"><small class="muted">聞き取り結果：</small>' + esc(x.transcript || '—') + '</td></tr>';
         }).join('') + '</tbody></table></div><p class="muted" style="margin-top:6px">行をタップすると、聞き取った英文を確認できます。</p>' : '<div class="empty">まだきろくがありません。</div>';
       html += '</div>';
       $app.innerHTML = html;
       $all('tr[data-i]').forEach(function (tr) { tr.onclick = function () { $('#tr' + tr.dataset.i).classList.toggle('hidden'); }; });
+      $all('button[data-audio]').forEach(function (b) {
+        b.onclick = async function (ev) {
+          ev.stopPropagation();
+          b.disabled = true; b.textContent = '読込中…';
+          try {
+            var a = await call('t_audio', { id: b.dataset.audio });
+            var bin = atob(a.b64), arr = new Uint8Array(bin.length);
+            for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+            var url = URL.createObjectURL(new Blob([arr], { type: a.mime }));
+            var au = document.createElement('audio');
+            au.controls = true; au.src = url; au.style.maxWidth = '220px';
+            b.replaceWith(au); au.play().catch(function () {});
+          } catch (e) { showError(e); b.disabled = false; b.textContent = '▶ 再生'; }
+        };
+      });
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
 
@@ -2339,6 +2622,10 @@ window.SAMPLE_ASSIGNMENTS = [
         '<label for="sTitle">アプリ名（空欄なら「' + esc(CFG.APP_TITLE || '音読チャレンジ') + '」）</label><input type="text" id="sTitle" maxlength="30" value="' + esc(st.appTitle) + '">' +
         '<label class="check"><input type="checkbox" id="sRank"' + (st.showRanking ? ' checked' : '') + '>生徒にランキングを表示する</label>' +
         '<label class="check"><input type="checkbox" id="sNick"' + (st.allowNick ? ' checked' : '') + '>生徒がニックネームを使えるようにする（ランキングの表示名）</label>' +
+        '<h3 style="margin-top:16px">不正防止</h3>' +
+        '<label class="check"><input type="checkbox" id="sPhrase"' + (st.phraseCheck ? ' checked' : '') + '>🔑 合言葉チェック（音読の途中に毎回変わる合言葉を読ませる。確認できないと記録しない）</label>' +
+        '<label class="check"><input type="checkbox" id="sAudio"' + (st.saveAudio ? ' checked' : '') + '>🎙 音読の音声を保存し、先生画面で再生できるようにする</label>' +
+        '<p class="muted" style="font-size:.85rem">お手本音声の検知（判定中にお手本が流れたら記録しない）は常に有効です。音声を保存する場合は、生徒と保護者に事前にお知らせください。</p>' +
         '<label for="sPass">先生用パスワードの変更（変更しない場合は空欄）</label><input type="password" id="sPass" autocomplete="new-password" placeholder="6文字以上">' +
         '<div style="margin-top:14px"><button class="btn-primary" id="sSave">保存する</button></div></div>';
       html += '<div class="card"><h2>使い方のヒント</h2><ul>' +
@@ -2350,7 +2637,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $app.innerHTML = html;
       $('#sSave').onclick = async function () {
         try {
-          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, teacherPass: $('#sPass').value } });
+          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, phraseCheck: $('#sPhrase').checked, saveAudio: $('#sAudio').checked, teacherPass: $('#sPass').value } });
           state.overview = null; setTitle($('#sTitle').value); toast('保存しました'); $('#sPass').value = '';
         } catch (e) { showError(e); }
       };
@@ -2383,6 +2670,7 @@ window.SAMPLE_ASSIGNMENTS = [
   function render() {
     if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; }
     Speaker.stop();
+    var ov = document.querySelector('.cheat-overlay'); if (ov) ov.remove();
     $app.classList.remove('wide');
     window.scrollTo(0, 0);
     var hash = location.hash.replace(/^#/, '') || '/';
