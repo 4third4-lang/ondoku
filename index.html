@@ -3213,8 +3213,15 @@ window.SAMPLE_ASSIGNMENTS = [
     rows.sort(function (a, b) { return b.y - a.y; });
     return rows.map(function (r) {
       r.parts.sort(function (a, b) { return a.x - b.x; });
-      return r.parts.map(function (p) { return p.s; }).join(' ').replace(/\s+/g, ' ').trim();
+      return joinJa(r.parts.map(function (p) { return p.s; }).join(' '));
     });
+  }
+  // 日本語の文字どうしの間の空白を詰め、部首の字（⾏ など）をふつうの漢字に直す
+  var JA_C = '[\\u3000-\\u30ff\\u3400-\\u9fff\\uff00-\\uffef\\u2e80-\\u2fdf。、「」（）！？]';
+  function joinJa(str) {
+    var t = String(str).normalize ? String(str).normalize('NFKC') : String(str);
+    var re = new RegExp('(' + JA_C + ')\\s+(?=' + JA_C + ')', 'g');
+    return t.replace(re, '$1').replace(/\s+/g, ' ').trim();
   }
   // 行を「日本語のまとまり」「英語のまとまり」に整理する
   function tidyPdfText(lines, withJa) {
