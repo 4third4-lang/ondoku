@@ -357,6 +357,9 @@ body.has-nav main { padding-bottom: 90px; }
 .pw-card { border: 2px solid #f0cf63; background: #fffbea; }
 .pw-card .pw { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.2rem; background: #fff; padding: 2px 8px; border-radius: 6px; border: 1px solid #f0cf63; }
 
+.pdf-box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fafbfd; margin: 6px 0; }
+.pill.sched { background: #e8f0ff; color: #2b55b5; }
+
 </style>
 </head>
 <body>
@@ -934,8 +937,12 @@ window.APP_CONFIG = {
       level: lv
     };
   }
+  // 現在の日時（日本時間 'YYYY-MM-DDTHH:MM'）。処理のたびに handle() で設定
+  var NOW_STR = '';
+  function isScheduled(a) { return !!str(a.start) && str(a.start).slice(0, 16) > NOW_STR; }
   function assignmentVisibleTo(a, s, today) {
     if (!bool(a.published)) return false;
+    if (isScheduled(a)) return false;   // 予約配信（開始日時より前）は見えない
     var cl = splitClasses(a.classes);
     return !cl.length || cl.indexOf('全員') >= 0 || cl.indexOf(s.cls) >= 0;
   }
@@ -1375,6 +1382,7 @@ window.APP_CONFIG = {
         published: bool(a.published), created: str(a.created), words: num(a.words),
         types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal',
         owner: str(a.owner), ownerName: tname[str(a.owner)] || '', canEdit: canEditAssignment(me, a),
+        start: str(a.start), scheduled: isScheduled(a),
         mine: str(a.owner) === me.id || splitClasses(a.classes).some(function (c) { return me.classes.indexOf(c) >= 0; }),
         targets: targets.length, done: done, avg: done ? Math.round(sum / done * 10) / 10 : null
       };
@@ -1406,7 +1414,7 @@ window.APP_CONFIG = {
       id: a.id, title: a.title, text: a.text, ja: str(a.ja), classes: str(a.classes),
       due: str(a.due), contest: bool(a.contest), published: bool(a.published),
       types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal', pass: passLine(a), blanks: str(a.blanks),
-      canEdit: canEditAssignment(me, a)
+      start: str(a.start), canEdit: canEditAssignment(me, a)
     } };
   };
 
@@ -1430,6 +1438,8 @@ window.APP_CONFIG = {
     data.types = types.join(',');
     data.pass = Math.max(1, Math.min(100, Math.round(num(a.pass) || 80)));
     data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 3000);
+    data.start = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str(a.start)) ? str(a.start).slice(0, 16) : '';
+    if (data.start && data.due && data.due < data.start.slice(0, 10)) throw err('締切が開始日時より前になっています。');
     // 権限：担当クラスにだけ出せる（全員向けは管理者のみ）
     var cls = splitClasses(data.classes);
     if (!me.admin) {
@@ -1482,7 +1492,8 @@ window.APP_CONFIG = {
         masterCleared: isMaster(a) && cleared === types.length };
     });
     return { assignment: { id: a.id, title: a.title, text: a.text, due: str(a.due), contest: bool(a.contest), classes: str(a.classes),
-      types: types, mode: isMaster(a) ? 'master' : 'normal', pass: pl, canEdit: canEditAssignment(me, a) }, rows: rows };
+      types: types, mode: isMaster(a) ? 'master' : 'normal', pass: pl, canEdit: canEditAssignment(me, a),
+      start: str(a.start), scheduled: isScheduled(a) }, rows: rows };
   };
 
   handlers.t_studentDetail = function (p, store, ctx) {
@@ -1760,6 +1771,7 @@ window.APP_CONFIG = {
   function handle(action, payload, store, ctx) {
     var fn = handlers[action];
     if (!fn) return { ok: false, error: '不明な操作です：' + action };
+    NOW_STR = new Date(ctx.now().getTime() + 9 * 3600 * 1000).toISOString().slice(0, 16);
     try {
       var res = fn(payload || {}, store, ctx);
       res.ok = true;
@@ -2410,6 +2422,7 @@ window.SAMPLE_ASSIGNMENTS = [
     if (isNaN(d)) return esc(iso);
     return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
   }
+  function fmtStart(s) { var m = String(s || '').match(/^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/); return m ? (+m[1]) + '/' + (+m[2]) + ' ' + m[3] + ':' + m[4] : ''; }
   function fmtDay(s) { if (!s) return ''; var p = String(s).slice(0, 10).split('-'); return p.length === 3 ? (+p[1]) + '/' + (+p[2]) : s; }
   function scoreClass(v) { return v === null || v === undefined || v === '' ? 'cell-none' : v >= 90 ? 'cell-good' : v >= 70 ? 'cell-mid' : 'cell-low'; }
   function n(v) { return Number(v || 0).toLocaleString('ja-JP'); }
@@ -2657,6 +2670,14 @@ window.SAMPLE_ASSIGNMENTS = [
     return splitJaText(text).map(function (x) { return [{ text: x, status: 'ja' }]; });
   }
 
+  // 英文の文の数（日本語の行は数えない）
+  function countEnSentences(text) {
+    var lns = [[]], n = 0;
+    plainTokens(text).forEach(function (t) { if (t.status === 'space' && /\n/.test(t.text)) lns.push([]); else lns[lns.length - 1].push(t); });
+    lns.forEach(function (l) { if (l.some(function (t) { return t.status !== 'space' && t.status !== 'ja'; })) n += splitEnLine(l).length; });
+    return n;
+  }
+
   // 英文の表示：1文ずつ改行し、日本語の文と英語の文が対応していれば
   // 入力の順番に関係なく「日本語（上）→ 英語（下）」の組にして表示する
   // opts: { enLine: 英語の行を描く関数（並べ替え用）, jaSentences: 和訳欄の文（日本語の行がないとき） }
@@ -2754,17 +2775,11 @@ window.SAMPLE_ASSIGNMENTS = [
     var blanks = type === 2 ? (opt.blanks && opt.blanks.length ? opt.blanks : Blanks.auto(opt.text)) : [];
     var hasJa = Scoring.tokenize(opt.text).some(function (t) { return t.ja; });
     var jaFixed = type === 4 || type === 5;           // 日本語を常に表示する種類
-    var showJaBox = jaFixed && !hasJa && opt.ja;      // 日本語の行がない場合は和訳を表示
-    // 和訳欄の文の数が英文の文の数と同じなら、英文と1文ずつ組にして表示（和訳の箱は出さない）
-    var jaSent = opt.ja ? splitJaText(String(opt.ja).replace(/\n/g, '')) : [];
-    var enCount = 0;
-    if (showJaBox) {
-      var lns = [[]];
-      plainTokens(opt.text).forEach(function (t) { if (t.status === 'space' && /\n/.test(t.text)) lns.push([]); else lns[lns.length - 1].push(t); });
-      lns.forEach(function (l) { if (l.some(function (t) { return t.status !== 'space' && t.status !== 'ja'; })) enCount += splitEnLine(l).length; });
-    }
-    var jaPaired = showJaBox && jaSent.length > 0 && jaSent.length === enCount;
-    if (jaPaired) showJaBox = false;
+    // 和訳欄の文の数が英文の文の数と同じなら、どの種類でも「日本語（上）→英語（下）」の組で1文ずつ表示
+    var jaSent = (!hasJa && opt.ja) ? splitJaText(String(opt.ja).replace(/\n/g, '')) : [];
+    var jaPaired = jaSent.length > 0 && jaSent.length === countEnSentences(opt.text);
+    var showJaBox = jaFixed && !hasJa && opt.ja && !jaPaired;   // 組にできないときは和訳をまとめて表示
+    var hasJaDisp = hasJa || jaPaired;
     var shuffleCache = {};
     function isEn(t) { return t.word || (t.status !== 'space' && t.status !== 'ja' && !/^phrase/.test(t.status) && t.status !== 'blank' && /[A-Za-z0-9]/.test(t.text)); }
     // ③ スペースとピリオドをなくす
@@ -2843,12 +2858,12 @@ window.SAMPLE_ASSIGNMENTS = [
         return '<button data-v="' + r[0] + '" class="' + (p.size === r[0] ? 'active' : '') + '">' + r[1] + '</button>';
       }).join('') + '</div>' +
       (jaFixed ? '' : '<button class="btn-small" id="bHide">🙈 英文を隠す</button>') +
-      (hasJa && !jaFixed ? '<button class="btn-small" id="bJaInline">' + (p.hideJa ? '日本語を表示' : '日本語を隠す') + '</button>' : '') +
-      (opt.ja && !jaFixed ? '<button class="btn-small" id="bJa">和訳</button>' : '') +
+      (hasJaDisp && !jaFixed ? '<button class="btn-small" id="bJaInline">' + (p.hideJa ? '日本語を表示' : '日本語を隠す') + '</button>' : '') +
+      (opt.ja && !jaFixed && !jaPaired ? '<button class="btn-small" id="bJa">和訳</button>' : '') +
       '</div>';
     if (showJaBox) html += '<div class="ja-box">' + splitJaText(String(opt.ja).replace(/\n/g, '')).map(esc).join('<br>') + '</div>';
-    html += '<div class="passage ' + (p.size === 'mid' ? '' : p.size) + (hasJa && p.hideJa && !jaFixed ? ' hide-ja' : '') + (type === 5 ? ' mode-trans' : '') + (type === 4 ? ' mode-shuffle' : '') + (type === 3 ? ' mode-nospace' : '') + '" id="passage">' + display(plainTokens(opt.text), false) + '</div>';
-    if (opt.ja && !jaFixed) html += '<div class="ja-text hidden" id="jaText">' + esc(opt.ja) + '</div>';
+    html += '<div class="passage ' + (p.size === 'mid' ? '' : p.size) + (hasJaDisp && p.hideJa && !jaFixed ? ' hide-ja' : '') + (type === 5 ? ' mode-trans' : '') + (type === 4 ? ' mode-shuffle' : '') + (type === 3 ? ' mode-nospace' : '') + '" id="passage">' + display(plainTokens(opt.text), false) + '</div>';
+    if (opt.ja && !jaFixed && !jaPaired) html += '<div class="ja-text hidden" id="jaText">' + esc(opt.ja) + '</div>';
     html += '<div class="live" id="live">（ここに聞き取った英語が表示されます）</div>' +
       '<div class="mic-dock"><button class="mic-btn" id="bMic" aria-label="音読をはじめる">🎤</button>' +
       '<div class="mic-text"><div class="mic-label" id="micLabel">ボタンを押して音読スタート</div><div class="timer" id="timer"></div></div></div>';
@@ -3163,6 +3178,112 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
   // 画像から英文を読み取る（Tesseract.js・端末内で処理）
+  // ---- PDFから英文を読み取る（pdf.js・端末内で処理） ----
+  var PDFJS = ['https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/', 'https://unpkg.com/pdfjs-dist@3.11.174/build/'];
+  async function loadPdfJs() {
+    if (window.pdfjsLib) return;
+    for (var i = 0; i < PDFJS.length; i++) {
+      try {
+        await loadScript(PDFJS[i] + 'pdf.min.js');
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS[i] + 'pdf.worker.min.js';
+        return;
+      } catch (e) { if (i === PDFJS.length - 1) throw e; }
+    }
+  }
+  function parseRange(str, max) {
+    var pages = [];
+    String(str || '').split(/[,、\s]+/).forEach(function (part) {
+      var m = part.match(/^(\d+)(?:[-~〜ー](\d+))?$/);
+      if (!m) return;
+      var a = +m[1], b = m[2] ? +m[2] : a;
+      for (var p = Math.min(a, b); p <= Math.max(a, b); p++) if (p >= 1 && p <= max && pages.indexOf(p) < 0) pages.push(p);
+    });
+    return pages;
+  }
+  // テキストの並び（座標）から行を組み立てる
+  function pdfLines(items) {
+    var rows = [];
+    items.forEach(function (it) {
+      if (!it.str || !it.str.trim()) return;
+      var y = Math.round(it.transform[5]), x = it.transform[4];
+      var row = rows.filter(function (r) { return Math.abs(r.y - y) <= 3; })[0];
+      if (!row) { row = { y: y, parts: [] }; rows.push(row); }
+      row.parts.push({ x: x, s: it.str });
+    });
+    rows.sort(function (a, b) { return b.y - a.y; });
+    return rows.map(function (r) {
+      r.parts.sort(function (a, b) { return a.x - b.x; });
+      return r.parts.map(function (p) { return p.s; }).join(' ').replace(/\s+/g, ' ').trim();
+    });
+  }
+  // 行を「日本語のまとまり」「英語のまとまり」に整理する
+  function tidyPdfText(lines, withJa) {
+    var blocks = [];
+    lines.forEach(function (l) {
+      if (!l) return;
+      var ja = Scoring.isJaLine(l);
+      if (ja && !withJa) return;
+      if (!ja && !/[A-Za-z]{2,}/.test(l)) return;                 // ページ番号などを除く
+      var last = blocks[blocks.length - 1];
+      if (last && last.ja === ja) {
+        if (!ja && /-$/.test(last.text) && /^[a-z]/.test(l)) last.text = last.text.replace(/-$/, '') + l;   // 行末ハイフン
+        else last.text += (ja ? '' : ' ') + l;
+      } else blocks.push({ ja: ja, text: l });
+    });
+    return blocks.map(function (b) { return b.text.replace(/\s+/g, ' ').trim(); }).join('\n');
+  }
+  async function pdfImport(file, ta, box, after) {
+    box.innerHTML = '<div class="muted">PDFを読み込んでいます…</div>';
+    try {
+      await loadPdfJs();
+      var pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+      var n = pdf.numPages;
+      box.innerHTML = '<div class="pdf-box"><b>📄 ' + esc(file.name) + '</b>（全' + n + 'ページ）' +
+        '<div class="btn-row" style="margin-top:6px"><label style="margin:0">読み取るページ</label><input type="text" id="pdfPages" value="' + (n <= 2 ? '1-' + n : '1') + '" style="width:120px" placeholder="例：2-3">' +
+        '<label class="check" style="margin:0"><input type="checkbox" id="pdfJa">日本語も取り込む</label>' +
+        '<button class="btn-primary btn-small" id="pdfGo" type="button">読み取る</button><button class="btn-small" id="pdfCancel" type="button">やめる</button></div>' +
+        '<div class="muted" id="pdfStatus" style="margin-top:6px;font-size:.85rem">例：「1」「2-3」「1,3」。教科書などの文字が入ったPDFはそのまま、スキャンした画像のPDFは文字認識で読み取ります（英語のみ）。</div></div>';
+      $('#pdfCancel').onclick = function () { box.innerHTML = ''; };
+      $('#pdfGo').onclick = async function () {
+        var st = $('#pdfStatus'), withJa = $('#pdfJa').checked;
+        var pages = parseRange($('#pdfPages').value, n);
+        if (!pages.length) { st.textContent = 'ページの指定を確認してください（1〜' + n + '）。'; return; }
+        this.disabled = true;
+        var out = [], scanned = [];
+        for (var i = 0; i < pages.length; i++) {
+          st.textContent = pages[i] + 'ページを読み取り中…';
+          var page = await pdf.getPage(pages[i]);
+          var tc = await page.getTextContent();
+          var lines = pdfLines(tc.items);
+          var txt = tidyPdfText(lines, withJa);
+          if (txt.replace(/\s/g, '').length < 15) scanned.push(page); else out.push(txt);
+        }
+        // 文字が取れないページ（スキャン画像）は文字認識で読む
+        if (scanned.length) {
+          if (!window.Tesseract) await loadFirst(['https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js', 'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js']);
+          var worker = await Tesseract.createWorker('eng');
+          for (var k = 0; k < scanned.length; k++) {
+            st.textContent = '画像のページを文字認識中…（' + (k + 1) + '/' + scanned.length + '）';
+            var vp = scanned[k].getViewport({ scale: 2 });
+            var c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+            await scanned[k].render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+            var res = await worker.recognize(c);
+            var t2 = cleanOCR(res.data.text);
+            if (t2) out.push(t2);
+          }
+          await worker.terminate();
+        }
+        var text = out.join('\n\n').trim();
+        if (!text) { st.textContent = '英文が見つかりませんでした。ページの指定を確認してください。'; this.disabled = false; return; }
+        ta.value = (ta.value.trim() ? ta.value.trim() + '\n\n' : '') + text;
+        box.innerHTML = '<div class="muted">✅ PDFから読み取りました。いらない部分を消したり、まちがいを直したりしてください。</div>';
+        after && after();
+      };
+    } catch (e) {
+      box.innerHTML = '<div class="error">PDFを読み込めませんでした：' + esc(e.message) + '</div>';
+    }
+  }
+
   async function runOCR(file, ta, statusEl, after) {
     statusEl.textContent = '文字認識の準備中…（初回は少し時間がかかります）';
     try {
@@ -3371,7 +3492,7 @@ window.SAMPLE_ASSIGNMENTS = [
             (a.mode === 'master' ? '・🎓マスター' : (a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : (a.types && a.types[0] !== 1 ? '・' + '①②③④⑤'.charAt(a.types[0] - 1) : ''))) + '</small></td>' +
             '<td>' + esc(a.classes || '全員') + '</td><td>' + esc(a.ownerName || '—') + (a.canEdit ? '' : ' <small class="muted">（閲覧のみ）</small>') + '</td><td>' + (a.due ? fmtDay(a.due) : '—') + '</td>' +
             '<td class="num">' + a.done + ' / ' + a.targets + '</td><td class="num ' + scoreClass(a.avg) + '">' + (a.avg === null ? '—' : a.avg + '%') + '</td>' +
-            '<td>' + (a.published ? '<span class="pill done">公開中</span>' : '<span class="pill gray">非公開</span>') + '</td></tr>';
+            '<td>' + (!a.published ? '<span class="pill gray">非公開</span>' : a.scheduled ? '<span class="pill sched">⏰ 予約 ' + fmtStart(a.start) + '</span>' : '<span class="pill done">公開中</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<div class="empty">' + (scope === 'mine' ? '担当クラスの課題はまだありません。' : 'まだ課題がありません。') + '「＋ 新しい課題」から作成しましょう。</div>';
       html += '</div>';
       $app.innerHTML = html;
@@ -3400,10 +3521,12 @@ window.SAMPLE_ASSIGNMENTS = [
         '<label for="eTitle">タイトル</label><input type="text" id="eTitle" maxlength="80" value="' + esc(a.title) + '" placeholder="例：Unit 3 Part 1">' +
         '<label for="eText">英文 <small class="muted">（日本語を混ぜて書くと、日本語は表示のみ・判定の対象外になります）</small></label>' +
         '<div class="btn-row" style="margin-bottom:6px"><label class="btn btn-small" for="eFile" style="margin:0">📷 写真から取り込む</label><input type="file" id="eFile" accept="image/*" hidden>' +
+        '<label class="btn btn-small" for="ePdf" style="margin:0">📄 PDFから読み取る</label><input type="file" id="ePdf" accept="application/pdf,.pdf" hidden>' +
         '<button class="btn-small" id="ePlay" type="button">🔊 読み上げて確認</button><span class="muted" id="eWc"></span></div>' +
-        '<div id="eOcr" class="muted"></div>' +
+        '<div id="eOcr" class="muted"></div><div id="ePdfBox"></div>' +
         '<textarea id="eText" placeholder="英文を入力または貼り付けてください&#10;日本語も書けます（画面に表示されるだけで、音読・判定の対象にはなりません）&#10;例）私は音楽が好きです。&#10;　　I like music.&#10;（日本語は英語の上に表示されます）">' + esc(a.text) + '</textarea>' +
-        '<label for="eJa">和訳（任意・生徒が「和訳」ボタンで見られます）</label><textarea id="eJa" style="min-height:80px">' + esc(a.ja) + '</textarea>' +
+        '<label for="eJa">和訳（任意・生徒が「和訳」ボタンで見られます）</label><textarea id="eJa" style="min-height:80px" placeholder="英文に日本語の行がない場合に入力します（例：私は京都へ行きました。京都はとても美しかったです。）">' + esc(a.ja) + '</textarea>' +
+        '<div class="muted" id="eJaNote" style="font-size:.85rem;margin-top:4px"></div>' +
         '<div class="type-box"><h3>音読の種類</h3>' +
         '<label class="check"><input type="radio" name="eMode" value="normal"' + (a.mode !== 'master' ? ' checked' : '') + '>通常音読（チェックした種類から、生徒が選んで練習）</label>' +
         '<label class="check"><input type="radio" name="eMode" value="master"' + (a.mode === 'master' ? ' checked' : '') + '>🎓 音読マスターモード（チェックした種類を、番号の順にすべて合格でクリア）</label>' +
@@ -3425,7 +3548,9 @@ window.SAMPLE_ASSIGNMENTS = [
           return '<label class="check" style="margin:0 12px 0 0' + (mineC ? '' : ';opacity:.45') + '"><input type="checkbox" class="eCls" value="' + esc(c) + '"' + (checked ? ' checked' : '') + (mineC ? '' : ' disabled') + '>' + esc(c) + '</label>';
         }).join('') +
         (o.classes.length ? '' : '<span class="muted">名簿にクラスがありません</span>') + '</div>' +
-        '<div class="form-row"><div><label for="eDue">締切（任意）</label><input type="date" id="eDue" value="' + esc(a.due) + '"></div><div></div></div>' +
+        '<div class="form-row"><div><label for="eStart">開始日時（任意）</label><input type="datetime-local" id="eStart" value="' + esc(a.start || '') + '">' +
+        '<div class="muted" style="font-size:.8rem">空欄なら保存してすぐ配信。未来の日時にすると、その時刻に配信する「予約配信」になります。</div></div>' +
+        '<div><label for="eDue">締切（任意）</label><input type="date" id="eDue" value="' + esc(a.due) + '"></div></div>' +
         '<label class="check"><input type="checkbox" id="eContest"' + (a.contest ? ' checked' : '') + '>🏆 音読大会にする（自己ベストの正確さでランキング）</label>' +
         '<label class="check"><input type="checkbox" id="ePub"' + (a.published !== false ? ' checked' : '') + '>生徒に公開する</label>' +
         '<div class="btn-row" style="margin-top:14px"><button class="btn-primary btn-big" id="eSave">保存する</button>' +
@@ -3448,6 +3573,18 @@ window.SAMPLE_ASSIGNMENTS = [
         $('#ePassRow').classList.toggle('hidden', !master && $all('.eType').filter(function (c) { return c.checked; }).length < 2);
         $('#eBlankBox').classList.toggle('hidden', !$('.eType[value="2"]').checked);
         drawBlanks();
+        jaNote();
+      }
+      // 和訳欄と英文の対応（1文ずつ組になるか）
+      function jaNote() {
+        var el = $('#eJaNote'), ja = $('#eJa').value.trim();
+        var textHasJa = Scoring.tokenize(ta.value).some(function (t) { return t.ja; });
+        if (!ja) { el.textContent = ''; return; }
+        if (textHasJa) { el.textContent = '英文の中に日本語の行があるため、和訳欄は「和訳」ボタンで表示されます。'; return; }
+        var nj = splitJaText(ja.replace(/\n/g, '')).length, ne = countEnSentences(ta.value);
+        el.innerHTML = nj === ne
+          ? '✅ 英文 ' + ne + '文と和訳 ' + nj + '文が対応しています。生徒の画面では「日本語（上）→英語（下）」の組で1文ずつ表示されます。'
+          : '⚠ 文の数が合いません（英文 ' + ne + '文・和訳 ' + nj + '文）。1文ずつの組にするには、和訳を英文と同じ数の文（「。」で区切る）にしてください。';
       }
       function drawBlanks() {
         var set = {}, k = 0;
@@ -3482,19 +3619,21 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#eBlankAuto').onclick = function () { blanks = Blanks.auto(ta.value); blanksCustom = false; drawBlanks(); };
       wc();
       $('#eFile').onchange = function () { if (this.files[0]) runOCR(this.files[0], ta, $('#eOcr'), wc); this.value = ''; };
+      $('#ePdf').onchange = function () { if (this.files[0]) pdfImport(this.files[0], ta, $('#ePdfBox'), wc); this.value = ''; };
       $('#ePlay').onclick = function () { if (ta.value.trim()) Speaker.speak(Scoring.englishOnly(ta.value), 0.9, CFG.SPEECH_LANG || 'en-US'); };
       $('#eSave').onclick = async function () {
         var btn = this; btn.disabled = true; $('#eErr').textContent = '';
         try {
           var data = { id: aid || '', title: $('#eTitle').value, text: ta.value, ja: $('#eJa').value,
             classes: $all('.eCls').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }).join(','),
-            due: $('#eDue').value, contest: $('#eContest').checked, published: $('#ePub').checked,
+            due: $('#eDue').value, start: $('#eStart').value, contest: $('#eContest').checked, published: $('#ePub').checked,
             mode: $('input[name=eMode]:checked').value,
             types: $all('.eType').filter(function (c) { return c.checked; }).map(function (c) { return +c.value; }),
             pass: +$('#ePass').value || 80, blanks: blanks.join(',') };
           var r = await call('t_saveAssignment', { assignment: data });
           state.overview = null;
-          toast('保存しました');
+          var nowLocal = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16);
+          toast(data.start && data.start > nowLocal ? '予約配信として保存しました（' + fmtStart(data.start) + 'に配信）' : '保存しました');
           go('#/t/results/' + encodeURIComponent(r.id));
         } catch (e) { $('#eErr').textContent = e.message; btn.disabled = false; }
       };
@@ -3521,7 +3660,9 @@ window.SAMPLE_ASSIGNMENTS = [
       var html = '<a class="back" href="#/t">← 課題一覧</a>';
       html += '<div class="card"><div class="card-title"><h2>' + (a.contest ? '🏆 ' : '') + esc(a.title) + '</h2>' +
         '<div class="btn-row">' + (a.canEdit ? '<a class="btn btn-small" href="#/t/edit/' + encodeURIComponent(a.id) + '">✏️ 編集</a>' : '<span class="pill gray">閲覧のみ</span>') + '<button class="btn-small" id="bExp">⬇ Excel</button></div></div>' +
-        '<div class="kpi-inline"><span>対象 <b>' + esc(a.classes || '全員') + '</b></span><span>締切 <b>' + (a.due ? fmtDay(a.due) : '—') + '</b></span>' +
+        '<div class="kpi-inline"><span>対象 <b>' + esc(a.classes || '全員') + '</b></span>' +
+        (a.start ? '<span>開始 <b>' + fmtStart(a.start) + '</b>' + (a.scheduled ? ' <span class="pill sched">⏰ 予約配信</span>' : '') + '</span>' : '') +
+        '<span>締切 <b>' + (a.due ? fmtDay(a.due) : '—') + '</b></span>' +
         '<span>種類 <b>' + (master ? '🎓 マスターモード' : types.map(function (t) { return TL[t]; }).join('・')) + '</b></span>' +
         (master || types.length > 1 ? '<span>合格ライン <b>' + a.pass + '%</b></span>' : '') +
         '<span>取り組んだ人 <b>' + done.length + ' / ' + r.rows.length + '</b></span>' +
