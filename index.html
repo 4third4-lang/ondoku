@@ -298,6 +298,21 @@ body.has-nav main { padding-bottom: 90px; }
 @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
 .pill.flag { background: var(--ng-soft); color: var(--ng); }
 
+/* ---- 要確認（不正の疑い）---- */
+.badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 4px; border-radius: 99px; background: var(--ng); color: #fff; font-size: .75rem; font-weight: 800; line-height: 20px; text-align: center; vertical-align: middle; }
+.bell { color: #fff; text-decoration: none; font-size: 1.1rem; display: inline-flex; align-items: center; }
+.flag-banner { display: block; background: var(--ng-soft); color: var(--ng); border: 2px solid #f2b5b5; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; font-weight: 700; text-decoration: none; animation: pulseBg 2s infinite; }
+@keyframes pulseBg { 0%,100% { background: var(--ng-soft); } 50% { background: #fbd3d3; } }
+.flag-card { border-left: 6px solid var(--ng); }
+.flag-card.done { border-left-color: var(--ok); opacity: .8; }
+.flag-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.flag-body { margin-bottom: 6px; }
+.flag-transcript { background: #fafbfd; border: 1px dashed var(--line); border-radius: 8px; padding: 6px 10px; font-size: .9rem; }
+.audio-player { max-width: 260px; height: 40px; }
+
+.pending-card { border: 2px solid #f0cf63; background: #fffbea; }
+.pending-title { font-size: 1.3rem; font-weight: 800; color: #7a5600; margin-bottom: 6px; }
+
 </style>
 </head>
 <body>
@@ -517,8 +532,15 @@ window.APP_CONFIG = {
     number: ['three', 'five', 'six', 'seven', 'nine']
   };
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
-  function makePhrase() {
-    return pick(PHRASE_WORDS.color) + ' ' + pick(PHRASE_WORDS.animal) + ' ' + pick(PHRASE_WORDS.number);
+  // 英文の中に出てくる単語は合言葉に使わない（録音にたまたま含まれて合格になるのを防ぐ）
+  function makePhrase(text) {
+    var used = {};
+    tokenize(text || '').forEach(function (t) { t.units.forEach(function (u) { used[u] = true; }); });
+    function pickFree(list) {
+      var free = list.filter(function (w) { return !toUnits(w).some(function (u) { return used[u]; }); });
+      return pick(free.length ? free : list);
+    }
+    return pickFree(PHRASE_WORDS.color) + ' ' + pickFree(PHRASE_WORDS.animal) + ' ' + pickFree(PHRASE_WORDS.number);
   }
   // 合言葉を入れる位置（英文の途中の文の切れ目。なければ最後）
   function phrasePosition(text) {
@@ -597,8 +619,8 @@ window.APP_CONFIG = {
     });
     var accuracy = total ? Math.round((correct / total) * 1000) / 10 : 0;
     var res = { accuracy: accuracy, total: total, correct: correct, tokens: out };
-    // 合言葉は3語中2語以上聞き取れれば確認できたとみなす（聞き取りミスへの配慮）
-    if (pAll) res.phrase = { ok: pOk >= Math.max(1, pAll - 1), matched: pOk, total: pAll };
+    // 合言葉は1語でも聞き取れれば確認できたとみなす（聞き取りミスへの配慮）
+    if (pAll) res.phrase = { ok: pOk >= 1, matched: pOk, total: pAll };
     return res;
   }
 
@@ -765,7 +787,16 @@ window.APP_CONFIG = {
       saveAudio: boolDef(store.getSetting('音声を保存'), true)
     };
   }
-  var FLAG_LABEL = { tts: 'お手本音声を検知', phrase: '合言葉が確認できない' };
+  // 不正の判定
+  //  definite: true  … 不正がはっきりしている → 自動で無効（先生への通知なし）
+  //  definite: false … はっきりしない → 記録を保留し、先生が録音を聞いて確認
+  var FLAGS = {
+    tts: { label: 'お手本音声を検知', definite: true },
+    phrase: { label: '合言葉なし', definite: true },
+    partial: { label: '合言葉が一部しか聞き取れない', definite: false },
+    speed: { label: '読む速さが不自然に速い', definite: false }
+  };
+  var AUTO_INVALID = '自動で無効';
 
   handlers.home = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx);
@@ -816,8 +847,14 @@ window.APP_CONFIG = {
     var dur = Math.max(0, Math.min(3600, num(p.duration)));
 
     // 不正防止：お手本音声の検知、合言葉の確認
-    var flag = FLAG_LABEL[p.flag] ? p.flag : '';
-    if (!flag && cfg.phraseCheck && (!hasPhrase || !r.phrase || !r.phrase.ok)) flag = 'phrase';
+    var flag = (p.flag === 'tts' || p.flag === 'phrase') ? p.flag : '';
+    if (!flag && cfg.phraseCheck) {
+      if (!hasPhrase || !r.phrase || r.phrase.matched === 0) flag = 'phrase';   // 合言葉がまったくない → 録音などの可能性が高い
+      // 合言葉は1語でも聞き取れれば合格（scoring.js）。'partial' は旧版との互換のために残しています
+      else if (!r.phrase.ok) flag = 'partial';
+    }
+    // 1秒に4語を超える速さ（15語以上）は、人の音読としては不自然 → 先生が確認
+    if (!flag && r.correct >= 15 && dur > 0 && r.correct / dur > 4) flag = 'speed';
 
     // 音声の保存（先生が確認できるように）
     var audioId = '';
@@ -831,11 +868,12 @@ window.APP_CONFIG = {
     if (flag) {
       // 記録には残すが、単語数・自己ベストには加えない
       store.appendRecord({
-        time: now.toISOString(), date: today, sid: s.id, aid: aid, kind: kind, flag: FLAG_LABEL[flag],
+        time: now.toISOString(), date: today, sid: s.id, aid: aid, kind: kind, flag: FLAGS[flag].label,
+        reviewed: FLAGS[flag].definite ? AUTO_INVALID : '',
         accuracy: r.accuracy, correct: 0, total: r.total, duration: dur, audio: audioId,
         transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
       });
-      return { flagged: flag, result: r, student: studentPublic(s) };
+      return { flagged: flag, definite: FLAGS[flag].definite, result: r, student: studentPublic(s) };
     }
 
     // 生徒の累計を更新
@@ -994,7 +1032,8 @@ window.APP_CONFIG = {
     var classes = {};
     students.forEach(function (s) { classes[s.cls] = true; });
     var settings = settingsForClient(store);
-    return { assignments: assignments, students: list, classes: Object.keys(classes).sort(), today: today, settings: settings };
+    return { assignments: assignments, students: list, classes: Object.keys(classes).sort(), today: today, settings: settings,
+      openFlags: openFlags(store, today) };
   };
 
   handlers.t_getAssignment = function (p, store, ctx) {
@@ -1060,7 +1099,7 @@ window.APP_CONFIG = {
     var recs = store.getRecordsByStudent(s.id, 200).map(function (r) {
       return { time: r.time, kind: r.kind, title: r.aid ? (titles[r.aid] || '（削除された課題）') : (Sc.englishOnly(r.text).replace(/\n/g, ' ') || str(r.text)).slice(0, 40),
         accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total), transcript: str(r.transcript),
-        flag: str(r.flag), audio: str(r.audio) };
+        flag: str(r.flag), audio: str(r.audio), reviewed: str(r.reviewed), rid: rid(r) };
     });
     var pub = studentPublic(s); pub.name = str(s.name);
     return { student: pub, records: recs };
@@ -1127,6 +1166,65 @@ window.APP_CONFIG = {
     return {};
   };
 
+  // ---- 不正の疑い（要確認）----
+  var FLAG_DAYS = 90;
+  function rid(r) { return str(r.time) + '|' + str(r.sid); }
+  function openFlags(store, today) {
+    var n = 0;
+    store.getFlaggedRecords(addDays(today, -FLAG_DAYS)).forEach(function (r) { if (!str(r.reviewed)) n++; });
+    return n;
+  }
+  handlers.t_flagCount = function (p, store, ctx) {
+    teacher(p, ctx);
+    return { count: openFlags(store, jstDate(ctx.now())) };
+  };
+  handlers.t_flags = function (p, store, ctx) {
+    teacher(p, ctx);
+    var today = jstDate(ctx.now());
+    var byId = {}, titles = {};
+    store.getStudents().forEach(function (s) { byId[s.id] = s; });
+    store.getAssignments().forEach(function (a) { titles[a.id] = a.title; });
+    var list = store.getFlaggedRecords(addDays(today, -FLAG_DAYS))
+      .filter(function (r) { return p.all || !str(r.reviewed); })
+      .slice(0, 200)
+      .map(function (r) {
+        var s = byId[r.sid] || { cls: '', no: '', name: '' };
+        return { rid: rid(r), time: r.time, sid: r.sid, cls: s.cls, no: s.no, name: str(s.name), kind: r.kind,
+          title: r.aid ? (titles[r.aid] || '（削除された課題）') : (Sc.englishOnly(r.text).replace(/\n/g, ' ') || str(r.text)).slice(0, 60),
+          flag: str(r.flag), reviewed: str(r.reviewed), audio: str(r.audio), transcript: str(r.transcript),
+          accuracy: num(r.accuracy), total: num(r.total) };
+      });
+    return { list: list, open: openFlags(store, today) };
+  };
+  // 先生が確認：ok＝問題なし（記録を認めて単語数を加える）／ng＝不正あり
+  handlers.t_reviewFlag = function (p, store, ctx) {
+    teacher(p, ctx);
+    var r = store.findRecord(str(p.rid));
+    if (!r || !str(r.flag)) throw err('記録が見つかりません。');
+    if (str(r.reviewed)) return { reviewed: r.reviewed };  // 自動で無効になったもの・確認済みのものは変更しない
+    var day = jstDate(ctx.now());
+    var ok = p.verdict === 'ok';
+    var label = (ok ? '問題なし' : '不正あり') + '（' + day + '）';
+    var upd = { reviewed: label };
+    if (ok) {
+      var credit = Math.round(num(r.accuracy) * num(r.total) / 100);
+      upd.correct = credit;
+      var s = store.getStudent(r.sid);
+      if (s && credit) store.updateStudent(s.id, { totalWords: num(s.totalWords) + credit });
+      if (r.aid) {
+        var b = store.getBest(r.sid, r.aid);
+        var better = !b || num(r.accuracy) > num(b.best);
+        store.setBest(r.sid, r.aid, {
+          best: b ? Math.max(num(b.best), num(r.accuracy)) : num(r.accuracy),
+          attempts: (b ? num(b.attempts) : 0) + 1, last: r.time,
+          bestAt: better ? r.time : (b ? b.bestAt : r.time)
+        });
+      }
+    }
+    store.updateRecord(str(p.rid), upd);
+    return { reviewed: label };
+  };
+
   handlers.t_audio = function (p, store, ctx) {
     teacher(p, ctx);
     if (!store.getAudio) throw err('音声を読み込めません。');
@@ -1136,7 +1234,7 @@ window.APP_CONFIG = {
   };
 
   var WRITE_ACTIONS = { submit: 1, setNick: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
-    t_importStudents: 1, t_saveSettings: 1 };
+    t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1 };
 
   function handle(action, payload, store, ctx) {
     var fn = handlers[action];
@@ -1231,6 +1329,28 @@ window.APP_CONFIG = {
       if (this.d.records[i].sid === sid) out.push(this.d.records[i]);
     }
     return out;
+  };
+
+  P.getFlaggedRecords = function (since) {
+    var out = [];
+    for (var i = this.d.records.length - 1; i >= 0; i--) {
+      var r = this.d.records[i];
+      if (r.date < since) break;
+      if (r.flag) out.push(r);
+    }
+    return out;
+  };
+  P.findRecord = function (rid) {
+    for (var i = this.d.records.length - 1; i >= 0; i--) {
+      var r = this.d.records[i];
+      if (r.time + '|' + r.sid === rid) return r;
+    }
+    return null;
+  };
+  P.updateRecord = function (rid, f) {
+    var r = this.findRecord(rid); if (!r) return;
+    for (var k in f) r[k] = f[k];
+    this._changed();
   };
 
   // 音声（デモモードでは、ページを開いている間だけメモリに保持）
@@ -1724,6 +1844,7 @@ window.SAMPLE_ASSIGNMENTS = [
   }
   function logout(silent) {
     store(SESSION_KEY, null); state.session = null; state.home = null; state.overview = null;
+    clearInterval(state.flagTimer); state.flagTimer = null; state.flagCount = 0;
     if (!silent) toast('ログアウトしました');
     go('#/');
   }
@@ -1732,7 +1853,7 @@ window.SAMPLE_ASSIGNMENTS = [
     var s = state.session;
     if (!s) { el.innerHTML = ''; return; }
     if (s.role === 'teacher') {
-      el.innerHTML = '<span>先生用</span><button class="btn-small" id="btnLogout">ログアウト</button>';
+      el.innerHTML = '<a class="bell" href="#/t/flags" title="要確認">🔔' + flagBadge() + '</a><span>先生用</span><button class="btn-small" id="btnLogout">ログアウト</button>';
     } else {
       el.innerHTML = '<span>' + esc(s.label || '') + '</span>';
     }
@@ -1948,8 +2069,8 @@ window.SAMPLE_ASSIGNMENTS = [
   // 不正の可能性があるときの大きな警告
   function showCheatWarning(flag) {
     var msg = {
-      tts: ['お手本の音声が流れていました', 'お手本の音声をマイクに聞かせて判定することはできません。<br>この音読は記録されず、「お手本音声を検知」として先生に届きます。<br>自分の声で読み直しましょう。'],
-      phrase: ['合言葉が確認できませんでした', '🔑 のところで合言葉を声に出して読みましたか？<br>録音した音声や読み上げ音声を使うと、合言葉が入らないため記録されません。<br>この音読は「合言葉が確認できない」として先生に届きます。<br>もう一度、合言葉も自分の声で読みましょう。']
+      tts: ['お手本の音声が流れていました', 'お手本の音声をマイクに聞かせて判定することはできません。<br><b>この音読は無効になりました。</b><br>自分の声で読み直しましょう。'],
+      phrase: ['合言葉が読まれていません', '🔑 のところで合言葉を声に出して読みましたか？<br>録音した音声や読み上げ音声には合言葉が入らないため、<b>この音読は無効になりました。</b><br>もう一度、合言葉も自分の声で読みましょう。']
     }[flag] || ['確認できませんでした', 'もう一度、自分の声で読みましょう。'];
     var old = $('.cheat-overlay'); if (old) old.remove();
     var el = document.createElement('div');
@@ -2053,7 +2174,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#resultArea').innerHTML = '';
       ttsDetected = false;
       // 合言葉（毎回変わる）を英文の途中に入れる
-      if (settings.phraseCheck) { phrase = Scoring.makePhrase(); phraseAt = Scoring.phrasePosition(opt.text); }
+      if (settings.phraseCheck) { phrase = Scoring.makePhrase(opt.text); phraseAt = Scoring.phrasePosition(opt.text); }
       else { phrase = ''; phraseAt = 0; }
       passage.innerHTML = passageHTML(previewTokens());
       if (phrase) {
@@ -2118,14 +2239,15 @@ window.SAMPLE_ASSIGNMENTS = [
       }
       // まず端末で判定
       var local = phrase ? Scoring.scoreWithPhrase(opt.text, transcript, phrase, phraseAt) : Scoring.score(opt.text, transcript);
-      var flag = ttsDetected ? 'tts' : (phrase && !(local.phrase && local.phrase.ok)) ? 'phrase' : '';
+      // はっきりした不正（お手本音声・合言葉なし）はその場で無効にする
+      var flag = ttsDetected ? 'tts' : (phrase && local.phrase && local.phrase.matched === 0) ? 'phrase' : '';
       passage.innerHTML = passageHTML(local.tokens);
       var payload = { aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur,
         phrase: phrase, phraseAt: phraseAt, flag: flag };
       if (audio && settings.saveAudio) payload.audio = audio;
       if (flag) {
         showCheatWarning(flag);
-        $('#resultArea').innerHTML = '<div class="card result"><div class="cheat-inline">⚠️ この音読は記録されませんでした</div>' +
+        $('#resultArea').innerHTML = '<div class="card result"><div class="cheat-inline">⚠️ この音読は無効になりました</div>' +
           '<div class="btn-row" style="justify-content:center;margin-top:12px"><button class="btn-primary" id="bAgain">🔁 もう一度読む</button></div></div>';
         $('#bAgain').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); startRec(); };
         try { await call('submit', payload); } catch (e) { /* 警告の記録に失敗しても続行 */ }
@@ -2136,9 +2258,16 @@ window.SAMPLE_ASSIGNMENTS = [
       try {
         var r = await call('submit', payload);
         passage.innerHTML = passageHTML(r.result.tokens);
-        if (r.flagged) {
+        if (r.flagged && r.definite) {
           showCheatWarning(r.flagged);
-          $('#resultArea').innerHTML = '<div class="card result"><div class="cheat-inline">⚠️ この音読は記録されませんでした</div></div>';
+          $('#resultArea').innerHTML = '<div class="card result"><div class="cheat-inline">⚠️ この音読は無効になりました</div></div>';
+        } else if (r.flagged) {
+          // はっきりしない場合：記録を保留し、先生が録音を確認
+          $('#resultArea').innerHTML = '<div class="card result pending-card"><div class="pending-title">🔍 先生が確認します</div>' +
+            '<p>' + (r.flagged === 'partial' ? '合言葉の一部しか聞き取れませんでした。' : '読む速さがとても速かったため、念のため確認します。') +
+            '<br>先生が録音を聞いて、問題がなければ記録されます。</p>' +
+            '<div class="btn-row" style="justify-content:center"><button class="btn-primary" id="bAgain2">🔁 もう一度読む</button></div></div>';
+          $('#bAgain2').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); startRec(); };
         } else {
           showResult(r.result, r, false);
           if (opt.aid && (opt.best === null || opt.best === undefined || r.result.accuracy > opt.best)) { opt.best = r.result.accuracy; }
@@ -2360,13 +2489,47 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
   // ================= 先生：ダッシュボード =================
+  function flagBadge() {
+    return '<span class="badge' + (state.flagCount ? '' : ' hidden') + '" data-flagbadge>' + (state.flagCount || 0) + '</span>';
+  }
   function teacherTabs(active) {
-    return '<div class="tabs no-print">' + [['assign', '課題', '#/t'], ['students', '生徒', '#/t/students'], ['settings', '設定', '#/t/settings']].map(function (t) {
+    return '<div class="tabs no-print">' + [['assign', '課題', '#/t'], ['students', '生徒', '#/t/students'], ['flags', '⚠ 要確認' + flagBadge(), '#/t/flags'], ['settings', '設定', '#/t/settings']].map(function (t) {
       return '<a href="' + t[2] + '" class="' + (active === t[0] ? 'active' : '') + '">' + t[1] + '</a>';
     }).join('') + '</div>';
   }
+  function flagBanner() {
+    if (!state.flagCount) return '';
+    return '<a class="flag-banner" href="#/t/flags">⚠ 不正の疑いがある音読が <b>' + state.flagCount + '件</b> あります。確認してください →</a>';
+  }
+  // 要確認の件数を表示に反映
+  function setFlagCount(nv) {
+    var prev = state.flagCount || 0;
+    state.flagCount = nv;
+    $all('[data-flagbadge]').forEach(function (b) { b.textContent = nv; b.classList.toggle('hidden', !nv); });
+    return nv > prev;
+  }
+  // 先生画面を開いている間、1分ごとに新しい「不正の疑い」をチェックして通知
+  function startFlagWatch() {
+    if (state.flagTimer) return;
+    state.flagTimer = setInterval(async function () {
+      if (!state.session || state.session.role !== 'teacher' || document.hidden) return;
+      try {
+        var r = await call('t_flagCount');
+        var prev = state.flagCount || 0;
+        if (setFlagCount(r.count)) {
+          var msg = '⚠ 不正の疑いがある音読が新しく ' + (r.count - prev) + '件 あります';
+          toast(msg, true);
+          if (window.Notification && Notification.permission === 'granted') {
+            try { new Notification(document.getElementById('appTitle').textContent, { body: msg + '（先生用画面の「要確認」で確認できます）' }); } catch (e) { /* noop */ }
+          }
+          if (location.hash === '#/t' || location.hash === '#/t/flags') render();
+        }
+      } catch (e) { /* 通信失敗は次回に */ }
+    }, 60000);
+  }
   async function loadOverview(force) {
     if (!state.overview || force) state.overview = await call('t_overview');
+    if (typeof state.overview.openFlags === 'number') setFlagCount(state.overview.openFlags);
     if (state.overview.settings && state.overview.settings.appTitle) setTitle(state.overview.settings.appTitle);
     return state.overview;
   }
@@ -2377,7 +2540,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var o = await loadOverview(true);
       var weekTotal = o.students.reduce(function (s, x) { return s + x.weekWords; }, 0);
       var activeToday = o.students.filter(function (x) { return x.lastDate === o.today; }).length;
-      var html = teacherTabs('assign');
+      var html = teacherTabs('assign') + flagBanner();
       html += '<div class="stats"><div class="stat"><div class="v">' + o.students.length + '</div><div class="l">生徒数</div></div>' +
         '<div class="stat"><div class="v">' + activeToday + '</div><div class="l">今日音読した生徒</div></div>' +
         '<div class="stat"><div class="v">' + n(weekTotal) + '</div><div class="l">今週の音読単語数</div></div>' +
@@ -2523,6 +2686,73 @@ window.SAMPLE_ASSIGNMENTS = [
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
 
+  // 録音を取得して再生（ボタンを audio 要素に置き換える）
+  async function playAudioInto(btn, id) {
+    btn.disabled = true; var label = btn.textContent; btn.textContent = '読込中…';
+    try {
+      var a = await call('t_audio', { id: id });
+      var bin = atob(a.b64), arr = new Uint8Array(bin.length);
+      for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+      var url = URL.createObjectURL(new Blob([arr], { type: a.mime }));
+      var au = document.createElement('audio');
+      au.controls = true; au.src = url; au.className = 'audio-player';
+      btn.replaceWith(au); au.play().catch(function () {});
+    } catch (e) { showError(e); btn.disabled = false; btn.textContent = label; }
+  }
+
+  // ---- 要確認（不正の疑い）----
+  async function viewFlags(showAll) {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var r = await call('t_flags', { all: !!showAll });
+      setFlagCount(r.open);
+      var html = teacherTabs('flags');
+      html += '<div class="card"><div class="card-title"><h2>⚠ 不正の疑いがある音読</h2>' +
+        '<div class="seg"><button data-all="0" class="' + (showAll ? '' : 'active') + '">未確認（' + r.open + '）</button><button data-all="1" class="' + (showAll ? 'active' : '') + '">すべて（90日）</button></div></div>' +
+        '<p class="muted">ここに出るのは、不正かどうか<b>自動では判断できなかった</b>音読だけです（読む速さが不自然に速い など）。お手本音声の検知や合言葉なしのように不正がはっきりしているものは、自動で無効にしています（「すべて」で確認できます）。<br>「▶ 録音を確認」で録音を再生し、「問題なし」か「不正あり」を押してください。「問題なし」にすると、通常の記録として単語数に加えられます。</p>' +
+        (window.Notification && Notification.permission !== 'granted' ? '<button class="btn-small" id="bNotify">🔔 この端末でデスクトップ通知を受け取る</button>' : '') +
+        '</div>';
+      if (!r.list.length) html += '<div class="card empty">' + (showAll ? '記録はありません。' : '未確認の「不正の疑い」はありません。') + '</div>';
+      html += r.list.map(function (x) {
+        return '<div class="card flag-card' + (x.reviewed ? ' done' : '') + '" data-rid="' + esc(x.rid) + '">' +
+          '<div class="flag-head"><div><b>' + esc(x.cls) + ' ' + esc(x.no) + '番 ' + esc(x.name) + '</b>' +
+          ' <a class="muted" href="#/t/student/' + encodeURIComponent(x.sid) + '" style="font-size:.85rem">記録一覧</a></div>' +
+          '<div class="muted">' + fmtDate(x.time) + '</div></div>' +
+          '<div class="flag-body"><span class="pill flag">⚠ ' + esc(x.flag) + '</span> <span class="pill gray">' + esc(x.kind) + '</span> ' + esc(x.title) + '</div>' +
+          '<div class="flag-transcript"><small class="muted">聞き取り結果：</small>' + esc(x.transcript || '—') + '</div>' +
+          '<div class="btn-row" style="margin-top:10px">' +
+          (x.audio ? '<button class="btn-primary" data-audio="' + esc(x.audio) + '">▶ 録音を確認</button>' : '<span class="muted">（録音なし）</span>') +
+          (x.reviewed ? '<span class="pill ' + (x.reviewed === '自動で無効' ? 'flag' : 'done') + '">' + (x.reviewed === '自動で無効' ? '✗ ' : '✓ ') + esc(x.reviewed) + '</span>'
+            : '<span class="sep"></span><button class="btn" data-verdict="ok">✓ 問題なし</button><button class="btn btn-danger" data-verdict="ng">✗ 不正あり</button>') +
+          '</div></div>';
+      }).join('');
+      $app.innerHTML = html;
+      $all('.seg button[data-all]').forEach(function (b) { b.onclick = function () { viewFlags(b.dataset.all === '1'); }; });
+      if ($('#bNotify')) $('#bNotify').onclick = async function () {
+        var pmt = await Notification.requestPermission();
+        toast(pmt === 'granted' ? 'デスクトップ通知をオンにしました' : '通知は許可されませんでした', pmt !== 'granted');
+        if (pmt === 'granted') this.remove();
+      };
+      $all('button[data-audio]').forEach(function (b) { b.onclick = function () { playAudioInto(b, b.dataset.audio); }; });
+      $all('button[data-verdict]').forEach(function (b) {
+        b.onclick = async function () {
+          var card = b.closest('.flag-card');
+          $all('button[data-verdict]', card).forEach(function (x) { x.disabled = true; });
+          try {
+            var res = await call('t_reviewFlag', { rid: card.dataset.rid, verdict: b.dataset.verdict });
+            card.classList.add('done');
+            var row = b.parentNode;
+            $all('button[data-verdict], .sep', row).forEach(function (x) { x.remove(); });
+            row.insertAdjacentHTML('beforeend', '<span class="pill done">✓ ' + esc(res.reviewed) + '</span>');
+            setFlagCount(Math.max(0, (state.flagCount || 0) - 1));
+            state.overview = null;
+            toast('確認しました');
+          } catch (e) { showError(e); $all('button[data-verdict]', card).forEach(function (x) { x.disabled = false; }); }
+        };
+      });
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
   async function viewStudentDetail(sid) {
     bottomNav(); $app.classList.add('wide'); loading();
     try {
@@ -2534,7 +2764,7 @@ window.SAMPLE_ASSIGNMENTS = [
       html += '<div class="card"><h2>音読のきろく（最新200件）</h2>';
       html += r.records.length ? '<div class="table-wrap"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th class="num">正確さ</th><th class="num">単語</th><th>音声</th></tr></thead><tbody>' +
         r.records.map(function (x, i) {
-          return '<tr class="clickable" data-i="' + i + '"><td>' + fmtDate(x.time) + '</td><td>' + esc(x.kind) + (x.flag ? '<br><span class="pill flag">⚠ ' + esc(x.flag) + '</span>' : '') + '</td><td>' + esc(x.title) + '</td><td class="num ' + scoreClass(x.accuracy) + '">' + (x.flag ? '<s>' + x.accuracy + '%</s>' : x.accuracy + '%') + '</td><td class="num">' + x.correct + '/' + x.total + '</td>' +
+          return '<tr class="clickable" data-i="' + i + '"><td>' + fmtDate(x.time) + '</td><td>' + esc(x.kind) + (x.flag ? '<br><span class="pill flag">⚠ ' + esc(x.flag) + '</span>' + (x.reviewed ? '<br><span class="pill done">✓ ' + esc(x.reviewed) + '</span>' : '') : '') + '</td><td>' + esc(x.title) + '</td><td class="num ' + scoreClass(x.accuracy) + '">' + (x.flag ? '<s>' + x.accuracy + '%</s>' : x.accuracy + '%') + '</td><td class="num">' + x.correct + '/' + x.total + '</td>' +
             '<td>' + (x.audio ? '<button class="btn-small" data-audio="' + esc(x.audio) + '">▶ 再生</button>' : '') + '</td></tr>' +
             '<tr class="hidden" id="tr' + i + '"><td colspan="6" style="white-space:normal"><small class="muted">聞き取り結果：</small>' + esc(x.transcript || '—') + '</td></tr>';
         }).join('') + '</tbody></table></div><p class="muted" style="margin-top:6px">行をタップすると、聞き取った英文を確認できます。</p>' : '<div class="empty">まだきろくがありません。</div>';
@@ -2542,19 +2772,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $app.innerHTML = html;
       $all('tr[data-i]').forEach(function (tr) { tr.onclick = function () { $('#tr' + tr.dataset.i).classList.toggle('hidden'); }; });
       $all('button[data-audio]').forEach(function (b) {
-        b.onclick = async function (ev) {
-          ev.stopPropagation();
-          b.disabled = true; b.textContent = '読込中…';
-          try {
-            var a = await call('t_audio', { id: b.dataset.audio });
-            var bin = atob(a.b64), arr = new Uint8Array(bin.length);
-            for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
-            var url = URL.createObjectURL(new Blob([arr], { type: a.mime }));
-            var au = document.createElement('audio');
-            au.controls = true; au.src = url; au.style.maxWidth = '220px';
-            b.replaceWith(au); au.play().catch(function () {});
-          } catch (e) { showError(e); b.disabled = false; b.textContent = '▶ 再生'; }
-        };
+        b.onclick = function (ev) { ev.stopPropagation(); playAudioInto(b, b.dataset.audio); };
       });
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
@@ -2693,6 +2911,7 @@ window.SAMPLE_ASSIGNMENTS = [
     }
     if (s.role === 'teacher') {
       if (parts[0] !== 't') return go('#/t');
+      startFlagWatch();
       switch (parts[1]) {
         case 'new': return viewEdit(null);
         case 'edit': return viewEdit(parts[2]);
@@ -2702,6 +2921,7 @@ window.SAMPLE_ASSIGNMENTS = [
         case 'import': return viewImport();
         case 'passes': return viewPasses();
         case 'settings': return viewSettings();
+        case 'flags': return viewFlags(false);
         default: return viewTeacher();
       }
     }
