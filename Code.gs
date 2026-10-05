@@ -135,13 +135,33 @@
     return ja > 0 && ja * 2 > latin;
   }
 
+  // 会話文の話者名（行の先頭の「Ken:」「Ms. Brown:」「A:」など）は読む対象にしない
+  //  ・英字で始まる1〜3語＋コロン（: または ：）のあとに本文が続くもの
+  //  ・「10:30」のような時刻は対象外（英字で始まらないため）
+  var SPEAKER_RE = /^(\s*)((?:[A-Z][A-Za-z'\u2019\-]*\.?)(?:\s+(?:[A-Z][A-Za-z'\u2019\-]*\.?|&|and)){0,2})\s*[:\uFF1A][ \t]*(?=\S)/;
+  function speakerLabel(line) {
+    var m = String(line).match(SPEAKER_RE);
+    return m ? m[2] : '';
+  }
+  function stripSpeaker(line) { return String(line).replace(SPEAKER_RE, '$1'); }
   function tokenize(text) {
     var tokens = [];
     var src = String(text || '').replace(/\r/g, '');
-    var lineJa = src.split('\n').map(isJaLine), li = 0;
+    // 話者名の行は「Ken: Hello」の形にそろえる（コロンのあとに空白を入れる）
+    var lines = src.split('\n').map(function (l) {
+      if (isJaLine(l)) return l;
+      return l.replace(SPEAKER_RE, function (all, sp, name) { return sp + name + ': '; });
+    });
+    src = lines.join('\n');
+    var lineJa = lines.map(isJaLine), li = 0;
+    // 各行の話者名が何語か（「Ms. Brown:」なら2）
+    var lineSp = lines.map(function (l, i) { if (lineJa[i]) return 0; var nm = speakerLabel(l); return nm ? nm.split(/\s+/).length : 0; });
+    var wi = 0;
     src.split(/(\s+)/).forEach(function (part) {
       if (part === '') return;
-      if (/^\s+$/.test(part)) { tokens.push({ text: part, space: true, units: [] }); li += (part.match(/\n/g) || []).length; return; }
+      if (/^\s+$/.test(part)) { tokens.push({ text: part, space: true, units: [] }); var nl = (part.match(/\n/g) || []).length; if (nl) { li += nl; wi = 0; } return; }
+      if (wi < lineSp[li]) { wi++; tokens.push({ text: part, space: false, speaker: true, units: [] }); return; }
+      wi++;
       if (lineJa[li]) { tokens.push({ text: part, space: false, ja: true, units: [] }); return; }
       var hasJa = JA_RE.test(part);
       part.split(JA_RE).forEach(function (seg) {
@@ -157,7 +177,7 @@
   // 英語の部分だけを取り出す（お手本の読み上げ用）
   function englishOnly(text) {
     return String(text || '').split(/\n/).filter(function (line) { return !isJaLine(line); }).map(function (line) {
-      return line.split(JA_RE).filter(function (seg) { return seg && !JA_TEST.test(seg); }).join(' ')
+      return stripSpeaker(line).split(JA_RE).filter(function (seg) { return seg && !JA_TEST.test(seg); }).join(' ')
         .replace(/\s+/g, ' ').trim();
     }).filter(function (line) { return /[A-Za-z0-9]/.test(line); }).join('\n');
   }
@@ -283,6 +303,7 @@
         return { text: t.text, status: unitOk[ti].ok === unitOk[ti].all ? 'phrase-ok' : 'phrase-ng' };
       }
       if (t.ja) return { text: t.text, status: 'ja' };
+      if (t.speaker) return { text: t.text, status: 'speaker' };
       if (!t.units.length) return { text: t.text, status: 'none' };
       total++;
       var ok = unitOk[ti].ok === unitOk[ti].all;
@@ -300,7 +321,13 @@
     return tokenize(text).filter(function (t) { return !t.space && t.units.length; }).length;
   }
 
-  var api = { isJaLine: isJaLine, score: score, scoreWithPhrase: scoreWithPhrase, phraseTokens: phraseTokens,
+  // 英文の中の話者名（重複なし）
+  function speakers(text) {
+    var seen = {}, out = [];
+    String(text || '').split('\n').forEach(function (l) { if (isJaLine(l)) return; var nm = speakerLabel(l); if (nm && !seen[nm]) { seen[nm] = 1; out.push(nm); } });
+    return out;
+  }
+  var api = { isJaLine: isJaLine, speakers: speakers, score: score, scoreWithPhrase: scoreWithPhrase, phraseTokens: phraseTokens,
     makePhrase: makePhrase, phrasePosition: phrasePosition, tokenize: tokenize, englishOnly: englishOnly, toUnits: toUnits, countWords: countWords,
     numberToWords: numberToWords };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

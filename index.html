@@ -460,6 +460,11 @@ html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primar
 .rp-list { text-align: left; font-size: .9rem; padding-left: 1em; }
 .rp-list li { margin: 2px 0; }
 .stamp-svg { flex-shrink: 0; }
+/* 会話文の話者名（読む対象ではない） */
+.passage .w.speaker { font-family: system-ui, sans-serif; font-size: .7em; font-weight: 800; color: var(--primary-dark); background: var(--primary-soft); border-radius: 6px; padding: 1px 6px; margin-right: 2px; vertical-align: .15em; }
+.passage.mode-trans .line:not(.ja-line) .w.speaker:not(.phrase):not(.phrase-label) { display: inline; }
+.passage.blur .w.speaker { filter: none; }
+.passage .chip-group + .w.speaker, .passage .w.speaker + .chip-group { margin-left: 4px; }
 
 </style>
 </head>
@@ -624,13 +629,33 @@ window.APP_CONFIG = {
     return ja > 0 && ja * 2 > latin;
   }
 
+  // 会話文の話者名（行の先頭の「Ken:」「Ms. Brown:」「A:」など）は読む対象にしない
+  //  ・英字で始まる1〜3語＋コロン（: または ：）のあとに本文が続くもの
+  //  ・「10:30」のような時刻は対象外（英字で始まらないため）
+  var SPEAKER_RE = /^(\s*)((?:[A-Z][A-Za-z'\u2019\-]*\.?)(?:\s+(?:[A-Z][A-Za-z'\u2019\-]*\.?|&|and)){0,2})\s*[:\uFF1A][ \t]*(?=\S)/;
+  function speakerLabel(line) {
+    var m = String(line).match(SPEAKER_RE);
+    return m ? m[2] : '';
+  }
+  function stripSpeaker(line) { return String(line).replace(SPEAKER_RE, '$1'); }
   function tokenize(text) {
     var tokens = [];
     var src = String(text || '').replace(/\r/g, '');
-    var lineJa = src.split('\n').map(isJaLine), li = 0;
+    // 話者名の行は「Ken: Hello」の形にそろえる（コロンのあとに空白を入れる）
+    var lines = src.split('\n').map(function (l) {
+      if (isJaLine(l)) return l;
+      return l.replace(SPEAKER_RE, function (all, sp, name) { return sp + name + ': '; });
+    });
+    src = lines.join('\n');
+    var lineJa = lines.map(isJaLine), li = 0;
+    // 各行の話者名が何語か（「Ms. Brown:」なら2）
+    var lineSp = lines.map(function (l, i) { if (lineJa[i]) return 0; var nm = speakerLabel(l); return nm ? nm.split(/\s+/).length : 0; });
+    var wi = 0;
     src.split(/(\s+)/).forEach(function (part) {
       if (part === '') return;
-      if (/^\s+$/.test(part)) { tokens.push({ text: part, space: true, units: [] }); li += (part.match(/\n/g) || []).length; return; }
+      if (/^\s+$/.test(part)) { tokens.push({ text: part, space: true, units: [] }); var nl = (part.match(/\n/g) || []).length; if (nl) { li += nl; wi = 0; } return; }
+      if (wi < lineSp[li]) { wi++; tokens.push({ text: part, space: false, speaker: true, units: [] }); return; }
+      wi++;
       if (lineJa[li]) { tokens.push({ text: part, space: false, ja: true, units: [] }); return; }
       var hasJa = JA_RE.test(part);
       part.split(JA_RE).forEach(function (seg) {
@@ -646,7 +671,7 @@ window.APP_CONFIG = {
   // 英語の部分だけを取り出す（お手本の読み上げ用）
   function englishOnly(text) {
     return String(text || '').split(/\n/).filter(function (line) { return !isJaLine(line); }).map(function (line) {
-      return line.split(JA_RE).filter(function (seg) { return seg && !JA_TEST.test(seg); }).join(' ')
+      return stripSpeaker(line).split(JA_RE).filter(function (seg) { return seg && !JA_TEST.test(seg); }).join(' ')
         .replace(/\s+/g, ' ').trim();
     }).filter(function (line) { return /[A-Za-z0-9]/.test(line); }).join('\n');
   }
@@ -772,6 +797,7 @@ window.APP_CONFIG = {
         return { text: t.text, status: unitOk[ti].ok === unitOk[ti].all ? 'phrase-ok' : 'phrase-ng' };
       }
       if (t.ja) return { text: t.text, status: 'ja' };
+      if (t.speaker) return { text: t.text, status: 'speaker' };
       if (!t.units.length) return { text: t.text, status: 'none' };
       total++;
       var ok = unitOk[ti].ok === unitOk[ti].all;
@@ -789,7 +815,13 @@ window.APP_CONFIG = {
     return tokenize(text).filter(function (t) { return !t.space && t.units.length; }).length;
   }
 
-  var api = { isJaLine: isJaLine, score: score, scoreWithPhrase: scoreWithPhrase, phraseTokens: phraseTokens,
+  // 英文の中の話者名（重複なし）
+  function speakers(text) {
+    var seen = {}, out = [];
+    String(text || '').split('\n').forEach(function (l) { if (isJaLine(l)) return; var nm = speakerLabel(l); if (nm && !seen[nm]) { seen[nm] = 1; out.push(nm); } });
+    return out;
+  }
+  var api = { isJaLine: isJaLine, speakers: speakers, score: score, scoreWithPhrase: scoreWithPhrase, phraseTokens: phraseTokens,
     makePhrase: makePhrase, phrasePosition: phrasePosition, tokenize: tokenize, englishOnly: englishOnly, toUnits: toUnits, countWords: countWords,
     numberToWords: numberToWords };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -3357,9 +3389,17 @@ window.SAMPLE_ASSIGNMENTS = [
   // 入力の順番に関係なく「日本語（上）→ 英語（下）」の組にして表示する
   // トークン列を <span> にする
   function spansHTML(line) {
-    return line.map(function (t) {
+    // 話者名（「Ms. Brown:」など、複数語のもの）は1つにまとめる
+    var merged = [];
+    line.forEach(function (t, i) {
+      var last = merged[merged.length - 1];
+      if (t.status === 'speaker' && last && last.status === 'speaker') { last.text += ' ' + t.text; return; }
+      if (t.status === 'space' && last && last.status === 'speaker' && line[i + 1] && line[i + 1].status === 'speaker') return;
+      merged.push(t.status === 'speaker' ? { text: t.text, status: 'speaker' } : t);
+    });
+    return merged.map(function (t) {
       if (t.status === 'space') return ' ';
-      var c = ({ ok: ' ok', ng: ' ng', ja: ' ja', phrase: ' phrase', 'phrase-ok': ' phrase ok', 'phrase-ng': ' phrase ng', 'phrase-label': ' phrase-label', blank: ' blank' }[t.status] || '') + (t.blank ? ' was-blank' : '');
+      var c = ({ ok: ' ok', ng: ' ng', ja: ' ja', speaker: ' speaker', phrase: ' phrase', 'phrase-ok': ' phrase ok', 'phrase-ng': ' phrase ng', 'phrase-label': ' phrase-label', blank: ' blank' }[t.status] || '') + (t.blank ? ' was-blank' : '');
       return '<span class="w' + c + '">' + esc(t.text) + '</span>';
     }).join('');
   }
@@ -3536,7 +3576,7 @@ window.SAMPLE_ASSIGNMENTS = [
     return html;
   }
   function plainTokens(text) {
-    return Scoring.tokenize(text).map(function (t) { return { text: t.text, status: t.space ? 'space' : t.ja ? 'ja' : 'none', word: !t.space && !t.ja && t.units.length > 0 }; });
+    return Scoring.tokenize(text).map(function (t) { return { text: t.text, status: t.space ? 'space' : t.ja ? 'ja' : t.speaker ? 'speaker' : 'none', word: !t.space && !t.ja && t.units.length > 0 }; });
   }
   function ringSVG(pct) {
     var r = 64, c = 2 * Math.PI * r, off = c * (1 - Math.max(0, Math.min(100, pct)) / 100);
@@ -3578,7 +3618,7 @@ window.SAMPLE_ASSIGNMENTS = [
     var showJaBox = jaFixed && !hasJa && opt.ja && !jaPaired;   // 組にできないときは和訳をまとめて表示
     var hasJaDisp = hasJa || jaPaired;
     var shuffleCache = {};
-    function isEn(t) { return t.word || (t.status !== 'space' && t.status !== 'ja' && !/^phrase/.test(t.status) && t.status !== 'blank' && /[A-Za-z0-9]/.test(t.text)); }
+    function isEn(t) { return t.word || (t.status !== 'space' && t.status !== 'ja' && t.status !== 'speaker' && !/^phrase/.test(t.status) && t.status !== 'blank' && /[A-Za-z0-9]/.test(t.text)); }
     // ③ スペースとピリオドをなくす
     function noSpace(tokens) {
       var out = [];
@@ -3594,8 +3634,9 @@ window.SAMPLE_ASSIGNMENTS = [
     }
     // ④ 英文の行を、文ごとにバラバラにした単語カードで表示
     function shuffleLine(line) {
-      var groups = [[]], phraseHTML = '', phraseBefore = false, seenWord = false;
+      var groups = [[]], phraseHTML = '', phraseBefore = false, seenWord = false, spk = '';
       line.forEach(function (t) {
+        if (t.status === 'speaker') { spk += (spk ? ' ' : '') + t.text; return; }
         if (/^phrase/.test(t.status)) {
           if (!seenWord) phraseBefore = true;
           phraseHTML += '<span class="w ' + (t.status === 'phrase-label' ? 'phrase-label' : 'phrase') + '">' + esc(t.text) + '</span> ';
@@ -3620,7 +3661,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var chips = shuffleCache[key].map(function (g) {
         return '<span class="chip-group">' + g.map(function (w) { return '<span class="chip">' + esc(w) + '</span>'; }).join('') + '</span>';
       }).join('<span class="chip-sep">／</span>');
-      return phraseBefore ? phraseHTML + chips : chips + (phraseHTML ? ' ' + phraseHTML : '');
+      return (spk ? '<span class="w speaker">' + esc(spk) + '</span> ' : '') + (phraseBefore ? phraseHTML + chips : chips + (phraseHTML ? ' ' + phraseHTML : ''));
     }
     // 表示用（revealed＝判定後は答えを表示）
     function display(tokens, revealed) {
@@ -4158,7 +4199,7 @@ window.SAMPLE_ASSIGNMENTS = [
         mic.disabled = false; label.textContent = 'あなたの番！ 🎤を押して読もう';
         if (then) then();
       }
-      var ok = Speaker.speak(st.en, prefs().rate, CFG.SPEECH_LANG || 'en-US', ended);
+      var ok = Speaker.speak(Scoring.englishOnly(st.en) || st.en, prefs().rate, CFG.SPEECH_LANG || 'en-US', ended);
       // 読み上げの終わりが通知されない端末のための保険
       safety = setTimeout(function () { if (!(window.speechSynthesis && speechSynthesis.speaking)) ended(); else safety = setTimeout(ended, 4000); },
         st.en.split(/\s+/).length * 600 / (prefs().rate || 0.9) + 1500);
@@ -4667,6 +4708,7 @@ window.SAMPLE_ASSIGNMENTS = [
         '<button class="btn-small" id="ePlay" type="button">🔊 読み上げて確認</button><span class="muted" id="eWc"></span></div>' +
         '<div id="eOcr" class="muted"></div><div id="ePdfBox"></div>' +
         '<textarea id="eText" placeholder="英文を入力または貼り付けてください&#10;日本語も書けます（画面に表示されるだけで、音読・判定の対象にはなりません）&#10;例）私は音楽が好きです。&#10;　　I like music.&#10;（日本語は英語の上に表示されます）">' + esc(a.text) + '</textarea>' +
+        '<div class="muted" id="eSpk" style="font-size:.85rem;margin-top:4px"></div>' +
         '<div class="label-row"><label for="eJa">和訳（任意・生徒が「和訳」ボタンで見られます）</label><button class="btn-small" type="button" id="eTrans">🌐 英文から自動で和訳</button></div><textarea id="eJa" style="min-height:80px" placeholder="英文に日本語の行がない場合に入力します（例：私は京都へ行きました。京都はとても美しかったです。）">' + esc(a.ja) + '</textarea>' +
         '<div class="muted" id="eJaNote" style="font-size:.85rem;margin-top:4px"></div><div class="muted" id="eJaLen" style="font-size:.8rem;text-align:right"></div>' +
         '<div class="type-box"><h3>音読の種類</h3>' +
@@ -4754,6 +4796,8 @@ window.SAMPLE_ASSIGNMENTS = [
       function lenCheck() {
         var MAX = 10000, nt = ta.value.length, nj = $('#eJa').value.length, over = nt > MAX || nj > MAX;
         $('#eWc').innerHTML = Scoring.countWords(ta.value) + ' 語・<span class="' + (nt > MAX ? 'over' : '') + '">' + nt.toLocaleString() + ' / 10,000文字</span>';
+        var spk = Scoring.speakers ? Scoring.speakers(ta.value) : [];
+        $('#eSpk').innerHTML = spk.length ? '🗣 話者名として読まない部分：<b>' + spk.map(esc).join('、') + '</b>（行の先頭の「名前:」は判定・お手本の読み上げの対象外になります）' : '';
         $('#eJaLen').innerHTML = nj ? '<span class="' + (nj > MAX ? 'over' : '') + '">和訳 ' + nj.toLocaleString() + ' / 10,000文字</span>' : '';
         $('#eSave').disabled = over;
         $('#eErr').textContent = over ? (nt > MAX ? '英文が長すぎます（' + nt.toLocaleString() + '文字）。10,000文字以内にしてください。' : '和訳が長すぎます（' + nj.toLocaleString() + '文字）。10,000文字以内にしてください。') : '';
