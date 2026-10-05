@@ -1497,6 +1497,29 @@ window.APP_CONFIG = {
     return {};
   };
 
+  // 課題の音読記録の集計（全回の平均・合計時間）。無効になった記録（不正・未確認）は数えない
+  function validRecord(r) { return !str(r.flag) || /^問題なし/.test(str(r.reviewed)); }
+  function recordStats(store, aidSet) {
+    var st = {};
+    store.getRecordsSince('').forEach(function (r) {
+      var aid = str(r.aid);
+      if (!aid || (aidSet && !aidSet[aid]) || !validRecord(r)) return;
+      var k = r.sid + '|' + aid, x = st[k] || (st[k] = { sum: 0, n: 0, dur: 0, t: {} });
+      var t = num(r.type) || 1, acc = num(r.accuracy);
+      x.sum += acc; x.n++; x.dur += num(r.duration);
+      var tt = x.t[t] || (x.t[t] = { sum: 0, n: 0 });
+      tt.sum += acc; tt.n++;
+    });
+    return st;
+  }
+  function round1(v) { return Math.round(v * 10) / 10; }
+  function statOf(st, sid, aid, types) {
+    var x = st[sid + '|' + aid], avgs = {};
+    types.forEach(function (t) { var tt = x && x.t[t]; avgs[t] = tt && tt.n ? round1(tt.sum / tt.n) : null; });
+    return { avg: x && x.n ? round1(x.sum / x.n) : null, avgs: avgs, dur: x ? Math.round(x.dur) : 0, n: x ? x.n : 0 };
+  }
+  function fmtDur(sec) { sec = Math.round(num(sec)); return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2); }
+
   handlers.t_assignmentResults = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
     var a = store.getAssignment(str(p.aid));
@@ -1507,9 +1530,12 @@ window.APP_CONFIG = {
     types.forEach(function (t) {
       store.getBestsByAssignment(bestKey(a.id, t)).forEach(function (b) { (bests[b.sid] = bests[b.sid] || {})[t] = b; });
     });
+    var aset = {}; aset[a.id] = true;
+    var stats = recordStats(store, aset);
     var rows = store.getStudents().filter(function (s) {
       return !cl.length || cl.indexOf('全員') >= 0 || cl.indexOf(s.cls) >= 0 || bests[s.id];
     }).map(function (s) {
+      var sx = statOf(stats, s.id, a.id, types);
       var bb = bests[s.id] || {}, b = bb[1], last = '', att = 0, per = {}, pp = {}, cleared = 0, total = 0, need = passNeed(a);
       types.forEach(function (t) {
         var x = bb[t];
@@ -1521,7 +1547,7 @@ window.APP_CONFIG = {
       var achieved = isMaster(a) ? cleared === types.length : total >= need;
       return { id: s.id, cls: s.cls, no: s.no, name: str(s.name), bests: per, passes: pp, totalPasses: total,
         best: b ? num(b.best) : null, attempts: att, last: last, achieved: achieved,
-        masterCleared: isMaster(a) && achieved };
+        masterCleared: isMaster(a) && achieved, avgAll: sx.avg, avgs: sx.avgs, duration: sx.dur, durText: sx.n ? fmtDur(sx.dur) : '' };
     });
     return { assignment: { id: a.id, title: a.title, text: a.text, due: str(a.due), contest: bool(a.contest), classes: str(a.classes),
       types: types, mode: isMaster(a) ? 'master' : 'normal', pass: pl, passCount: passNeed(a), canEdit: canEditAssignment(me, a),
@@ -1547,13 +1573,12 @@ window.APP_CONFIG = {
     var me = currentTeacher(p, store, ctx);
     var cls = str(p.cls);
     var assignments = store.getAssignments().slice().sort(function (x, y) { return (x.created || '').localeCompare(y.created || ''); });
-    var bests = {};
-    store.getAllBests().forEach(function (b) { bests[b.sid + '|' + b.aid] = b; });
+    var stats = recordStats(store, null);
     var header = ['クラス', '番号', '名前', '累計単語数', '級・段', '連続日数', '最終音読日'];
     assignments.forEach(function (a) {
-      aTypes(a).forEach(function (t) { header.push(a.title + (t > 1 ? '・' + TYPE_NAME[t] : '') + '（最高%）'); });
-      header.push(a.title + '（回数）');
-      header.push(a.title + '（達成）');
+      header.push(a.title + '（クリア回数）', a.title + '（全種類の平均%）');
+      aTypes(a).forEach(function (t) { header.push(a.title + '・' + TYPE_NAME[t] + '（平均%）'); });
+      header.push(a.title + '（音読時間 分:秒）', a.title + '（達成）');
     });
     var rows = [header];
     store.getStudents().filter(function (s) { return !cls || s.cls === cls; })
@@ -1561,14 +1586,10 @@ window.APP_CONFIG = {
       .forEach(function (s) {
         var row = [s.cls, num(s.no), str(s.name), num(s.totalWords), levelOf(num(s.totalWords)).name, num(s.streak), str(s.lastDate)];
         assignments.forEach(function (a) {
-          var att = 0, cleared = 0, types = aTypes(a);
-          types.forEach(function (t) {
-            var b = bests[s.id + '|' + bestKey(a.id, t)];
-            row.push(b ? num(b.best) : '');
-            if (b) { att += num(b.attempts); if (num(b.best) >= passLine(a)) cleared++; }
-          });
-          row.push(att || '');
-          row.push(progress(store, s.id, a).achieved ? '達成' : '');
+          var types = aTypes(a), pg = progress(store, s.id, a), sx = statOf(stats, s.id, a.id, types);
+          row.push(pg.totalPasses, sx.avg === null ? '' : sx.avg);
+          types.forEach(function (t) { row.push(sx.avgs[t] === null ? '' : sx.avgs[t]); });
+          row.push(sx.n ? fmtDur(sx.dur) : '', pg.achieved ? '達成' : '');
         });
         rows.push(row);
       });
@@ -3812,7 +3833,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var TL = { 1: '①通常', 2: '②穴埋め', 3: '③スペースなし', 4: '④並べ替え', 5: '⑤日→英' };
       var html = '<a class="back" href="#/t">← 課題一覧</a>';
       html += '<div class="card"><div class="card-title"><h2>' + (a.contest ? '🏆 ' : '') + esc(a.title) + '</h2>' +
-        '<div class="btn-row">' + (a.canEdit ? '<a class="btn btn-small" href="#/t/edit/' + encodeURIComponent(a.id) + '">✏️ 編集</a>' : '<span class="pill gray">閲覧のみ</span>') + '<button class="btn-small" id="bExp">⬇ Excel</button></div></div>' +
+        '<div class="btn-row">' + (a.canEdit ? '<a class="btn btn-small" href="#/t/edit/' + encodeURIComponent(a.id) + '">✏️ 編集</a>' : '<span class="pill gray">閲覧のみ</span>') + '<button class="btn-small" id="bExp">⬇ スプレッドシートに保存</button></div></div>' +
         '<div class="kpi-inline"><span>対象 <b>' + esc(a.classes || '全員') + '</b></span>' +
         (a.start ? '<span>開始 <b>' + fmtStart(a.start) + '</b>' + (a.scheduled ? ' <span class="pill sched">⏰ 予約配信</span>' : '') + '</span>' : '') +
         '<span>締切 <b>' + (a.due ? fmtDay(a.due) : '—') + '</b></span>' +
@@ -3849,15 +3870,15 @@ window.SAMPLE_ASSIGNMENTS = [
       }
       $('#fCls').onchange = draw; $('#fTodo').onchange = draw; draw();
       $('#bExp').onclick = function () {
-        var head = ['クラス', '番号', '名前'].concat(types.map(function (t) { return TL[t] + ' 最高(%)'; }));
-        head.push('合格回数', master ? 'マスター' : '課題達成');
-        head.push('回数', '最終音読日時');
+        // ①クリア回数 ②全種類の平均% ③種類ごとの平均% ④音読にかかった時間（いずれも有効な全回の記録から）
+        var head = ['クラス', '番号', '名前', 'クリア回数', '全種類の平均(%)'].concat(types.map(function (t) { return TL[t] + ' 平均(%)'; }));
+        head.push('音読時間の合計（分:秒）', master ? 'マスター' : '課題達成', '挑戦回数', '最終音読日時');
+        var blank = function (v) { return v === null || v === undefined ? '' : v; };
         var rows = [head].concat(
           r.rows.slice().sort(function (x, y) { return x.cls.localeCompare(y.cls) || (+x.no) - (+y.no); })
             .map(function (x) {
-              var row = [x.cls, +x.no, x.name].concat(types.map(function (t) { var v = x.bests[t]; return v === null || v === undefined ? '' : v; }));
-              row.push(master ? types.map(function (t) { return +(x.passes && x.passes[t]) || 0; }).join('・') : (x.totalPasses || 0), x.achieved || x.masterCleared ? '達成' : '');
-              return row.concat([x.attempts, x.last ? new Date(x.last).toLocaleString('ja-JP') : '']);
+              var row = [x.cls, +x.no, x.name, x.totalPasses || 0, blank(x.avgAll)].concat(types.map(function (t) { return blank(x.avgs && x.avgs[t]); }));
+              return row.concat([x.durText || '', x.achieved || x.masterCleared ? '達成' : '', x.attempts || 0, x.last ? new Date(x.last).toLocaleString('ja-JP') : '']);
             }));
         exportXlsx(rows, a.title.replace(/[\\\/:*?"<>|]/g, '_') + '_結果');
       };
@@ -3873,7 +3894,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var html = teacherTabs('students');
       html += '<div class="card"><div class="toolbar"><select id="sCls" style="width:auto"><option value="">全クラス</option>' +
         o.classes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select><span class="sep"></span>' +
-        '<button class="btn-small" id="bExpAll">⬇ Excel（全課題の成績）</button>' + (isAdmin() ? '<a class="btn btn-small" href="#/t/import">＋ 名簿の登録</a>' : '') + '<a class="btn btn-small" href="#/t/passes">🖨 パスコード表</a></div>' +
+        '<button class="btn-small" id="bExpAll">⬇ スプレッドシートに保存（全課題）</button>' + (isAdmin() ? '<a class="btn btn-small" href="#/t/import">＋ 名簿の登録</a>' : '') + '<a class="btn btn-small" href="#/t/passes">🖨 パスコード表</a></div>' +
         '<div class="table-wrap"><table><thead><tr><th>クラス</th><th class="num">番号</th><th>名前</th><th>級・段</th><th class="num">累計</th><th class="num">今週</th><th class="num">連続</th><th>最終音読日</th><th class="num">注意<br><small>今週</small></th></tr></thead><tbody id="sBody"></tbody></table></div></div>';
       $app.innerHTML = html;
       function draw() {
