@@ -449,7 +449,7 @@
   function studentPublic(s) {
     var lv = levelOf(num(s.totalWords));
     return {
-      id: s.id, cls: s.cls, no: s.no, nick: str(s.nick),
+      id: s.id, cls: s.cls, no: s.no, name: str(s.name), nick: str(s.nick),
       totalWords: num(s.totalWords), streak: num(s.streak), bestStreak: num(s.bestStreak),
       lastDate: str(s.lastDate), todayWords: num(s.todayWords), todayDate: str(s.todayDate),
       level: lv

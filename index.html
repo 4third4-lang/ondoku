@@ -1136,7 +1136,7 @@ window.APP_CONFIG = {
   function studentPublic(s) {
     var lv = levelOf(num(s.totalWords));
     return {
-      id: s.id, cls: s.cls, no: s.no, nick: str(s.nick),
+      id: s.id, cls: s.cls, no: s.no, name: str(s.name), nick: str(s.nick),
       totalWords: num(s.totalWords), streak: num(s.streak), bestStreak: num(s.bestStreak),
       lastDate: str(s.lastDate), todayWords: num(s.todayWords), todayDate: str(s.todayDate),
       level: lv
@@ -3392,7 +3392,8 @@ window.SAMPLE_ASSIGNMENTS = [
     var html = '';
     html += '<div class="card level-card">' +
       '<div class="level-badge"><small>いまの級</small>' + esc(lv.name) + '</div>' +
-      '<div class="level-info"><div>' + (rw.icon ? '<span class="avatar">' + esc(rw.icon) + '</span> ' : '') + '<b>' + esc(s.nick || s.cls + ' ' + s.no + '番') + '</b> さん</div>' +
+      '<div class="level-info"><div>' + (rw.icon ? '<span class="avatar">' + esc(rw.icon) + '</span> ' : '') + '<b>' + esc(s.name || s.nick || s.cls + ' ' + s.no + '番') + '</b> さん' +
+        (s.name ? ' <small class="muted">' + esc(s.cls + ' ' + s.no + '番') + (s.nick ? '・' + esc(s.nick) : '') + '</small>' : '') + '</div>' +
       (lv.next ? '<div class="bar"><span style="width:' + Math.round(lv.progress * 100) + '%"></span></div>' +
         '<small>' + esc(lv.next) + 'まで あと <b>' + n(lv.nextAt - s.totalWords) + '</b> 語</small>'
         : '<div class="bar"><span style="width:100%"></span></div><small>最高位に到達！</small>') +
