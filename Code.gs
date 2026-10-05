@@ -1608,9 +1608,13 @@ SheetStore.prototype.load = function (k) {
 };
 SheetStore.prototype.writeRow = function (k, obj) {
   var cols = SHEETS[k].cols, sh = this.sheet(k);
-  var row = cols.map(function (c) { var v = obj[c[0]]; return v === undefined || v === null ? '' : v; });
-  if (obj._row) sh.getRange(obj._row, 1, 1, cols.length).setValues([row]);
-  else { sh.appendRow(row); obj._row = sh.getLastRow(); }
+  // 文字の列（クラス名など）は、スプレッドシートが日付や数値に自動変換しないよう「書式なしテキスト」にしてから書く
+  var row = cols.map(function (c) { var v = obj[c[0]]; v = v === undefined || v === null ? '' : v; return c[2] === '@' && v !== '' ? String(v) : v; });
+  var fmts = cols.map(function (c) { return c[2] === 'check' ? 'General' : c[2]; });
+  if (!obj._row) obj._row = Math.max(sh.getLastRow(), 1) + 1;
+  var rng = sh.getRange(obj._row, 1, 1, cols.length);
+  rng.setNumberFormats([fmts]);
+  rng.setValues([row]);
 };
 
 // 生徒
