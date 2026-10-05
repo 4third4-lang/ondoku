@@ -3197,6 +3197,7 @@ window.SAMPLE_ASSIGNMENTS = [
       if (/ログイン/.test(msg) && /有効期限|ログインしてください/.test(msg)) { logout(true); }
       throw new Error(msg);
     }
+    delete res._ms; delete res._sheet; // サーバーの処理時間（確認用）は画面では使わない
     // データを変える操作のあとは、保存しておいた前回のデータを捨てる（古い内容を見せないため）
     if (window.Core && Core.WRITE_ACTIONS[action] && action !== 'teacherLogin' && state.session) {
       cclear(whoKey() + ':');
