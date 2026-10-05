@@ -2988,19 +2988,51 @@ window.SAMPLE_ASSIGNMENTS = [
   };
 
   // ---------------- お手本の読み上げ ----------------
+  // 声の名前から男性・女性を判断する（ブラウザは性別の情報を持たないため、よく使われる声の名前で判断）
+  var FEMALE = ['samantha', 'karen', 'moira', 'tessa', 'victoria', 'fiona', 'allison', 'ava', 'susan', 'zira', 'aria', 'jenny',
+    'hazel', 'libby', 'sonia', 'michelle', 'emma', 'natasha', 'clara', 'joanna', 'salli', 'kendra', 'kimberly', 'ivy', 'nicky',
+    'serena', 'kate', 'catherine', 'martha', 'shelley', 'sandy', 'flo', 'grandma', 'veena', 'female', 'woman', 'ana ', 'heera',
+    'jane', 'nancy', 'sara', 'amber', 'ashley', 'cora', 'elizabeth', 'monica', 'maisie', 'molly', 'aoife', 'olivia', 'zoe', 'google us english'];
+  var MALE = ['alex', 'daniel', 'fred', 'tom', 'aaron', 'arthur', 'gordon', 'oliver', 'rishi', 'ralph', 'albert', 'bruce', 'junior',
+    'eddy', 'reed', 'rocko', 'grandpa', 'david', 'mark', 'guy', 'ryan', 'eric', 'christopher', 'roger', 'steffan', 'andrew',
+    'brian', 'davis', 'thomas', 'george', 'james', 'liam', 'william', 'matthew', 'justin', 'joey', 'russell', 'lee', 'nathan',
+    'evan', 'jason', 'tony', 'brandon', 'jacob', 'male', 'man '];
+  function genderOf(v) {
+    var n = ' ' + String(v.name || '').toLowerCase() + ' ';
+    if (/\bfemale\b/.test(n)) return 'female';
+    if (/\bmale\b/.test(n)) return 'male';
+    for (var i = 0; i < FEMALE.length; i++) if (n.indexOf(FEMALE[i]) >= 0) return 'female';
+    for (var j = 0; j < MALE.length; j++) if (new RegExp('\\b' + MALE[j].trim() + '\\b').test(n)) return 'male';
+    return '';
+  }
+
+  // ---------------- お手本の読み上げ ----------------
   var Speaker = {
-    voice: null,
+    gender: 'female',          // 'female' / 'male'
+    voices: {},
     supported: 'speechSynthesis' in window,
-    pickVoice: function (lang) {
+    // 指定の性別の声を選ぶ。見つからなければ null を返す（そのときは声の高さで調整）
+    pickVoice: function (lang, gender) {
       if (!this.supported) return null;
       var voices = speechSynthesis.getVoices();
-      var prefer = ['Samantha', 'Google US English', 'Microsoft Aria', 'Microsoft Jenny', 'Alex', 'Daniel', 'Karen'];
       var cands = voices.filter(function (v) { return v.lang && v.lang.replace('_', '-').indexOf(lang) === 0; });
       if (!cands.length) cands = voices.filter(function (v) { return /^en/.test(v.lang); });
+      var prefer = gender === 'male'
+        ? ['Daniel', 'Alex', 'Aaron', 'Microsoft Guy', 'Microsoft Andrew', 'Microsoft Christopher', 'Microsoft David', 'Google UK English Male', 'Fred', 'Tom']
+        : ['Samantha', 'Google US English', 'Microsoft Aria', 'Microsoft Jenny', 'Microsoft Zira', 'Karen', 'Google UK English Female', 'Moira', 'Tessa'];
       for (var i = 0; i < prefer.length; i++) {
-        for (var j = 0; j < cands.length; j++) if (cands[j].name.indexOf(prefer[i]) >= 0) return cands[j];
+        for (var j = 0; j < cands.length; j++) if (cands[j].name.indexOf(prefer[i]) >= 0) return { voice: cands[j], exact: true };
       }
-      return cands[0] || null;
+      var same = cands.filter(function (v) { return genderOf(v) === gender; });
+      if (same.length) return { voice: same[0], exact: true };
+      // 指定の性別の声がない端末：ほかの声を使い、声の高さで調整する
+      return cands.length ? { voice: cands[0], exact: genderOf(cands[0]) === gender } : null;
+    },
+    // 今の設定で使われる声（画面に表示する用）
+    currentVoice: function (lang) {
+      var key = (lang || 'en-US') + '|' + this.gender;
+      if (!this.voices[key]) this.voices[key] = this.pickVoice(lang || 'en-US', this.gender);
+      return this.voices[key];
     },
     speak: function (text, rate, lang, onEnd) {
       if (!this.supported) return false;
@@ -3008,8 +3040,10 @@ window.SAMPLE_ASSIGNMENTS = [
       var u = new SpeechSynthesisUtterance(text);
       u.lang = lang || 'en-US';
       u.rate = rate || 1;
-      var v = this.voice || this.pickVoice(u.lang);
-      if (v) { u.voice = v; this.voice = v; }
+      var pick = this.currentVoice(u.lang);
+      if (pick && pick.voice) u.voice = pick.voice;
+      // 指定の性別の声がないときは、声の高さで近づける
+      if (!pick || !pick.exact) u.pitch = this.gender === 'male' ? 0.6 : 1.25;
       u.onend = function () { onEnd && onEnd(); };
       u.onerror = function () { onEnd && onEnd(); };
       speechSynthesis.speak(u);
@@ -3018,7 +3052,7 @@ window.SAMPLE_ASSIGNMENTS = [
     stop: function () { if (this.supported) speechSynthesis.cancel(); }
   };
   if (Speaker.supported && speechSynthesis.addEventListener) {
-    speechSynthesis.addEventListener('voiceschanged', function () { Speaker.voice = null; });
+    speechSynthesis.addEventListener('voiceschanged', function () { Speaker.voices = {}; });
   }
 
   // ---------------- 音声の保存（先生が確認するため） ----------------
@@ -3229,6 +3263,24 @@ window.SAMPLE_ASSIGNMENTS = [
       (todayDone ? '✅ 今日のスタンプはもう押されています。また明日！' : '今日1回音読すると、スタンプが1個たまります。') +
       ' 10個でカードが完成し、記念のアイコンがもらえます。</div></div>';
     return html;
+  }
+
+  // お手本の声（女性・男性）の切り替え
+  function voiceSegHTML() {
+    var g = prefs().voice === 'male' ? 'male' : 'female';
+    return '<div class="seg seg-voice" title="お手本の声">' + [['female', '👩 女性'], ['male', '👨 男性']].map(function (x) {
+      return '<button type="button" data-voice="' + x[0] + '" class="' + (g === x[0] ? 'active' : '') + '">' + x[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function bindVoiceSeg(root) {
+    $all('.seg-voice button', root).forEach(function (b) {
+      b.onclick = function () {
+        setPref('voice', b.dataset.voice); Speaker.gender = b.dataset.voice; Speaker.stop();
+        $all('.seg-voice button').forEach(function (x) { x.classList.toggle('active', x.dataset.voice === b.dataset.voice); });
+        var pick = Speaker.currentVoice(CFG.SPEECH_LANG || 'en-US');
+        if (pick && !pick.exact) toast('この端末には' + (b.dataset.voice === 'male' ? '男性' : '女性') + 'の声がないため、声の高さを変えて読み上げます');
+      };
+    });
   }
 
   function loadScript(src) {
@@ -3691,7 +3743,7 @@ window.SAMPLE_ASSIGNMENTS = [
       '<button class="btn-small" id="bModel">🔊 お手本</button>' +
       '<div class="seg" id="segRate">' + [[0.7, 'ゆっくり'], [0.9, 'ふつう'], [1.05, 'はやい']].map(function (r) {
         return '<button data-v="' + r[0] + '" class="' + (p.rate == r[0] ? 'active' : '') + '">' + r[1] + '</button>';
-      }).join('') + '</div><span class="sep"></span>' +
+      }).join('') + '</div>' + voiceSegHTML() + '<span class="sep"></span>' +
       '<div class="seg" id="segSize">' + [['small', '小'], ['mid', '中'], ['large', '大']].map(function (r) {
         return '<button data-v="' + r[0] + '" class="' + (p.size === r[0] ? 'active' : '') + '">' + r[1] + '</button>';
       }).join('') + '</div>' +
@@ -3714,6 +3766,7 @@ window.SAMPLE_ASSIGNMENTS = [
     $app.innerHTML = html;
 
     var passage = $('#passage');
+    bindVoiceSeg($app);
     $('#bModel').onclick = function () {
       var b = this;
       if (b.dataset.playing) { Speaker.stop(); delete b.dataset.playing; b.textContent = '🔊 お手本'; return; }
@@ -4171,11 +4224,12 @@ window.SAMPLE_ASSIGNMENTS = [
       '<div class="rp-progress"><div class="bar"><span id="rpBar"></span></div><span id="rpCount"></span></div>' +
       '<div class="rp-box"><div class="rp-ja" id="rpJa"></div><div class="rp-en passage" id="rpEn"></div><div class="rp-score" id="rpScore"></div></div>' +
       '<div class="live" id="rpLive"></div>' +
-      '<div class="btn-row" style="justify-content:center;margin-top:8px"><button class="btn-small" id="rpListen">🔊 もう一度聞く</button><button class="btn-small" id="rpRetry">↺ もう一度読む</button><button class="btn-primary" id="rpNext">次へ ▶</button></div>' +
+      '<div class="btn-row" style="justify-content:center;margin-top:8px">' + voiceSegHTML() + '<button class="btn-small" id="rpListen">🔊 もう一度聞く</button><button class="btn-small" id="rpRetry">↺ もう一度読む</button><button class="btn-primary" id="rpNext">次へ ▶</button></div>' +
       '<div class="mic-dock"><button class="mic-btn" id="rpMic" aria-label="読む">🎤</button><div class="mic-text"><div class="mic-label" id="rpLabel"></div></div></div></div>' +
       '<div id="rpResult"></div>';
     $app.innerHTML = html;
     var mic = $('#rpMic'), label = $('#rpLabel'), live = $('#rpLive');
+    bindVoiceSeg($app);
     function draw() {
       var st = steps[idx];
       $('#rpBar').style.width = Math.round(idx / steps.length * 100) + '%';
@@ -4705,7 +4759,7 @@ window.SAMPLE_ASSIGNMENTS = [
         '<label for="eText">英文 <small class="muted">（日本語を混ぜて書くと、日本語は表示のみ・判定の対象外になります）</small></label>' +
         '<div class="btn-row" style="margin-bottom:6px"><label class="btn btn-small" for="eFile" style="margin:0">📷 写真から取り込む</label><input type="file" id="eFile" accept="image/*" hidden>' +
         '<label class="btn btn-small" for="ePdf" style="margin:0">📄 PDFから読み取る</label><input type="file" id="ePdf" accept="application/pdf,.pdf" hidden>' +
-        '<button class="btn-small" id="ePlay" type="button">🔊 読み上げて確認</button><span class="muted" id="eWc"></span></div>' +
+        '<button class="btn-small" id="ePlay" type="button">🔊 読み上げて確認</button>' + voiceSegHTML() + '<span class="muted" id="eWc"></span></div>' +
         '<div id="eOcr" class="muted"></div><div id="ePdfBox"></div>' +
         '<textarea id="eText" placeholder="英文を入力または貼り付けてください&#10;日本語も書けます（画面に表示されるだけで、音読・判定の対象にはなりません）&#10;例）私は音楽が好きです。&#10;　　I like music.&#10;（日本語は英語の上に表示されます）">' + esc(a.text) + '</textarea>' +
         '<div class="muted" id="eSpk" style="font-size:.85rem;margin-top:4px"></div>' +
@@ -4832,6 +4886,7 @@ window.SAMPLE_ASSIGNMENTS = [
       wc();
       $('#eFile').onchange = function () { if (this.files[0]) runOCR(this.files[0], ta, $('#eOcr'), wc); this.value = ''; };
       $('#ePdf').onchange = function () { if (this.files[0]) pdfImport(this.files[0], ta, $('#ePdfBox'), wc); this.value = ''; };
+      bindVoiceSeg($app);
       $('#ePlay').onclick = function () { if (ta.value.trim()) Speaker.speak(Scoring.englishOnly(ta.value), 0.9, CFG.SPEECH_LANG || 'en-US'); };
       $('#eSave').onclick = async function () {
         var btn = this; btn.disabled = true; $('#eErr').textContent = '';
@@ -5401,6 +5456,7 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
   setTitle();
+  try { Speaker.gender = prefs().voice === 'male' ? 'male' : 'female'; } catch (e) { /* noop */ }
   try { var th0 = (store(SESSION_KEY) || {}).role === 'student' ? prefs().theme : 'blue'; document.documentElement.setAttribute('data-theme', th0 || 'blue'); } catch (e) { /* noop */ }
   if (API.isDemo()) document.getElementById('demoBanner').hidden = false;
   window.addEventListener('hashchange', render);
