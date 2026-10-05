@@ -266,8 +266,24 @@ body.has-nav main { padding-bottom: 90px; }
   .topbar, .bottom-nav, .demo-banner, .no-print, .tabs { display: none !important; }
   body { background: #fff; }
   .card { box-shadow: none; border: 1px solid #ccc; }
-  .pass-slip { page-break-inside: avoid; }
+  /* パスコード表：1枚に1人 */
+  .pass-grid { display: block !important; }
+  .pass-slip { break-after: page; page-break-after: always; break-inside: avoid; border: none !important; min-height: 240mm;
+    display: flex !important; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10mm; padding: 0 !important; }
+  .pass-slip:last-child { break-after: auto; page-break-after: auto; }
+  .pass-slip .ps-title { font-size: 20pt; font-weight: 700; }
+  .pass-slip .ps-who { font-size: 26pt; }
+  .pass-slip .ps-who b { font-size: 30pt; }
+  .pass-slip .ps-pass { font-size: 22pt; border: 2px solid #333; border-radius: 6mm; padding: 6mm 12mm; }
+  .pass-slip .ps-pass b { font-size: 40pt; letter-spacing: .15em; }
+  .pass-slip .ps-steps { font-size: 13pt; max-width: 160mm; display: block !important; }
+  .pass-slip .ps-url { font-size: 12pt; word-break: break-all; max-width: 170mm; color: #000 !important; }
+  .pass-slip .ps-note { font-size: 11pt; display: block !important; }
+  #app { padding: 0 !important; max-width: none !important; }
 }
+@page { size: A4 portrait; margin: 15mm; }
+.pass-slip .ps-steps, .pass-slip .ps-note { display: none; }
+.pass-slip .ps-url { font-size: .7rem; word-break: break-all; color: #667; }
 .pass-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .pass-slip { border: 1px dashed #aab; border-radius: 8px; padding: 10px; font-size: .9rem; }
 .pass-slip b { font-size: 1.1rem; }
@@ -5144,7 +5160,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var url = location.href.split('#')[0];
       var classes = uniq(r.rows.map(function (x) { return x.cls; }));
       var html = '<a class="back no-print" href="#/t/students">← 生徒一覧</a><div class="card no-print"><h2>パスコード表</h2>' +
-        '<p>切り取って生徒に配れる形で印刷できます。</p><div class="toolbar"><select id="pCls" style="width:auto"><option value="">全クラス</option>' +
+        '<p>印刷すると、<b>1枚に1人ずつ</b>のパスコード用紙になります（A4縦）。下は画面での確認用の一覧です。</p><div class="toolbar"><select id="pCls" style="width:auto"><option value="">全クラス</option>' +
         classes.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select><button class="btn-primary" onclick="window.print()">🖨 印刷</button></div></div>' +
         '<div class="pass-grid" id="pGrid"></div>';
       $app.innerHTML = html;
@@ -5153,8 +5169,12 @@ window.SAMPLE_ASSIGNMENTS = [
         $('#pGrid').innerHTML = r.rows.filter(function (x) { return !c || x.cls === c; })
           .sort(function (x, y) { return x.cls.localeCompare(y.cls) || (+x.no) - (+y.no); })
           .map(function (x) {
-            return '<div class="pass-slip"><div>' + esc(document.getElementById('appTitle').textContent) + '</div><div><b>' + esc(x.cls) + ' ' + esc(x.no) + '番</b> ' + esc(x.name) + '</div>' +
-              '<div>パスコード：<b>' + esc(x.pass) + '</b></div><div style="font-size:.7rem;word-break:break-all;color:#667">' + esc(url) + '</div></div>';
+            return '<div class="pass-slip"><div class="ps-title">' + esc(document.getElementById('appTitle').textContent) + '</div>' +
+              '<div class="ps-who"><b>' + esc(x.cls) + ' ' + esc(x.no) + '番</b> ' + esc(x.name) + '</div>' +
+              '<div class="ps-pass">パスコード：<b>' + esc(x.pass) + '</b></div>' +
+              '<div class="ps-steps">① 下のアドレスを開く　② 「生徒」でクラス・出席番号・パスコードを入れる　③「はじめる」を押す</div>' +
+              '<div class="ps-url">' + esc(url) + '</div>' +
+              '<div class="ps-note">※パスコードは人に見せないようにしましょう。</div></div>';
           }).join('');
       }
       $('#pCls').onchange = draw; draw();
