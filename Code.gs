@@ -1986,7 +1986,7 @@ function doGet() {
   return json_({ ok: true, message: '音読アプリのサーバーは動いています。' });
 }
 function doPost(e) {
-  var req;
+  var t0 = Date.now(), req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'リクエストが正しくありません。' }); }
   var action = String(req.action || ''), payload = req.payload || {};
   var lock = null, write = !!Core.WRITE_ACTIONS[action];
@@ -2005,6 +2005,7 @@ function doPost(e) {
     var store = new SheetStore({ fresh: fresh, request: true });
     var res = Core.handle(action, payload, store, GAS_CTX);
     if (lock) { SpreadsheetApp.flush(); store.publishCache_(); }
+    res._ms = Date.now() - t0; res._sheet = !!store._book; // 処理時間とスプレッドシートを開いたか（速さの確認用）
     return json_(res);
   } catch (err) {
     return json_({ ok: false, error: 'サーバーでエラーが発生しました：' + err.message });
