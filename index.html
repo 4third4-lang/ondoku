@@ -359,6 +359,13 @@ body.has-nav main { padding-bottom: 90px; }
 
 .pdf-box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fafbfd; margin: 6px 0; }
 .pill.sched { background: #e8f0ff; color: #2b55b5; }
+/* 合格回数・課題達成 */
+.goal-head { background: #eef7ff; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; font-size: .92rem; }
+.goal-count { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #fff; border: 1px solid #cfe3f7; font-size: .82rem; font-weight: 700; }
+.pass-row { margin-left: 28px; display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.label-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 6px; }
+.label-row label { margin-bottom: 4px; }
+.label-row .btn-small { margin-bottom: 4px; }
 
 </style>
 </head>
@@ -960,16 +967,31 @@ window.APP_CONFIG = {
   function passLine(a) { var v = num(a.pass); return v >= 1 && v <= 100 ? v : 80; }
   function bestKey(aid, type) { return type > 1 ? aid + '~' + type : aid; }
   // 生徒ごとの、種類別の自己ベストとマスター達成状況
+  // 合格ラインを何回超えれば達成か（1〜20回）
+  function passNeed(a) { var v = Math.round(num(a.passCount)); return v >= 1 && v <= 20 ? v : 1; }
+  // 合格した回数（旧データは自己ベストが合格ライン以上なら1回とみなす）
+  function passesOf(b, pl) {
+    if (!b) return 0;
+    if (b.passes !== undefined && b.passes !== null && b.passes !== '') return num(b.passes);
+    return num(b.best) >= pl ? 1 : 0;
+  }
+  // 達成の判定
+  //  通常音読：どの種類でもよいので、合格の合計回数が「合格回数」に達したら達成
+  //  マスター：チェックした種類のそれぞれで「合格回数」に達したら達成
   function progress(store, sid, a) {
-    var types = aTypes(a), bests = {}, attempts = 0, cleared = 0, pl = passLine(a);
+    var types = aTypes(a), bests = {}, passes = {}, attempts = 0, cleared = 0, total = 0, pl = passLine(a), need = passNeed(a);
     types.forEach(function (t) {
       var b = store.getBest(sid, bestKey(a.id, t));
       bests[t] = b ? num(b.best) : null;
+      passes[t] = passesOf(b, pl);
+      total += passes[t];
       attempts += b ? num(b.attempts) : 0;
-      if (b && num(b.best) >= pl) cleared++;
+      if (passes[t] >= need) cleared++;
     });
-    return { types: types, bests: bests, attempts: attempts, master: isMaster(a), pass: pl,
-      clearedSteps: cleared, masterCleared: isMaster(a) && cleared === types.length };
+    var master = isMaster(a);
+    var achieved = master ? cleared === types.length : total >= need;
+    return { types: types, bests: bests, passes: passes, totalPasses: total, need: need, attempts: attempts, master: master, pass: pl,
+      clearedSteps: cleared, achieved: achieved, masterCleared: master && achieved };
   }
 
   // ---------------- トークン ----------------
@@ -1156,7 +1178,8 @@ window.APP_CONFIG = {
           id: a.id, title: a.title, due: str(a.due), contest: bool(a.contest), words: num(a.words),
           created: str(a.created), best: b ? num(b.best) : null, attempts: pg.attempts,
           types: pg.types, bests: pg.bests, master: pg.master, pass: pg.pass,
-          clearedSteps: pg.clearedSteps, masterCleared: pg.masterCleared
+          clearedSteps: pg.clearedSteps, masterCleared: pg.masterCleared,
+          achieved: pg.achieved, totalPasses: pg.totalPasses, need: pg.need
         };
       });
     list.sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
@@ -1255,6 +1278,7 @@ window.APP_CONFIG = {
       store.setBest(s.id, bk, {
         best: b ? Math.max(num(b.best), r.accuracy) : r.accuracy,
         attempts: (b ? num(b.attempts) : 0) + 1,
+        passes: passesOf(b, passLine(a)) + (r.accuracy >= passLine(a) ? 1 : 0),
         last: now.toISOString(),
         bestAt: newBest ? now.toISOString() : (b ? b.bestAt : now.toISOString())
       });
@@ -1267,6 +1291,7 @@ window.APP_CONFIG = {
     var after2 = a ? progress(store, s.id, a) : null;
     return {
       progress: after2, masterNew: !!(after2 && after2.masterCleared && !before2.masterCleared),
+      achievedNew: !!(after2 && after2.achieved && !before2.achieved),
       passed: a ? r.accuracy >= passLine(a) : null,
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null
@@ -1376,15 +1401,18 @@ window.APP_CONFIG = {
       targets.forEach(function (s) { tset[s.id] = true; });
       var done = 0, sum = 0;
       bests.forEach(function (b) { if (b.aid === a.id && tset[b.sid]) { done++; sum += num(b.best); } });
-      if (isMaster(a)) done = targets.filter(function (s) { return progress(store, s.id, a).masterCleared; }).length;
+      var achievedN = 0, startedN = 0;
+      targets.forEach(function (s) { var pg = progress(store, s.id, a); if (pg.achieved) achievedN++; if (pg.attempts > 0) startedN++; });
+      var avg = done ? Math.round(sum / done * 10) / 10 : null;
+      done = startedN;
       return {
         id: a.id, title: a.title, classes: str(a.classes), due: str(a.due), contest: bool(a.contest),
         published: bool(a.published), created: str(a.created), words: num(a.words),
         types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal',
         owner: str(a.owner), ownerName: tname[str(a.owner)] || '', canEdit: canEditAssignment(me, a),
-        start: str(a.start), scheduled: isScheduled(a),
+        start: str(a.start), scheduled: isScheduled(a), achieved: achievedN,
         mine: str(a.owner) === me.id || splitClasses(a.classes).some(function (c) { return me.classes.indexOf(c) >= 0; }),
-        targets: targets.length, done: done, avg: done ? Math.round(sum / done * 10) / 10 : null
+        targets: targets.length, done: done, avg: avg, passCount: passNeed(a)
       };
     }).sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
     var weekSince = weekStart(today);
@@ -1413,7 +1441,7 @@ window.APP_CONFIG = {
     return { assignment: {
       id: a.id, title: a.title, text: a.text, ja: str(a.ja), classes: str(a.classes),
       due: str(a.due), contest: bool(a.contest), published: bool(a.published),
-      types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal', pass: passLine(a), blanks: str(a.blanks),
+      types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal', pass: passLine(a), passCount: passNeed(a), blanks: str(a.blanks),
       start: str(a.start), canEdit: canEditAssignment(me, a)
     } };
   };
@@ -1437,6 +1465,7 @@ window.APP_CONFIG = {
     }
     data.types = types.join(',');
     data.pass = Math.max(1, Math.min(100, Math.round(num(a.pass) || 80)));
+    data.passCount = Math.max(1, Math.min(20, Math.round(num(a.passCount) || 1)));
     data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 3000);
     data.start = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str(a.start)) ? str(a.start).slice(0, 16) : '';
     if (data.start && data.due && data.due < data.start.slice(0, 10)) throw err('締切が開始日時より前になっています。');
@@ -1481,18 +1510,21 @@ window.APP_CONFIG = {
     var rows = store.getStudents().filter(function (s) {
       return !cl.length || cl.indexOf('全員') >= 0 || cl.indexOf(s.cls) >= 0 || bests[s.id];
     }).map(function (s) {
-      var bb = bests[s.id] || {}, b = bb[1], last = '', att = 0, per = {}, cleared = 0;
+      var bb = bests[s.id] || {}, b = bb[1], last = '', att = 0, per = {}, pp = {}, cleared = 0, total = 0, need = passNeed(a);
       types.forEach(function (t) {
         var x = bb[t];
         per[t] = x ? num(x.best) : null;
-        if (x) { att += num(x.attempts); if (str(x.last) > last) last = str(x.last); if (num(x.best) >= pl) cleared++; }
+        pp[t] = passesOf(x, pl); total += pp[t];
+        if (pp[t] >= need) cleared++;
+        if (x) { att += num(x.attempts); if (str(x.last) > last) last = str(x.last); }
       });
-      return { id: s.id, cls: s.cls, no: s.no, name: str(s.name), bests: per,
-        best: b ? num(b.best) : null, attempts: att, last: last,
-        masterCleared: isMaster(a) && cleared === types.length };
+      var achieved = isMaster(a) ? cleared === types.length : total >= need;
+      return { id: s.id, cls: s.cls, no: s.no, name: str(s.name), bests: per, passes: pp, totalPasses: total,
+        best: b ? num(b.best) : null, attempts: att, last: last, achieved: achieved,
+        masterCleared: isMaster(a) && achieved };
     });
     return { assignment: { id: a.id, title: a.title, text: a.text, due: str(a.due), contest: bool(a.contest), classes: str(a.classes),
-      types: types, mode: isMaster(a) ? 'master' : 'normal', pass: pl, canEdit: canEditAssignment(me, a),
+      types: types, mode: isMaster(a) ? 'master' : 'normal', pass: pl, passCount: passNeed(a), canEdit: canEditAssignment(me, a),
       start: str(a.start), scheduled: isScheduled(a) }, rows: rows };
   };
 
@@ -1521,7 +1553,7 @@ window.APP_CONFIG = {
     assignments.forEach(function (a) {
       aTypes(a).forEach(function (t) { header.push(a.title + (t > 1 ? '・' + TYPE_NAME[t] : '') + '（最高%）'); });
       header.push(a.title + '（回数）');
-      if (isMaster(a)) header.push(a.title + '（マスター）');
+      header.push(a.title + '（達成）');
     });
     var rows = [header];
     store.getStudents().filter(function (s) { return !cls || s.cls === cls; })
@@ -1536,7 +1568,7 @@ window.APP_CONFIG = {
             if (b) { att += num(b.attempts); if (num(b.best) >= passLine(a)) cleared++; }
           });
           row.push(att || '');
-          if (isMaster(a)) row.push(cleared === types.length ? '達成' : cleared + '/' + types.length);
+          row.push(progress(store, s.id, a).achieved ? '達成' : '');
         });
         rows.push(row);
       });
@@ -1690,6 +1722,14 @@ window.APP_CONFIG = {
     });
     return { removed: students.length };
   };
+  // ---- 英文の自動和訳（Apps Script の翻訳機能を使う） ----
+  handlers.t_translate = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    if (!ctx.translate) return { unsupported: true };
+    var list = [].concat(p.sentences || []).slice(0, 80).map(function (x) { return str(x).slice(0, 1000); });
+    return { ja: list.map(function (x) { return x ? ctx.translate(x) : ''; }) };
+  };
+
   handlers.t_me = function (p, store, ctx) {
     return { me: currentTeacher(p, store, ctx) };
   };
@@ -1745,9 +1785,11 @@ window.APP_CONFIG = {
         var rk = bestKey(r.aid, num(r.type) || 1);
         var b = store.getBest(r.sid, rk);
         var better = !b || num(r.accuracy) > num(b.best);
+        var ra = store.getAssignment(r.aid), rpl = ra ? passLine(ra) : 80;
         store.setBest(r.sid, rk, {
           best: b ? Math.max(num(b.best), num(r.accuracy)) : num(r.accuracy),
           attempts: (b ? num(b.attempts) : 0) + 1, last: r.time,
+          passes: passesOf(b, rpl) + (num(r.accuracy) >= rpl ? 1 : 0),
           bestAt: better ? r.time : (b ? b.bestAt : r.time)
         });
       }
@@ -2596,14 +2638,16 @@ window.SAMPLE_ASSIGNMENTS = [
     html += '<div class="card"><div class="card-title"><h2>📚 課題</h2></div>';
     if (!h.assignments.length) html += '<div class="empty">今は課題がありません。自主練で音読してみましょう！</div>';
     else html += '<ul class="list">' + h.assignments.map(function (a) {
-      var overdue = a.due && a.due < h.today && (a.master ? !a.masterCleared : a.best === null);
+      var overdue = a.due && a.due < h.today && (a.master ? !a.masterCleared : !a.achieved);
       return '<li><a class="item" href="#/a/' + encodeURIComponent(a.id) + '"><div class="main">' +
         '<div class="title">' + (a.contest ? '<span class="pill contest">🏆 音読大会</span> ' : '') + esc(a.title) + '</div>' +
         '<div class="sub">' + n(a.words) + '語' + (a.due ? '・締切 ' + fmtDay(a.due) : '') + (a.attempts ? '・' + a.attempts + '回挑戦' : '') +
         (!a.master && a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : '') + '</div></div>' +
         (a.master
           ? (a.masterCleared ? '<span class="pill done">🏆 マスター達成</span>' : '<span class="pill master">🎓 マスター ' + a.clearedSteps + '/' + a.types.length + '</span>')
-          : (a.best !== null ? '<div class="score-chip">' + a.best + '%</div>' : '<span class="pill ' + (overdue ? 'todo' : 'gray') + '">' + (overdue ? '締切すぎ' : '未提出') + '</span>')) +
+          : (a.achieved ? '<span class="pill done">✅ 達成' + (a.best !== null ? ' ' + a.best + '%' : '') + '</span>'
+            : a.best !== null ? '<div style="text-align:right"><div class="score-chip">' + a.best + '%</div>' + (a.need ? '<div class="muted" style="font-size:.75rem">合格 ' + (a.totalPasses || 0) + '/' + a.need + '回</div>' : '') + '</div>'
+            : '<span class="pill ' + (overdue ? 'todo' : 'gray') + '">' + (overdue ? '締切すぎ' : '未提出') + '</span>')) +
         '</a></li>';
     }).join('') + '</ul>';
     html += '</div>';
@@ -2676,6 +2720,63 @@ window.SAMPLE_ASSIGNMENTS = [
     plainTokens(text).forEach(function (t) { if (t.status === 'space' && /\n/.test(t.text)) lns.push([]); else lns[lns.length - 1].push(t); });
     lns.forEach(function (l) { if (l.some(function (t) { return t.status !== 'space' && t.status !== 'ja'; })) n += splitEnLine(l).length; });
     return n;
+  }
+
+  // 英文を1文ずつの文字列にする（日本語の行は除く）
+  function enSentences(text) {
+    var lns = [[]], out = [];
+    plainTokens(text).forEach(function (t) { if (t.status === 'space' && /\n/.test(t.text)) lns.push([]); else lns[lns.length - 1].push(t); });
+    lns.forEach(function (l) {
+      if (!l.some(function (t) { return t.status !== 'space' && t.status !== 'ja'; })) return;
+      splitEnLine(l).forEach(function (sn) {
+        var x = sn.filter(function (t) { return t.status !== 'ja'; }).map(function (t) { return t.status === 'space' ? ' ' : t.text; }).join('').replace(/\s+/g, ' ').trim();
+        if (x) out.push(x);
+      });
+    });
+    return out;
+  }
+  // 英→日の自動翻訳（本番：Googleの翻訳〔Apps Script〕／デモ：ブラウザ内の翻訳 → 無料の翻訳サービス）
+  async function translateSentences(list) {
+    var res = null;
+    try { res = await call('t_translate', { sentences: list }); } catch (e) { res = null; }
+    if (res && res.ja && !res.unsupported) return res.ja;
+    var opts = { sourceLanguage: 'en', targetLanguage: 'ja' };
+    async function byBrowser(ms) {   // Chrome に内蔵の翻訳（端末内で翻訳）
+      var tr = await withTimeout(Translator.create(opts), ms);
+      var out = [];
+      for (var i = 0; i < list.length; i++) out.push(await withTimeout(tr.translate(list[i]), 20000));
+      return out;
+    }
+    var hasTr = !!(window.Translator && Translator.create), avail = '';
+    if (hasTr) { try { avail = await withTimeout(Translator.availability(opts), 3000); } catch (e) { avail = ''; } }
+    if (avail === 'available') { try { return await byBrowser(15000); } catch (e) { /* 次の方法へ */ } }
+    var lastErr = null;
+    try {
+      var out2 = [];
+      for (var j = 0; j < list.length; j++) {
+        var r = await withTimeout(fetch('https://api.mymemory.translated.net/get?langpair=en%7Cja&q=' + encodeURIComponent(list[j])), 15000);
+        if (!r.ok) throw new Error('翻訳サービスにつながりませんでした。');
+        var d = await r.json();
+        var t = d && d.responseData && d.responseData.translatedText;
+        if (!t || /MYMEMORY WARNING|QUERY LENGTH LIMIT/i.test(t)) throw new Error('翻訳サービスの1日の上限に達しました。時間をおいて試すか、本番モード（Googleスプレッドシート）で使ってください。');
+        out2.push(t);
+      }
+      return out2;
+    } catch (e) { lastErr = e; }
+    if (hasTr && (avail === 'downloadable' || avail === 'downloading')) { try { return await byBrowser(90000); } catch (e) { /* 失敗 */ } }
+    throw lastErr || new Error('翻訳できませんでした。');
+  }
+  function withTimeout(p, ms) {
+    return new Promise(function (res, rej) {
+      var tm = setTimeout(function () { rej(new Error('翻訳に時間がかかりすぎました。もう一度試してください。')); }, ms);
+      Promise.resolve(p).then(function (v) { clearTimeout(tm); res(v); }, function (e) { clearTimeout(tm); rej(e); });
+    });
+  }
+  function tidyJa(x) {
+    x = String(x || '').replace(/\s*\n\s*/g, '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim();
+    x = x.replace(/([^\x00-\x7F])\s+(?=[^\x00-\x7F])/g, '$1').replace(/[.．]$/, '。').replace(/\?$/, '？').replace(/!$/, '！');
+    if (x && !/[。！？」』）)]$/.test(x)) x += '。';
+    return x;
   }
 
   // 英文の表示：1文ずつ改行し、日本語の文と英語の文が対応していれば
@@ -3078,10 +3179,16 @@ window.SAMPLE_ASSIGNMENTS = [
 
   var TYPE_LABEL = { 1: '① 通常', 2: '② 穴埋め', 3: '③ スペースなし', 4: '④ 並べ替え', 5: '⑤ 日本語→英語' };
   // マスターモードで、次に取り組む種類（まだ合格していない最初の種類）
+  function passCnt(pg, t) {
+    var v = pg.passes ? pg.passes[t] : undefined;
+    if (v !== undefined && v !== null) return +v;
+    return pg.bests[t] !== null && pg.bests[t] >= pg.pass ? 1 : 0;
+  }
+  function needTxt(pg) { return (pg.need || 1) > 1 ? (pg.need + '回') : ''; }
   function nextStep(pg) {
     for (var i = 0; i < pg.types.length; i++) {
       var t = pg.types[i];
-      if (pg.bests[t] === null || pg.bests[t] < pg.pass) return t;
+      if (passCnt(pg, t) < (pg.need || 1)) return t;
     }
     return null;
   }
@@ -3090,21 +3197,25 @@ window.SAMPLE_ASSIGNMENTS = [
     if (pg.master) {
       var nx = nextStep(pg);
       var html = '<div class="master-head">' + (pg.masterCleared ? '🏆 <b>音読マスター達成！</b>' : '🎓 <b>音読マスターモード</b>：' +
-        pg.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') + ' をすべて合格（' + pg.pass + '%以上）でクリア') + '</div><div class="steps">';
+        pg.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') + ' をすべて合格（' + pg.pass + '%以上' + ((pg.need || 1) > 1 ? 'を各' + pg.need + '回' : '') + '）でクリア') + '</div><div class="steps">';
       pg.types.forEach(function (t, i) {
-        var best = pg.bests[t], ok = best !== null && best >= pg.pass;
+        var best = pg.bests[t], pc = passCnt(pg, t), ok = pc >= (pg.need || 1);
         var locked = !ok && nx !== null && pg.types.indexOf(nx) < i;
         html += (i ? '<span class="step-arrow">→</span>' : '') +
           (locked ? '<span class="step locked">🔒 ' + TYPE_LABEL[t] + '</span>'
             : '<a class="step' + (ok ? ' ok' : '') + (t === cur ? ' cur' : '') + '" href="#/a/' + aid + '/' + t + '">' + (ok ? '✅ ' : '') + TYPE_LABEL[t] +
-              (best !== null ? '<small>' + best + '%</small>' : '') + '</a>');
+              (best !== null ? '<small>' + best + '%' + ((pg.need || 1) > 1 ? '・合格' + Math.min(pc, pg.need) + '/' + pg.need : '') + '</small>' : '') + '</a>');
       });
       return html + '</div>';
     }
-    if (pg.types.length < 2) return '';
-    return '<div class="steps">' + pg.types.map(function (t) {
-      var best = pg.bests[t];
-      return '<a class="step' + (t === cur ? ' cur' : '') + '" href="#/a/' + aid + '/' + t + '">' + TYPE_LABEL[t] + (best !== null ? '<small>' + best + '%</small>' : '') + '</a>';
+    var need = pg.need || 1;
+    var head = '<div class="goal-head">' + (pg.achieved ? '✅ <b>課題達成！</b>' : '🎯 <b>課題達成の条件</b>：') +
+      '合格ライン <b>' + pg.pass + '%</b> 以上を <b>' + need + '回</b>' + (pg.types.length > 1 ? '（どの種類でもOK）' : '') +
+      '　<span class="goal-count">いま ' + Math.min(pg.totalPasses || 0, need) + ' / ' + need + '回</span></div>';
+    if (pg.types.length < 2) return head;
+    return head + '<div class="steps">' + pg.types.map(function (t) {
+      var best = pg.bests[t], pc = passCnt(pg, t);
+      return '<a class="step' + (t === cur ? ' cur' : '') + '" href="#/a/' + aid + '/' + t + '">' + TYPE_LABEL[t] + (best !== null ? '<small>' + best + '%' + (pc ? '・合格' + pc + '回' : '') + '</small>' : '') + '</a>';
     }).join('') + '</div>';
   }
 
@@ -3129,11 +3240,14 @@ window.SAMPLE_ASSIGNMENTS = [
         resultExtra: function (server, res) {
           var np = server.progress; if (!np) return '';
           var out = '';
-          if (np.master || np.types.length > 1) {
-            out += '<div class="pass-line ' + (server.passed ? 'ok' : '') + '">' + TYPE_LABEL[type] + '：合格ライン ' + np.pass + '% … ' +
-              (server.passed ? '✅ 合格！' : 'あと ' + Math.max(0.1, Math.round((np.pass - res.accuracy) * 10) / 10) + '%') + '</div>';
-          }
+          var need = np.need || 1, pc = np.master ? passCnt(np, type) : (np.totalPasses || 0);
+          out += '<div class="pass-line ' + (server.passed ? 'ok' : '') + '">' + (np.types.length > 1 || np.master ? TYPE_LABEL[type] + '：' : '') + '合格ライン ' + np.pass + '% … ' +
+            (server.passed ? '✅ 合格！' : 'あと ' + Math.max(0.1, Math.round((np.pass - res.accuracy) * 10) / 10) + '%') +
+            (need > 1 ? '<span class="goal-count">合格 ' + Math.min(pc, need) + ' / ' + need + '回</span>' : '') + '</div>';
           if (server.masterNew) out += '<div class="celebrate master-win">🏆 音読マスター達成！ すべての音読をクリアしました！</div>';
+          else if (server.achievedNew && !np.master) out += '<div class="celebrate master-win">🎉 課題達成！ 合格ラインを ' + need + '回 こえました！</div>';
+          else if (!np.master && server.passed && !np.achieved) out += '<div class="muted" style="text-align:center;margin:6px 0">課題達成まで あと ' + (need - pc) + '回 合格しよう！</div>';
+          else if (np.master && server.passed && passCnt(np, type) < need) out += '<div class="muted" style="text-align:center;margin:6px 0">この種類は あと ' + (need - passCnt(np, type)) + '回 合格すると次へ進めます</div>';
           else if (np.master && server.passed) {
             var nx2 = nextStep(np);
             if (nx2 !== null) out += '<a class="btn btn-accent btn-block" style="margin:8px 0" href="#/a/' + encodeURIComponent(a.id) + '/' + nx2 + '">次へ：' + TYPE_LABEL[nx2] + ' に進む →</a>';
@@ -3493,12 +3607,12 @@ window.SAMPLE_ASSIGNMENTS = [
         '<div class="seg" id="segScope"><button data-v="mine" class="' + (scope === 'mine' ? 'active' : '') + '">担当クラス</button><button data-v="all" class="' + (scope === 'all' ? 'active' : '') + '">すべて</button></div>' +
         '<a class="btn btn-primary" href="#/t/new">＋ 新しい課題</a></div></div>' +
         (!isAdmin() && !(me().classes || []).length ? '<div class="notice warn">担当クラスが設定されていません。管理者に担当クラスを設定してもらってください。</div>' : '');
-      html += list.length ? '<div class="table-wrap"><table><thead><tr><th>タイトル</th><th>対象</th><th>作成</th><th>締切</th><th class="num">提出</th><th class="num">平均</th><th>状態</th></tr></thead><tbody>' +
+      html += list.length ? '<div class="table-wrap"><table><thead><tr><th>タイトル</th><th>対象</th><th>作成</th><th>締切</th><th class="num">提出</th><th class="num">達成</th><th class="num">平均</th><th>状態</th></tr></thead><tbody>' +
         list.map(function (a) {
           return '<tr class="clickable" data-href="#/t/results/' + encodeURIComponent(a.id) + '"><td>' + (a.contest ? '🏆 ' : '') + esc(a.title) + '<br><small class="muted">' + a.words + '語' +
             (a.mode === 'master' ? '・🎓マスター' : (a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : (a.types && a.types[0] !== 1 ? '・' + '①②③④⑤'.charAt(a.types[0] - 1) : ''))) + '</small></td>' +
             '<td>' + esc(a.classes || '全員') + '</td><td>' + esc(a.ownerName || '—') + (a.canEdit ? '' : ' <small class="muted">（閲覧のみ）</small>') + '</td><td>' + (a.due ? fmtDay(a.due) : '—') + '</td>' +
-            '<td class="num">' + a.done + ' / ' + a.targets + '</td><td class="num ' + scoreClass(a.avg) + '">' + (a.avg === null ? '—' : a.avg + '%') + '</td>' +
+            '<td class="num">' + a.done + ' / ' + a.targets + '</td><td class="num">' + (a.achieved || 0) + ' / ' + a.targets + '</td><td class="num ' + scoreClass(a.avg) + '">' + (a.avg === null ? '—' : a.avg + '%') + '</td>' +
             '<td>' + (!a.published ? '<span class="pill gray">非公開</span>' : a.scheduled ? '<span class="pill sched">⏰ 予約 ' + fmtStart(a.start) + '</span>' : '<span class="pill done">公開中</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<div class="empty">' + (scope === 'mine' ? '担当クラスの課題はまだありません。' : 'まだ課題がありません。') + '「＋ 新しい課題」から作成しましょう。</div>';
       html += '</div>';
@@ -3516,7 +3630,7 @@ window.SAMPLE_ASSIGNMENTS = [
     bottomNav(); $app.classList.add('wide'); loading();
     try {
       var o = await loadOverview();
-      var a = { title: '', text: '', ja: '', classes: '', due: '', contest: false, published: true, types: [1], mode: 'normal', pass: 80, blanks: '' };
+      var a = { title: '', text: '', ja: '', classes: '', due: '', contest: false, published: true, types: [1], mode: 'normal', pass: 80, passCount: 1, blanks: '' };
       if (aid) a = (await call('t_getAssignment', { aid: aid })).assignment;
       if (aid && a.canEdit === false) {
         $app.innerHTML = '<a class="back" href="#/t/results/' + encodeURIComponent(aid) + '">← もどる</a><div class="card empty">この課題は、担当クラスがちがうため編集できません（閲覧のみ）。</div>';
@@ -3532,7 +3646,7 @@ window.SAMPLE_ASSIGNMENTS = [
         '<button class="btn-small" id="ePlay" type="button">🔊 読み上げて確認</button><span class="muted" id="eWc"></span></div>' +
         '<div id="eOcr" class="muted"></div><div id="ePdfBox"></div>' +
         '<textarea id="eText" placeholder="英文を入力または貼り付けてください&#10;日本語も書けます（画面に表示されるだけで、音読・判定の対象にはなりません）&#10;例）私は音楽が好きです。&#10;　　I like music.&#10;（日本語は英語の上に表示されます）">' + esc(a.text) + '</textarea>' +
-        '<label for="eJa">和訳（任意・生徒が「和訳」ボタンで見られます）</label><textarea id="eJa" style="min-height:80px" placeholder="英文に日本語の行がない場合に入力します（例：私は京都へ行きました。京都はとても美しかったです。）">' + esc(a.ja) + '</textarea>' +
+        '<div class="label-row"><label for="eJa">和訳（任意・生徒が「和訳」ボタンで見られます）</label><button class="btn-small" type="button" id="eTrans">🌐 英文から自動で和訳</button></div><textarea id="eJa" style="min-height:80px" placeholder="英文に日本語の行がない場合に入力します（例：私は京都へ行きました。京都はとても美しかったです。）">' + esc(a.ja) + '</textarea>' +
         '<div class="muted" id="eJaNote" style="font-size:.85rem;margin-top:4px"></div>' +
         '<div class="type-box"><h3>音読の種類</h3>' +
         '<label class="check"><input type="radio" name="eMode" value="normal"' + (a.mode !== 'master' ? ' checked' : '') + '>通常音読（チェックした種類から、生徒が選んで練習）</label>' +
@@ -3542,8 +3656,9 @@ window.SAMPLE_ASSIGNMENTS = [
           return '<label class="check" style="margin:0 14px 0 0"><input type="checkbox" class="eType" value="' + t[0] + '"' + (a.types.indexOf(t[0]) >= 0 ? ' checked' : '') + '>' + t[1] + '</label>';
         }).join('') + '</div>' +
         '<div class="muted" id="eTypeNote" style="margin-left:28px;font-size:.85rem"></div>' +
-        '<div id="ePassRow" style="margin-left:28px"><label for="ePass" style="display:inline">合格ライン</label> <input type="number" id="ePass" min="50" max="100" value="' + esc(a.pass || 80) + '" style="width:90px"> %' +
-        '<span class="muted" style="font-size:.85rem">（各種類の正確さがこの値以上で合格）</span></div>' +
+        '<div id="ePassRow" class="pass-row"><span><label for="ePass" style="display:inline">合格ライン</label> <input type="number" id="ePass" min="50" max="100" value="' + esc(a.pass || 80) + '" style="width:80px"> %</span>' +
+        '<span><label for="ePassCount" style="display:inline">課題達成に必要な合格回数</label> <input type="number" id="ePassCount" min="1" max="20" value="' + esc(a.passCount || 1) + '" style="width:70px"> 回</span>' +
+        '<div class="muted" id="ePassNote" style="font-size:.85rem;width:100%"></div></div>' +
         '<div id="eBlankBox" class="hidden"><label>② 穴あきの場所</label>' +
         '<p class="muted" style="font-size:.88rem;margin:0 0 6px">色のついた語が（　　）になります。単語をクリックすると、付けたり外したりできます。あいさつや返事などの短い文には、原則として自動では入れません。</p>' +
         '<div class="blank-editor" id="eBlankPrev"></div><div class="btn-row" style="margin-top:6px"><button class="btn-small" type="button" id="eBlankAuto">🔄 自動で選び直す</button><span class="muted" id="eBlankCount"></span></div></div>' +
@@ -3577,7 +3692,10 @@ window.SAMPLE_ASSIGNMENTS = [
         if (!$all('.eType').some(function (c) { return c.checked; })) $('.eType[value="1"]').checked = true;
         $('#eTypeNote').textContent = (!ja ? '④ 並べ替え・⑤ 日本語→英語 を使うには、英文に日本語の行を入れるか、和訳を入力してください。' : '') +
           (master ? '　マスターモードでは、チェックした種類を番号の順に（' + $all('.eType').filter(function (c) { return c.checked; }).map(function (c) { return '①②③④⑤'.charAt(c.value - 1); }).join('→') + '）すべて合格するとクリアです。' : '');
-        $('#ePassRow').classList.toggle('hidden', !master && $all('.eType').filter(function (c) { return c.checked; }).length < 2);
+        var pl = +$('#ePass').value || 80, pc = Math.max(1, Math.min(20, Math.round(+$('#ePassCount').value || 1)));
+        $('#ePassNote').textContent = master
+          ? '正確さ ' + pl + '% 以上を、チェックした種類ごとに ' + pc + '回 とると次の種類へ進めます（全部そろうとマスター達成）。'
+          : '正確さ ' + pl + '% 以上を ' + pc + '回 とると「課題達成」になります' + ($all('.eType').filter(function (c) { return c.checked; }).length > 1 ? '（どの種類で合格しても1回と数えます）' : '') + '。';
         $('#eBlankBox').classList.toggle('hidden', !$('.eType[value="2"]').checked);
         drawBlanks();
         jaNote();
@@ -3621,7 +3739,22 @@ window.SAMPLE_ASSIGNMENTS = [
         }
         syncTypes();
       }
-      ta.oninput = wc; $('#eJa').oninput = syncTypes;
+      ta.oninput = wc; $('#eJa').oninput = syncTypes; $('#ePass').oninput = syncTypes; $('#ePassCount').oninput = syncTypes;
+      $('#eTrans').onclick = async function () {
+        var btn = this, list = enSentences(ta.value);
+        if (!list.length) { toast('先に英文を入力してください'); return; }
+        if (list.length > 80) { toast('英文が長すぎます（80文まで）'); return; }
+        if ($('#eJa').value.trim() && !confirm('いま入っている和訳を、自動の翻訳で置きかえますか？')) return;
+        btn.disabled = true; var old = btn.textContent; btn.textContent = '⏳ 翻訳中…（' + list.length + '文）';
+        try {
+          var ja = await translateSentences(list);
+          $('#eJa').value = ja.map(tidyJa).join('\n');
+          var ej = $('#eJa'); ej.style.height = 'auto'; ej.style.height = Math.min(ej.scrollHeight + 4, 400) + 'px';
+          syncTypes();
+          toast('和訳を入れました。必要に応じて直してください（機械翻訳です）');
+        } catch (e) { toast(e.message || '翻訳できませんでした'); }
+        btn.disabled = false; btn.textContent = old;
+      };
       $all('input[name=eMode], .eType').forEach(function (c) { c.onchange = syncTypes; });
       $('#eBlankAuto').onclick = function () { blanks = Blanks.auto(ta.value); blanksCustom = false; drawBlanks(); };
       wc();
@@ -3636,7 +3769,7 @@ window.SAMPLE_ASSIGNMENTS = [
             due: $('#eDue').value, start: $('#eStart').value, contest: $('#eContest').checked, published: $('#ePub').checked,
             mode: $('input[name=eMode]:checked').value,
             types: $all('.eType').filter(function (c) { return c.checked; }).map(function (c) { return +c.value; }),
-            pass: +$('#ePass').value || 80, blanks: blanks.join(',') };
+            pass: +$('#ePass').value || 80, passCount: Math.max(1, Math.min(20, Math.round(+$('#ePassCount').value || 1))), blanks: blanks.join(',') };
           var r = await call('t_saveAssignment', { assignment: data });
           state.overview = null;
           var nowLocal = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16);
@@ -3660,7 +3793,8 @@ window.SAMPLE_ASSIGNMENTS = [
       var a = r.assignment, types = a.types || [1], master = a.mode === 'master';
       function started(x) { return types.some(function (t) { return x.bests[t] !== null && x.bests[t] !== undefined; }); }
       var done = r.rows.filter(started);
-      var cleared = r.rows.filter(function (x) { return x.masterCleared; });
+      var cleared = r.rows.filter(function (x) { return x.achieved || x.masterCleared; });
+      var need = a.passCount || 1;
       var b1 = r.rows.filter(function (x) { return x.best !== null; });
       var avg = b1.length ? Math.round(b1.reduce(function (s, x) { return s + x.best; }, 0) / b1.length * 10) / 10 : null;
       var TL = { 1: '①通常', 2: '②穴埋め', 3: '③スペースなし', 4: '④並べ替え', 5: '⑤日→英' };
@@ -3671,31 +3805,32 @@ window.SAMPLE_ASSIGNMENTS = [
         (a.start ? '<span>開始 <b>' + fmtStart(a.start) + '</b>' + (a.scheduled ? ' <span class="pill sched">⏰ 予約配信</span>' : '') + '</span>' : '') +
         '<span>締切 <b>' + (a.due ? fmtDay(a.due) : '—') + '</b></span>' +
         '<span>種類 <b>' + (master ? '🎓 マスターモード' : types.map(function (t) { return TL[t]; }).join('・')) + '</b></span>' +
-        (master || types.length > 1 ? '<span>合格ライン <b>' + a.pass + '%</b></span>' : '') +
+        '<span>合格ライン <b>' + a.pass + '%</b> × <b>' + need + '回</b>' + (master ? '（種類ごと）' : '') + '</span>' +
         '<span>取り組んだ人 <b>' + done.length + ' / ' + r.rows.length + '</b></span>' +
-        (master ? '<span>マスター達成 <b>' + cleared.length + '人</b></span>' : '') +
+        '<span>' + (master ? 'マスター達成' : '課題達成') + ' <b>' + cleared.length + ' / ' + r.rows.length + '人</b></span>' +
         '<span>①の平均 <b>' + (avg === null ? '—' : avg + '%') + '</b></span></div>' +
         '<details style="margin-top:10px"><summary class="muted">英文を表示</summary><div class="passage small" style="margin-top:8px;white-space:pre-wrap">' + esc(a.text) + '</div></details></div>';
       html += '<div class="card"><div class="toolbar"><select id="fCls" style="width:auto"><option value="">全クラス</option>' +
         uniq(r.rows.map(function (x) { return x.cls; })).map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select>' +
-        '<label class="check" style="margin:0"><input type="checkbox" id="fTodo">' + (master ? '未達成のみ' : '未提出のみ') + '</label></div>' +
+        '<label class="check" style="margin:0"><input type="checkbox" id="fTodo">未達成のみ</label></div>' +
         '<div class="table-wrap"><table><thead><tr><th>クラス</th><th class="num">番号</th><th>名前</th>' +
         types.map(function (t) { return '<th class="num">' + (types.length > 1 ? TL[t] : '最高') + '</th>'; }).join('') +
-        (master ? '<th>マスター</th>' : '') + '<th class="num">回数</th><th>最終</th></tr></thead><tbody id="rBody"></tbody></table></div></div>';
+        '<th class="num">合格回数</th><th>' + (master ? 'マスター' : '達成') + '</th><th class="num">回数</th><th>最終</th></tr></thead><tbody id="rBody"></tbody></table></div></div>';
       $app.innerHTML = html;
       function cell(v) {
-        var ok = v !== null && v !== undefined && (types.length < 2 && !master ? true : v >= a.pass);
-        return '<td class="num ' + scoreClass(v) + '">' + (v === null || v === undefined ? '—' : v + '%' + (types.length > 1 || master ? (ok ? ' ✓' : '') : '')) + '</td>';
+        var ok = v !== null && v !== undefined && v >= a.pass;
+        return '<td class="num ' + scoreClass(v) + '">' + (v === null || v === undefined ? '—' : v + '%' + (ok ? ' ✓' : '')) + '</td>';
       }
       function draw() {
         var c = $('#fCls').value, todo = $('#fTodo').checked;
-        var rows = r.rows.filter(function (x) { return (!c || x.cls === c) && (!todo || (master ? !x.masterCleared : !started(x))); })
+        var rows = r.rows.filter(function (x) { return (!c || x.cls === c) && (!todo || !(x.achieved || x.masterCleared)); })
           .sort(function (x, y) { return x.cls.localeCompare(y.cls) || (+x.no) - (+y.no); });
-        var cols = 5 + types.length + (master ? 1 : 0);
+        var cols = 7 + types.length;
         $('#rBody').innerHTML = rows.map(function (x) {
           return '<tr class="clickable" data-href="#/t/student/' + encodeURIComponent(x.id) + '"><td>' + esc(x.cls) + '</td><td class="num">' + esc(x.no) + '</td><td>' + esc(x.name) + '</td>' +
             types.map(function (t) { return cell(x.bests[t]); }).join('') +
-            (master ? '<td>' + (x.masterCleared ? '<span class="pill done">🏆 達成</span>' : '<span class="pill gray">未達成</span>') + '</td>' : '') +
+            '<td class="num">' + (master ? types.map(function (t) { return Math.min(+(x.passes && x.passes[t]) || 0, need); }).join('・') : (x.totalPasses || 0) + ' / ' + need) + '</td>' +
+            '<td>' + (x.achieved || x.masterCleared ? '<span class="pill done">' + (master ? '🏆' : '✅') + ' 達成</span>' : '<span class="pill gray">未達成</span>') + '</td>' +
             '<td class="num">' + (x.attempts || '') + '</td><td>' + fmtDate(x.last) + '</td></tr>';
         }).join('') || '<tr><td colspan="' + cols + '" class="empty">該当する生徒はいません</td></tr>';
         bindRows();
@@ -3703,13 +3838,13 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#fCls').onchange = draw; $('#fTodo').onchange = draw; draw();
       $('#bExp').onclick = function () {
         var head = ['クラス', '番号', '名前'].concat(types.map(function (t) { return TL[t] + ' 最高(%)'; }));
-        if (master) head.push('マスター');
+        head.push('合格回数', master ? 'マスター' : '課題達成');
         head.push('回数', '最終音読日時');
         var rows = [head].concat(
           r.rows.slice().sort(function (x, y) { return x.cls.localeCompare(y.cls) || (+x.no) - (+y.no); })
             .map(function (x) {
               var row = [x.cls, +x.no, x.name].concat(types.map(function (t) { var v = x.bests[t]; return v === null || v === undefined ? '' : v; }));
-              if (master) row.push(x.masterCleared ? '達成' : '');
+              row.push(master ? types.map(function (t) { return +(x.passes && x.passes[t]) || 0; }).join('・') : (x.totalPasses || 0), x.achieved || x.masterCleared ? '達成' : '');
               return row.concat([x.attempts, x.last ? new Date(x.last).toLocaleString('ja-JP') : '']);
             }));
         exportXlsx(rows, a.title.replace(/[\\\/:*?"<>|]/g, '_') + '_結果');
