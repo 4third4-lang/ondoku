@@ -1720,6 +1720,11 @@ SheetStore.prototype.load = function (k) {
       var hit = cacheRead_(k, gen);
       if (hit) { this.cache[k] = hit; return hit; }
     }
+    // まだ世代がないときは、シートを読む「前」に世代を作っておく（このあと書き込みがあれば、そちらの世代が優先される）
+    if (!gen && !this.isFresh_(k) && !this.dirty[k]) {
+      var c = sc_();
+      if (c) { gen = newGen_(); try { c.put('g:' + k, gen, 21600); this.gens['g:' + k] = gen; } catch (e) { gen = null; } }
+    }
   }
   var sh = this.sheet(k), cols = SHEETS[k].cols, last = sh.getLastRow();
   var rows = [];
