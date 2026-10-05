@@ -384,6 +384,7 @@
 
   // ---------------- 音読の種類 ----------------
   // 1：通常 / 2：（　　）穴埋め / 3：スペースなし / 4：並べ替え / 5：日本語→英語
+  var MAX_TEXT = 10000;   // 課題の英文・和訳の上限（文字数）
   var TYPE_NAME = { 1: '通常', 2: '穴埋め', 3: 'スペースなし', 4: '並べ替え', 5: '日本語→英語' };
   var NEED_JA = [4, 5];   // 日本語が必要な種類
   function aTypes(a) {
@@ -877,11 +878,14 @@
   handlers.t_saveAssignment = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
     var a = p.assignment || {};
-    var title = str(a.title).slice(0, 80), text = str(a.text).slice(0, 5000);
+    var title = str(a.title).slice(0, 80), text = str(a.text);
     if (!title) throw err('タイトルを入力してください。');
     if (!text) throw err('英文を入力してください。');
+    // 長すぎる英文・和訳は切り捨てずにエラーにする（気づかないうちに消えないように）
+    if (text.length > MAX_TEXT) throw err('英文が長すぎます（' + text.length + '文字）。' + MAX_TEXT + '文字以内にしてください。');
+    if (str(a.ja).length > MAX_TEXT) throw err('和訳が長すぎます（' + str(a.ja).length + '文字）。' + MAX_TEXT + '文字以内にしてください。');
     var data = {
-      title: title, text: text, ja: str(a.ja).slice(0, 5000), classes: splitClasses(a.classes).join(','),
+      title: title, text: text, ja: str(a.ja), classes: splitClasses(a.classes).join(','),
       due: str(a.due).slice(0, 10), contest: !!a.contest, published: a.published !== false,
       words: Sc.countWords(text)
     };
@@ -894,7 +898,7 @@
     data.types = types.join(',');
     data.pass = Math.max(1, Math.min(100, Math.round(num(a.pass) || 80)));
     data.passCount = Math.max(1, Math.min(20, Math.round(num(a.passCount) || 1)));
-    data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 3000);
+    data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 8000);
     data.start = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str(a.start)) ? str(a.start).slice(0, 16) : '';
     if (data.start && data.due && data.due < data.start.slice(0, 10)) throw err('締切が開始日時より前になっています。');
     // 権限：担当クラスにだけ出せる（全員向けは管理者のみ）

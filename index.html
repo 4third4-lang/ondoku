@@ -366,6 +366,7 @@ body.has-nav main { padding-bottom: 90px; }
 .label-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 6px; }
 .label-row label { margin-bottom: 4px; }
 .label-row .btn-small { margin-bottom: 4px; }
+.over { color: var(--ng, #d33); font-weight: 700; }
 
 </style>
 </head>
@@ -956,6 +957,7 @@ window.APP_CONFIG = {
 
   // ---------------- 音読の種類 ----------------
   // 1：通常 / 2：（　　）穴埋め / 3：スペースなし / 4：並べ替え / 5：日本語→英語
+  var MAX_TEXT = 10000;   // 課題の英文・和訳の上限（文字数）
   var TYPE_NAME = { 1: '通常', 2: '穴埋め', 3: 'スペースなし', 4: '並べ替え', 5: '日本語→英語' };
   var NEED_JA = [4, 5];   // 日本語が必要な種類
   function aTypes(a) {
@@ -1449,11 +1451,14 @@ window.APP_CONFIG = {
   handlers.t_saveAssignment = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
     var a = p.assignment || {};
-    var title = str(a.title).slice(0, 80), text = str(a.text).slice(0, 5000);
+    var title = str(a.title).slice(0, 80), text = str(a.text);
     if (!title) throw err('タイトルを入力してください。');
     if (!text) throw err('英文を入力してください。');
+    // 長すぎる英文・和訳は切り捨てずにエラーにする（気づかないうちに消えないように）
+    if (text.length > MAX_TEXT) throw err('英文が長すぎます（' + text.length + '文字）。' + MAX_TEXT + '文字以内にしてください。');
+    if (str(a.ja).length > MAX_TEXT) throw err('和訳が長すぎます（' + str(a.ja).length + '文字）。' + MAX_TEXT + '文字以内にしてください。');
     var data = {
-      title: title, text: text, ja: str(a.ja).slice(0, 5000), classes: splitClasses(a.classes).join(','),
+      title: title, text: text, ja: str(a.ja), classes: splitClasses(a.classes).join(','),
       due: str(a.due).slice(0, 10), contest: !!a.contest, published: a.published !== false,
       words: Sc.countWords(text)
     };
@@ -1466,7 +1471,7 @@ window.APP_CONFIG = {
     data.types = types.join(',');
     data.pass = Math.max(1, Math.min(100, Math.round(num(a.pass) || 80)));
     data.passCount = Math.max(1, Math.min(20, Math.round(num(a.passCount) || 1)));
-    data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 3000);
+    data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 8000);
     data.start = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str(a.start)) ? str(a.start).slice(0, 16) : '';
     if (data.start && data.due && data.due < data.start.slice(0, 10)) throw err('締切が開始日時より前になっています。');
     // 権限：担当クラスにだけ出せる（全員向けは管理者のみ）
@@ -3680,7 +3685,7 @@ window.SAMPLE_ASSIGNMENTS = [
         '<div id="eOcr" class="muted"></div><div id="ePdfBox"></div>' +
         '<textarea id="eText" placeholder="英文を入力または貼り付けてください&#10;日本語も書けます（画面に表示されるだけで、音読・判定の対象にはなりません）&#10;例）私は音楽が好きです。&#10;　　I like music.&#10;（日本語は英語の上に表示されます）">' + esc(a.text) + '</textarea>' +
         '<div class="label-row"><label for="eJa">和訳（任意・生徒が「和訳」ボタンで見られます）</label><button class="btn-small" type="button" id="eTrans">🌐 英文から自動で和訳</button></div><textarea id="eJa" style="min-height:80px" placeholder="英文に日本語の行がない場合に入力します（例：私は京都へ行きました。京都はとても美しかったです。）">' + esc(a.ja) + '</textarea>' +
-        '<div class="muted" id="eJaNote" style="font-size:.85rem;margin-top:4px"></div>' +
+        '<div class="muted" id="eJaNote" style="font-size:.85rem;margin-top:4px"></div><div class="muted" id="eJaLen" style="font-size:.8rem;text-align:right"></div>' +
         '<div class="type-box"><h3>音読の種類</h3>' +
         '<label class="check"><input type="radio" name="eMode" value="normal"' + (a.mode !== 'master' ? ' checked' : '') + '>通常音読（チェックした種類から、生徒が選んで練習）</label>' +
         '<label class="check"><input type="radio" name="eMode" value="master"' + (a.mode === 'master' ? ' checked' : '') + '>🎓 音読マスターモード（チェックした種類を、番号の順にすべて合格でクリア）</label>' +
@@ -3763,8 +3768,15 @@ window.SAMPLE_ASSIGNMENTS = [
           };
         });
       }
+      function lenCheck() {
+        var MAX = 10000, nt = ta.value.length, nj = $('#eJa').value.length, over = nt > MAX || nj > MAX;
+        $('#eWc').innerHTML = Scoring.countWords(ta.value) + ' 語・<span class="' + (nt > MAX ? 'over' : '') + '">' + nt.toLocaleString() + ' / 10,000文字</span>';
+        $('#eJaLen').innerHTML = nj ? '<span class="' + (nj > MAX ? 'over' : '') + '">和訳 ' + nj.toLocaleString() + ' / 10,000文字</span>' : '';
+        $('#eSave').disabled = over;
+        $('#eErr').textContent = over ? (nt > MAX ? '英文が長すぎます（' + nt.toLocaleString() + '文字）。10,000文字以内にしてください。' : '和訳が長すぎます（' + nj.toLocaleString() + '文字）。10,000文字以内にしてください。') : '';
+      }
       function wc() {
-        $('#eWc').textContent = Scoring.countWords(ta.value) + ' 語';
+        lenCheck();
         if (ta.value !== lastText) {
           lastText = ta.value;
           if (blanksCustom) toast('英文が変わったので、（　　）の場所を自動で選び直しました');
@@ -3772,7 +3784,7 @@ window.SAMPLE_ASSIGNMENTS = [
         }
         syncTypes();
       }
-      ta.oninput = wc; $('#eJa').oninput = syncTypes; $('#ePass').oninput = syncTypes; $('#ePassCount').oninput = syncTypes;
+      ta.oninput = wc; $('#eJa').oninput = function () { syncTypes(); lenCheck(); }; $('#ePass').oninput = syncTypes; $('#ePassCount').oninput = syncTypes;
       $('#eTrans').onclick = async function () {
         var btn = this, list = enSentences(ta.value);
         if (!list.length) { toast('先に英文を入力してください'); return; }
@@ -3781,7 +3793,7 @@ window.SAMPLE_ASSIGNMENTS = [
         btn.disabled = true; var old = btn.textContent; btn.textContent = '⏳ 翻訳中…（' + list.length + '文）';
         try {
           var ja = await translateSentences(list);
-          $('#eJa').value = ja.map(tidyJa).join('\n');
+          $('#eJa').value = ja.map(tidyJa).join('\n'); lenCheck();
           var ej = $('#eJa'); ej.style.height = 'auto'; ej.style.height = Math.min(ej.scrollHeight + 4, 400) + 'px';
           syncTypes();
           toast('和訳を入れました。必要に応じて直してください（機械翻訳です）');
