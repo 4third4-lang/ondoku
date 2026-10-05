@@ -2751,6 +2751,18 @@ window.SAMPLE_ASSIGNMENTS = [
     if (hasTr) { try { avail = await withTimeout(Translator.availability(opts), 3000); } catch (e) { avail = ''; } }
     if (avail === 'available') { try { return await byBrowser(15000); } catch (e) { /* 次の方法へ */ } }
     var lastErr = null;
+    try {   // Google翻訳の無料の窓口（品質が高い）
+      var outG = [];
+      for (var g = 0; g < list.length; g++) {
+        var rg = await withTimeout(fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ja&dt=t&q=' + encodeURIComponent(list[g])), 15000);
+        if (!rg.ok) throw new Error('翻訳サービスにつながりませんでした。');
+        var dg = await rg.json();
+        var tg = (dg && dg[0] || []).map(function (x) { return x && x[0] || ''; }).join('');
+        if (!tg) throw new Error('翻訳できませんでした。');
+        outG.push(tg);
+      }
+      return outG;
+    } catch (e) { lastErr = e; }
     try {
       var out2 = [];
       for (var j = 0; j < list.length; j++) {
