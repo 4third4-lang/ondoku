@@ -1343,7 +1343,10 @@ window.APP_CONFIG = {
     }
     var days = num(store.getSetting('ログイン有効日数')) || 30;
     var token = makeToken(ctx, { role: 'student', id: id, exp: ctx.now().getTime() + days * 86400000 });
-    return { token: token, student: studentPublic(s) };
+    // ホームのデータもいっしょに返す（ログイン直後の読み込みを1回減らす）
+    var home = null;
+    try { home = handlers.home({ token: token }, store, ctx); } catch (e) { home = null; }
+    return { token: token, student: studentPublic(s), home: home };
   };
 
   handlers.teacherLogin = function (p, store, ctx) {
@@ -1402,7 +1405,8 @@ window.APP_CONFIG = {
           created: str(a.created), best: b ? num(b.best) : null, attempts: pg.attempts,
           types: pg.types, bests: pg.bests, master: pg.master, pass: pg.pass,
           clearedSteps: pg.clearedSteps, masterCleared: pg.masterCleared,
-          achieved: pg.achieved, totalPasses: pg.totalPasses, need: pg.need
+          achieved: pg.achieved, totalPasses: pg.totalPasses, need: pg.need,
+          detail: assignmentDetail(a, b, pg) // 課題を開いたときにすぐ表示できるよう、本文などもいっしょに送る
         };
       });
     list.sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
@@ -1416,14 +1420,25 @@ window.APP_CONFIG = {
     var s = currentStudent(p, store, ctx);
     var a = store.getAssignment(str(p.aid));
     if (!a || !assignmentVisibleTo(a, s)) throw err('この課題は見つかりません。');
-    var b = store.getBest(s.id, a.id);
-    var pg = progress(store, s.id, a);
+    return assignmentDetail(a, store.getBest(s.id, a.id), progress(store, s.id, a));
+  };
+  function assignmentDetail(a, b, pg) {
     return {
       assignment: { id: a.id, title: a.title, text: a.text, ja: str(a.ja), due: str(a.due), contest: bool(a.contest),
         types: pg.types, mode: isMaster(a) ? 'master' : 'normal', pass: pg.pass, blanks: str(a.blanks) },
       best: b ? num(b.best) : null, attempts: pg.attempts, progress: pg
     };
-  };
+  }
+
+  // 録音の保存だけを先に行う（Apps Script では、順番待ちのロックの前に呼ばれる）
+  function audioOk(cfg, p) { return cfg.saveAudio && p.audio && p.audio.b64 && String(p.audio.b64).length < 4000000; }
+  function preSubmit(p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    if (!store.saveAudio || !audioOk(settingsForClient(store), p)) return;
+    var id = store.saveAudio({ mime: str(p.audio.mime).slice(0, 60) || 'audio/webm', b64: String(p.audio.b64),
+      name: s.id + '_' + ctx.now().toISOString().replace(/[:.]/g, '-') });
+    if (id) { p._audioId = String(id); delete p.audio; }
+  }
 
   handlers.submit = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx);
@@ -1457,8 +1472,8 @@ window.APP_CONFIG = {
     if (!flag && r.correct >= 15 && dur > 0 && r.correct / dur > 4) flag = 'speed';
 
     // 音声の保存（先生が確認できるように）
-    var audioId = '';
-    if (cfg.saveAudio && p.audio && p.audio.b64 && store.saveAudio && String(p.audio.b64).length < 4000000) {
+    var audioId = str(p._audioId);
+    if (!audioId && audioOk(cfg, p) && store.saveAudio) {
       try {
         audioId = store.saveAudio({ mime: str(p.audio.mime).slice(0, 60) || 'audio/webm', b64: String(p.audio.b64),
           name: s.id + '_' + now.toISOString().replace(/[:.]/g, '-') });
@@ -2223,7 +2238,7 @@ window.APP_CONFIG = {
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS,
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit,
     BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
@@ -3182,9 +3197,88 @@ window.SAMPLE_ASSIGNMENTS = [
       if (/ログイン/.test(msg) && /有効期限|ログインしてください/.test(msg)) { logout(true); }
       throw new Error(msg);
     }
+    // データを変える操作のあとは、保存しておいた前回のデータを捨てる（古い内容を見せないため）
+    if (window.Core && Core.WRITE_ACTIONS[action] && action !== 'teacherLogin' && state.session) {
+      cclear(whoKey() + ':');
+      if (action === 'submit') setTimeout(function () { fetchFresh('home', {}).catch(function () {}); }, 400); // ホームを先に読んでおく
+    }
     return res;
   }
   function showError(e) { toast(e.message || String(e), true); }
+
+  // ================= 画面の先出し表示 =================
+  // 前回のデータがあれば、それですぐ画面を出し、裏で最新のデータを取り直す。
+  // 内容が変わっていて、まだ画面を操作していなければ、そのまま描き直す。
+  var CPRE = 'ondoku_c1:';
+  var freshUntil = {};
+  function whoKey() {
+    var t = state.session && state.session.token; if (!t) return 'anon';
+    var h = 0; for (var i = 0; i < t.length; i++) h = ((h << 5) - h + t.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+  function ckey(action, payload) {
+    var p = {}; Object.keys(payload || {}).sort().forEach(function (k) { if (k !== 'token') p[k] = payload[k]; });
+    return CPRE + whoKey() + ':' + action + ':' + JSON.stringify(p);
+  }
+  function cget(key) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function cput(key, v) {
+    try { localStorage.setItem(key, JSON.stringify(v)); }
+    catch (e) { cclear(''); try { localStorage.setItem(key, JSON.stringify(v)); } catch (e2) { /* 保存できない環境 */ } }
+  }
+  // prefix: '' ならすべて、それ以外はその利用者の分だけ消す
+  function cclear(prefix) {
+    var full = CPRE + (prefix || '');
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) { var k = localStorage.key(i); if (k && k.indexOf(full) === 0) localStorage.removeItem(k); }
+    } catch (e) { /* noop */ }
+    freshUntil = {};
+  }
+  // 受け取ったデータの後処理（ホームに入っている課題の本文は、課題ごとに保存して、開いたときにすぐ出せるようにする）
+  function absorb(action, res) {
+    if (action === 'home' && res && res.assignments) {
+      res.assignments.forEach(function (a) {
+        if (!a.detail) return;
+        var k = ckey('getAssignment', { aid: a.id });
+        cput(k, a.detail); freshUntil[k] = Date.now() + 60000;
+        delete a.detail;
+      });
+    }
+    return res;
+  }
+  function remember(action, payload, res, sec) {
+    absorb(action, res);
+    var k = ckey(action, payload);
+    cput(k, res); freshUntil[k] = Date.now() + (sec || 20) * 1000;
+    return res;
+  }
+  async function fetchFresh(action, payload) {
+    var res = await call(action, Object.assign({}, payload));
+    return remember(action, payload, res);
+  }
+  function quiet() {
+    return !(state.lastInput > state.renderAt) && !state.recognizer && !document.querySelector('.reward-overlay, .cheat-overlay');
+  }
+  function cached(action, payload) {
+    payload = payload || {};
+    var key = ckey(action, payload), hit = cget(key);
+    if (!hit) return fetchFresh(action, payload);
+    if (freshUntil[key] > Date.now()) return Promise.resolve(hit);
+    var seq = state.renderSeq, before = JSON.stringify(hit);
+    fetchFresh(action, payload).then(function (res) {
+      if (JSON.stringify(res) === before) return;
+      if (seq === state.renderSeq && quiet()) softRender();
+    }).catch(function () { /* 前回のデータのまま */ });
+    return Promise.resolve(hit);
+  }
+  // スクロール位置を保ったまま描き直す
+  function softRender() {
+    var y = window.scrollY;
+    state.keepScroll = true;
+    Promise.resolve(render()).then(function () { window.scrollTo(0, y); });
+  }
+  ['pointerdown', 'keydown', 'input'].forEach(function (ev) {
+    document.addEventListener(ev, function () { state.lastInput = Date.now(); }, true);
+  });
 
   function setTitle(t) {
     var title = t || CFG.APP_TITLE || '音読チャレンジ';
@@ -3192,7 +3286,7 @@ window.SAMPLE_ASSIGNMENTS = [
     document.title = title;
   }
   function logout(silent) {
-    store(SESSION_KEY, null); state.session = null; state.home = null; state.overview = null;
+    store(SESSION_KEY, null); state.session = null; state.home = null; state.overview = null; cclear('');
     document.documentElement.setAttribute('data-theme', 'blue'); setPref('theme', 'blue');
     clearInterval(state.flagTimer); state.flagTimer = null; state.flagCount = 0;
     if (!silent) toast('ログアウトしました');
@@ -3319,8 +3413,21 @@ window.SAMPLE_ASSIGNMENTS = [
   // ================= ログイン =================
   async function viewLogin() {
     bottomNav(); topRight();
-    var classes = [];
-    try { var info = await API.call('publicInfo', {}); if (info.ok) { classes = info.classes || []; if (info.appTitle) setTitle(info.appTitle); } } catch (e) { /* noop */ }
+    var PUB = 'ondoku_pub_v1', info = store(PUB), seq = state.renderSeq;
+    function getPub() {
+      return API.call('publicInfo', {}).then(function (x) {
+        if (!x || !x.ok) return null;
+        var v = { classes: x.classes || [], appTitle: x.appTitle || '' };
+        store(PUB, v); freshUntil[PUB] = Date.now() + 60000; return v;
+      }).catch(function () { return null; });
+    }
+    if (!info) { info = await getPub(); }
+    else if (!(freshUntil[PUB] > Date.now())) {
+      var before = JSON.stringify(info);
+      getPub().then(function (v) { if (v && JSON.stringify(v) !== before && seq === state.renderSeq && quiet()) viewLogin(); });
+    }
+    var classes = (info && info.classes) || [];
+    if (info && info.appTitle) setTitle(info.appTitle);
     var role = sessionStorage.getItem('loginRole') || 'student';
     var title = document.getElementById('appTitle').textContent;
     $app.innerHTML =
@@ -3359,8 +3466,10 @@ window.SAMPLE_ASSIGNMENTS = [
         var cls = $('#lCls').value.trim(), no = String(parseInt($('#lNo').value, 10));
         var r = await call('studentLogin', { cls: cls, no: no, pass: $('#lPass').value.trim() });
         store('ondoku_last_login', { cls: cls, no: no });
+        cclear('');
         state.session = { role: 'student', token: r.token, label: r.student.cls + ' ' + r.student.no + '番' };
         store(SESSION_KEY, state.session);
+        if (r.home) { state.home = remember('home', {}, r.home); }
         go('#/home');
       } catch (e) { $('#lErr').textContent = e.message; btn.disabled = false; }
     };
@@ -3370,6 +3479,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#tErr').textContent = '';
       try {
         var r = await call('teacherLogin', { id: $('#tId').value.trim(), pass: $('#tPass').value });
+        cclear('');
         state.session = { role: 'teacher', token: r.token, me: r.me };
         store('ondoku_last_teacher', r.me.id);
         store(SESSION_KEY, state.session);
@@ -3382,7 +3492,7 @@ window.SAMPLE_ASSIGNMENTS = [
   async function viewHome() {
     loading();
     var h;
-    try { h = await call('home'); } catch (e) { showError(e); return; }
+    try { h = await cached('home'); } catch (e) { showError(e); return; }
     state.home = h;
     if (h.settings && h.settings.appTitle) setTitle(h.settings.appTitle);
     bottomNav('home');
@@ -4029,7 +4139,7 @@ window.SAMPLE_ASSIGNMENTS = [
 
   // 練習画面の前に設定（合言葉・音声保存など）を読み込んでおく
   async function ensureHome() {
-    if (!state.home) { try { state.home = await call('home'); } catch (e) { /* 既定値で続行 */ } }
+    if (!state.home) { try { state.home = await cached('home'); } catch (e) { /* 既定値で続行 */ } }
   }
 
   var TYPE_LABEL = { 1: '① 通常', 2: '② 穴埋め', 3: '③ スペースなし', 4: '④ 並べ替え', 5: '⑤ 日本語→英語' };
@@ -4078,7 +4188,7 @@ window.SAMPLE_ASSIGNMENTS = [
     loading();
     await ensureHome();
     try {
-      var r = await call('getAssignment', { aid: aid });
+      var r = await cached('getAssignment', { aid: aid });
       var a = r.assignment, pg = r.progress;
       var type = Number(typeParam) || 0;
       if (pg.types.indexOf(type) < 0) type = pg.master ? (nextStep(pg) || pg.types[0]) : pg.types[0];
@@ -4124,7 +4234,7 @@ window.SAMPLE_ASSIGNMENTS = [
   // ================= 生徒：英文ライブラリ =================
   var LV_NAME = window.LIBRARY_LEVELS || { 1: '中1', 2: '中2', 3: '中3', 4: '高校' };
   async function loadLibrary() {
-    var r = await call('library');
+    var r = await cached('library');
     var hidden = r.hidden || [];
     var items = (window.LIBRARY || []).filter(function (x) { return hidden.indexOf(x.id) < 0; })
       .map(function (x) { return { id: x.id, level: x.lv, title: x.title, text: x.en, ja: x.ja, cat: x.cat }; })
@@ -4348,7 +4458,7 @@ window.SAMPLE_ASSIGNMENTS = [
   async function viewRewards(tab) {
     bottomNav('me'); loading();
     try {
-      var h = await call('home'); state.home = h;
+      var h = await cached('home'); state.home = h;
       var rw = h.rewards || {}, got = rw.badges || {};
       tab = tab || 'badges';
       applyLook(rw);
@@ -4587,7 +4697,7 @@ window.SAMPLE_ASSIGNMENTS = [
     period = period || 'week'; scope = scope || 'class';
     bottomNav('rank'); loading();
     try {
-      var r = await call('ranking', { period: period, scope: scope });
+      var r = await cached('ranking', { period: period, scope: scope });
       var tabs = function (cur, list, key) {
         return '<div class="seg">' + list.map(function (x) {
           return '<button data-k="' + key + '" data-v="' + x[0] + '" class="' + (cur === x[0] ? 'active' : '') + '">' + x[1] + '</button>';
@@ -4621,7 +4731,7 @@ window.SAMPLE_ASSIGNMENTS = [
   async function viewContest(aid) {
     bottomNav('rank'); loading();
     try {
-      var r = await call('contest', { aid: aid });
+      var r = await cached('contest', { aid: aid });
       var html = '<a class="back" href="#/rank">← もどる</a><div class="card"><div class="card-title"><h2>🏆 ' + esc(r.title) + '</h2>' +
         (r.due ? '<span class="pill gray">締切 ' + fmtDay(r.due) + '</span>' : '') + '</div>' +
         '<p class="muted">自己ベストの正確さで競います。同じ点数なら、先に出した人が上位です。</p>';
@@ -4641,8 +4751,8 @@ window.SAMPLE_ASSIGNMENTS = [
   async function viewMe() {
     bottomNav('me'); loading();
     try {
-      var r = await call('history');
-      var h = state.home || await call('home');
+      var both = await Promise.all([cached('history'), state.home ? state.home : cached('home')]);
+      var r = both[0], h = both[1];
       state.home = h;
       var s = h.student, max = Math.max.apply(null, r.days.map(function (d) { return d.words; }).concat([1]));
       var html = '<div class="card"><h2>📈 最近14日間の単語数</h2><div class="chart">' + r.days.map(function (d) {
@@ -4716,7 +4826,7 @@ window.SAMPLE_ASSIGNMENTS = [
     }, 60000);
   }
   async function loadOverview(force) {
-    if (!state.overview || force) state.overview = await call('t_overview');
+    if (!state.overview || force) state.overview = await cached('t_overview');
     if (typeof state.overview.openFlags === 'number') setFlagCount(state.overview.openFlags);
     if (state.overview.me) { state.session.me = state.overview.me; store(SESSION_KEY, state.session); topRight(); }
     if (state.overview.settings && state.overview.settings.appTitle) setTitle(state.overview.settings.appTitle);
@@ -4764,7 +4874,7 @@ window.SAMPLE_ASSIGNMENTS = [
     try {
       var o = await loadOverview();
       var a = { title: '', text: '', ja: '', classes: '', due: '', contest: false, published: true, types: [1], mode: 'normal', pass: 80, passCount: 1, blanks: '' };
-      if (aid) a = (await call('t_getAssignment', { aid: aid })).assignment;
+      if (aid) a = (await cached('t_getAssignment', { aid: aid })).assignment;
       if (aid && a.canEdit === false) {
         $app.innerHTML = '<a class="back" href="#/t/results/' + encodeURIComponent(aid) + '">← もどる</a><div class="card empty">この課題は、担当クラスがちがうため編集できません（閲覧のみ）。</div>';
         return;
@@ -4933,7 +5043,7 @@ window.SAMPLE_ASSIGNMENTS = [
   async function viewResults(aid) {
     bottomNav(); $app.classList.add('wide'); loading();
     try {
-      var r = await call('t_assignmentResults', { aid: aid });
+      var r = await cached('t_assignmentResults', { aid: aid });
       var a = r.assignment, types = a.types || [1], master = a.mode === 'master';
       function started(x) { return types.some(function (t) { return x.bests[t] !== null && x.bests[t] !== undefined; }); }
       var done = r.rows.filter(started);
@@ -5101,7 +5211,7 @@ window.SAMPLE_ASSIGNMENTS = [
   async function viewStudentDetail(sid) {
     bottomNav(); $app.classList.add('wide'); loading();
     try {
-      var r = await call('t_studentDetail', { sid: sid });
+      var r = await cached('t_studentDetail', { sid: sid });
       var s = r.student;
       var html = '<a class="back" href="#/t/students">← 生徒一覧</a>';
       html += '<div class="card"><h2>' + esc(s.cls) + ' ' + esc(s.no) + '番 ' + esc(s.name) + (s.nick ? ' <small class="muted">(' + esc(s.nick) + ')</small>' : '') + '</h2>' +
@@ -5243,7 +5353,7 @@ window.SAMPLE_ASSIGNMENTS = [
   async function viewTeacherLibrary(editId) {
     bottomNav(); $app.classList.add('wide'); loading();
     try {
-      var r = await call('t_library'), hidden = r.hidden || [], custom = r.custom || [];
+      var r = await cached('t_library'), hidden = r.hidden || [], custom = r.custom || [];
       var level = +(sessionStorage.getItem('tLibLv') || 1);
       var editing = editId === 'new' ? { id: '', level: level, title: '', text: '', ja: '' } : custom.filter(function (x) { return x.id === editId; })[0];
       var html = teacherTabs('library');
@@ -5300,7 +5410,7 @@ window.SAMPLE_ASSIGNMENTS = [
     bottomNav(); $app.classList.add('wide'); loading();
     try {
       if (!isAdmin()) { $app.innerHTML = teacherTabs('admin') + '<div class="card empty">この画面は管理者だけが使えます。</div>'; return; }
-      var tr = await call('t_teachers'), cr = await call('t_classes');
+      var both = await Promise.all([cached('t_teachers'), cached('t_classes')]), tr = both[0], cr = both[1];
       var classes = cr.classes.map(function (c) { return c.name; });
       var editing = editId === '__new' ? { isNew: true, id: '', name: '', role: 'teacher', classes: [], active: true }
         : tr.teachers.filter(function (t) { return t.id === editId; })[0];
@@ -5432,7 +5542,9 @@ window.SAMPLE_ASSIGNMENTS = [
     var ov = document.querySelector('.cheat-overlay'); if (ov) ov.remove();
     var rov = document.querySelector('.reward-overlay'); if (rov) rov.remove();
     $app.classList.remove('wide');
-    window.scrollTo(0, 0);
+    state.renderSeq = (state.renderSeq || 0) + 1; state.renderAt = Date.now();
+    if (!state.keepScroll) window.scrollTo(0, 0);
+    state.keepScroll = false;
     var hash = location.hash.replace(/^#/, '') || '/';
     var parts = hash.split('/').filter(Boolean).map(decodeURIComponent);
     state.session = state.session || store(SESSION_KEY);
