@@ -368,6 +368,99 @@ body.has-nav main { padding-bottom: 90px; }
 .label-row .btn-small { margin-bottom: 4px; }
 .over { color: var(--ng, #d33); font-weight: 700; }
 
+/* ===== 着せ替え（テーマ色） ===== */
+html[data-theme="sakura"] { --primary: #d0587e; --primary-dark: #a83f61; --primary-soft: #fde7ef; --bg: #fff6f9; }
+html[data-theme="mint"] { --primary: #2a9d8f; --primary-dark: #1f7a6f; --primary-soft: #dff5f1; --bg: #f2fbf9; }
+html[data-theme="sunset"] { --primary: #e0703a; --primary-dark: #b4552a; --primary-soft: #fdeadd; --bg: #fff7f1; }
+html[data-theme="lavender"] { --primary: #7b61c4; --primary-dark: #5d47a0; --primary-soft: #eee8fb; --bg: #f8f5ff; }
+html[data-theme="ocean"] { --primary: #1769aa; --primary-dark: #0f4f83; --primary-soft: #dcecfa; --bg: #f1f7fd; }
+html[data-theme="gold"] { --primary: #b8860b; --primary-dark: #8c6508; --primary-soft: #fbf1d4; --bg: #fffbef; }
+html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primary-soft: #e3e5f7; --bg: #eef0fa; }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.theme-swatch { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 2px solid var(--line); border-radius: 12px; background: #fff; font-weight: 700; font-size: .9rem; cursor: pointer; }
+.theme-swatch.active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.theme-swatch:disabled { opacity: .55; cursor: not-allowed; }
+.theme-swatch small { font-weight: 400; color: var(--muted); font-size: .72rem; }
+.theme-swatch .sw { width: 44px; height: 24px; border-radius: 8px; display: block; }
+.t-blue .sw { background: linear-gradient(90deg, #1f6f8b, #e3f1f6); } .t-sakura .sw { background: linear-gradient(90deg, #d0587e, #fde7ef); }
+.t-mint .sw { background: linear-gradient(90deg, #2a9d8f, #dff5f1); } .t-sunset .sw { background: linear-gradient(90deg, #e0703a, #fdeadd); }
+.t-lavender .sw { background: linear-gradient(90deg, #7b61c4, #eee8fb); } .t-ocean .sw { background: linear-gradient(90deg, #1769aa, #dcecfa); }
+.t-gold .sw { background: linear-gradient(90deg, #b8860b, #fbf1d4); } .t-night .sw { background: linear-gradient(90deg, #262a6b, #e3e5f7); }
+.icon-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.icon-pick { min-width: 48px; height: 48px; font-size: 1.5rem; border: 2px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
+.icon-pick:first-child { font-size: .85rem; }
+.icon-pick.active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.avatar { font-size: 1.3rem; vertical-align: -2px; }
+
+/* ===== ホームの入り口・スタンプカード ===== */
+.quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.quick { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 6px; text-decoration: none; color: var(--text); font-weight: 700; font-size: .9rem; text-align: center; }
+.quick .ic { font-size: 1.6rem; }
+.quick small { color: var(--muted); font-weight: 400; }
+.stamp-slots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
+@media (max-width: 520px) { .stamp-slots { grid-template-columns: repeat(5, 1fr); } }
+.stamp-slots .slot { aspect-ratio: 1; border: 2px dashed #f3c1d3; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #e6a9c0; font-weight: 700; font-size: .85rem; background: #fffafc; }
+.stamp-slots .slot.on { border-style: solid; border-color: #f7b8cf; background: #fff0f6; }
+.stamp-slots .slot svg { width: 80%; height: 80%; }
+.rewards-link { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); }
+.rewards-link > div { flex: 1; }
+
+/* ===== バッジ・スタンプ ===== */
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.badge-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; background: #fafbfc; opacity: .55; filter: grayscale(1); }
+.badge-card.got { opacity: 1; filter: none; background: #fffdf2; border-color: #f2d36b; }
+.badge-card.secret { opacity: .8; filter: none; background: #f4f1fb; border-style: dashed; }
+.badge-card .ic { font-size: 2rem; line-height: 1.2; }
+.badge-card .nm { font-weight: 800; font-size: .92rem; }
+.badge-card .ds { font-size: .75rem; color: var(--muted); }
+.badge-card .dt { font-size: .72rem; color: var(--gold); font-weight: 700; margin-top: 2px; }
+.stamp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; text-align: center; }
+.stamp-item .ds { font-size: .75rem; color: var(--muted); }
+.stamp-svg { display: inline-block; transform: rotate(-6deg); }
+.mini-stamps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.auto-stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.auto-stamp { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; cursor: pointer; font-size: .88rem; }
+.reward-overlay { position: fixed; inset: 0; background: rgba(20, 25, 40, .55); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.reward-box { background: #fff; border-radius: 18px; padding: 20px; max-width: 520px; width: 100%; max-height: 90vh; overflow: auto; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+.reward-stamps { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 6px 0 14px; }
+.reward-badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin: 6px 0 14px; }
+.pop-in { animation: popIn .5s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes popIn { from { transform: scale(.3) rotate(-20deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+.celebrate.bonus { background: #eef7ff; border-color: #a9cff2; color: #1d5b8f; }
+
+/* ===== 練習画面：1行ずつ・行間・ヒント ===== */
+.btn-small.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
+.passage.spacious { line-height: 2.4; }
+.passage.spacious .pair { margin-bottom: 1.1em; }
+.passage.line-mode > * { opacity: .22; transition: opacity .2s, background .2s; }
+.passage.line-mode > .focus { opacity: 1; background: #fffbe6; border-radius: 10px; box-shadow: 0 0 0 6px #fffbe6; }
+.passage.line-mode { cursor: pointer; }
+.line-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 6px 0; font-weight: 700; color: var(--muted); }
+.tip-line { font-size: .78rem; color: var(--muted); margin: -2px 0 6px; }
+
+/* ===== おみくじ ===== */
+.omikuji-box { min-height: 170px; display: flex; align-items: center; justify-content: center; margin: 12px 0; }
+.omikuji-tube { font-size: 4rem; }
+.omikuji-box.shake .omikuji-tube { animation: shake .15s linear infinite; }
+@keyframes shake { 0% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } 100% { transform: rotate(-12deg); } }
+.omikuji-paper { background: #fffdf6; border: 2px solid #e8c56b; border-radius: 12px; padding: 14px 16px; width: 100%; text-align: center; }
+.omikuji-paper .fortune { font-size: 2rem; font-weight: 900; letter-spacing: .2em; }
+.omikuji-paper .fortune.f0 { color: #d93a3a; } .omikuji-paper .fortune.f1 { color: #e0703a; } .omikuji-paper .fortune.f2 { color: #2a9d8f; } .omikuji-paper .fortune.f3 { color: #1769aa; }
+.om-ja { margin-top: 10px; font-size: .9rem; color: var(--muted); }
+.om-en { font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; margin: 4px 0 8px; }
+
+/* ===== リピート練習 ===== */
+.rp-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-weight: 700; color: var(--muted); }
+.rp-progress .bar { flex: 1; height: 8px; background: #e8ebf1; border-radius: 99px; overflow: hidden; }
+.rp-progress .bar span { display: block; height: 100%; background: var(--primary); transition: width .3s; }
+.rp-box { text-align: center; padding: 10px 0; }
+.rp-ja { color: var(--muted); font-size: .95rem; min-height: 1.4em; }
+.rp-en.passage { font-size: 1.6rem; border: none; box-shadow: none; background: transparent; }
+.rp-score { font-size: 1.4rem; min-height: 1.6em; }
+.rp-list { text-align: left; font-size: .9rem; padding-left: 1em; }
+.rp-list li { margin: 2px 0; }
+.stamp-svg { flex-shrink: 0; }
+
 </style>
 </head>
 <body>
@@ -926,6 +1019,62 @@ window.APP_CONFIG = {
   }
   function monthStart(dateStr) { return dateStr.slice(0, 8) + '01'; }
 
+  // ---------------- ごほうび（バッジ・先生スタンプ・着せ替え） ----------------
+  // hidden: true … 「ひみつのバッジ」（取るまで条件がわからない）
+  var BADGES = [
+    { id: 'first', icon: '🌱', name: 'はじめの一歩', desc: 'はじめて音読した' },
+    { id: 'streak3', icon: '🔥', name: '3日連続', desc: '3日続けて音読した' },
+    { id: 'streak7', icon: '🔥', name: '1週間連続', desc: '7日続けて音読した' },
+    { id: 'streak30', icon: '🏅', name: '30日連続', desc: '30日続けて音読した' },
+    { id: 'perfect', icon: '💯', name: 'パーフェクト', desc: '正確さ100%を出した' },
+    { id: 'perfect10', icon: '💎', name: 'パーフェクト10', desc: '正確さ100%を10回出した' },
+    { id: 'words1000', icon: '📘', name: '1000語', desc: '累計1000語を読んだ' },
+    { id: 'words10000', icon: '📚', name: '1万語', desc: '累計1万語を読んだ' },
+    { id: 'assign', icon: '✅', name: '課題クリア', desc: '課題を達成した' },
+    { id: 'master', icon: '🎓', name: '音読マスター', desc: 'マスターモードをクリアした' },
+    { id: 'recite', icon: '🧠', name: '暗唱チャレンジ', desc: '英文を隠したまま合格した' },
+    { id: 'recite10', icon: '🧠', name: '暗唱名人', desc: '英文を隠したまま10回合格した' },
+    { id: 'trans', icon: '🔄', name: '日本語→英語', desc: '⑤日本語→英語に合格した' },
+    { id: 'trans10', icon: '🌏', name: '通訳名人', desc: '⑤日本語→英語に10回合格した' },
+    { id: 'library5', icon: '📖', name: 'ライブラリ5', desc: 'ライブラリの英文を5本読んだ' },
+    { id: 'library20', icon: '🏛', name: 'ライブラリ20', desc: 'ライブラリの英文を20本読んだ' },
+    { id: 'repeat', icon: '🔁', name: 'リピート完走', desc: 'リピート練習を最後までやった' },
+    { id: 'stamp10', icon: '🎫', name: 'スタンプカード', desc: 'スタンプカードを1枚うめた' },
+    { id: 'omikuji', icon: '🎲', name: 'おみくじ', desc: 'おみくじ英文を読んだ' },
+    { id: 'teacher', icon: '💌', name: '先生からのスタンプ', desc: '先生からスタンプをもらった' },
+    { id: 'early', icon: '🌅', name: '早起き音読', desc: '朝7時より前に音読した', hidden: true },
+    { id: 'daikichi', icon: '🎊', name: '大吉', desc: 'おみくじで大吉を引いて読んだ', hidden: true },
+    { id: 'proverb7', icon: '🍀', name: 'ことわざ好き', desc: 'ことわざを7回読んだ', hidden: true },
+    { id: 'marathon', icon: '🏃', name: '1日1000語', desc: '1日に1000語読んだ', hidden: true },
+    { id: 'five', icon: '✋', name: '1日5回', desc: '1日に5回音読した', hidden: true },
+    { id: 'weekend', icon: '🗓', name: '週末も音読', desc: '土曜と日曜の両方で音読した', hidden: true },
+    { id: 'comeback', icon: '🌈', name: 'おかえり', desc: '1週間以上あいてから、また音読した', hidden: true },
+    { id: 'alltypes', icon: '🎨', name: '全種類制覇', desc: '1つの課題で①〜⑤すべてに合格した', hidden: true },
+    { id: 'shodan', icon: '🥋', name: '初段', desc: '初段になった', hidden: true }
+  ];
+  // 条件を満たすと自動で押される「先生スタンプ」（a：動物、t：スタンプの言葉）
+  var STAMP_RULES = [
+    { id: 'first', a: 'dog', t: 'Welcome!', name: 'はじめて音読したとき' },
+    { id: 'week3', a: 'cat', t: 'Good job!', name: '1週間に3日読んだとき' },
+    { id: 'week5', a: 'rabbit', t: 'Great!', name: '1週間に5日読んだとき' },
+    { id: 'week7', a: 'bear', t: 'Perfect week!', name: '1週間に7日読んだとき' },
+    { id: 'achieve', a: 'chick', t: 'Excellent!', name: '課題を達成したとき' },
+    { id: 'perfect', a: 'panda', t: 'Wonderful!', name: '正確さ100%を出したとき（週1回まで）' },
+    { id: 'comeback', a: 'dog', t: 'Welcome back!', name: '1週間以上あいてから、また読んだとき' }
+  ];
+  // 着せ替え（級・段で解放）lv：LEVELSの番号
+  var THEMES = [
+    { id: 'blue', name: 'ブルー', lv: 0 }, { id: 'sakura', name: 'さくら', lv: 2 }, { id: 'mint', name: 'ミント', lv: 4 },
+    { id: 'sunset', name: 'ゆうやけ', lv: 6 }, { id: 'lavender', name: 'ラベンダー', lv: 8 }, { id: 'ocean', name: 'オーシャン', lv: 10 },
+    { id: 'gold', name: 'ゴールド', lv: 12 }, { id: 'night', name: 'ナイト', lv: 14 }
+  ];
+  var LEVEL_ICONS = ['🐣', '🐥', '🐤', '🐦', '🕊', '🦜', '🦉', '🦢', '🦩', '🦚', '🦅', '🐬', '🐳', '🦄', '🐉', '🦁', '🐯', '🦊', '🐼', '🐨', '👑'];
+  var CARD_ICONS = ['🌸', '🍀', '⭐', '🌈', '🎈', '🍩', '🍉', '🎵', '🍓', '🌻', '🍰', '🚀', '🎁', '🌙', '🍦', '🧸', '🎀', '🪐', '🐠', '🏆'];
+  function iconsUnlocked(levelIdx, days) {
+    var list = LEVEL_ICONS.slice(0, levelIdx + 1);
+    return list.concat(CARD_ICONS.slice(0, Math.min(CARD_ICONS.length, Math.floor(days / 10))));
+  }
+
   // ---------------- ユーティリティ ----------------
   function err(msg) { var e = new Error(msg); e.userMessage = msg; return e; }
   function str(v) { return v === null || v === undefined ? '' : String(v).trim(); }
@@ -945,6 +1094,29 @@ window.APP_CONFIG = {
       level: lv
     };
   }
+  // ごほうびのデータ（生徒シートの「実績データ」列にJSONで保存）
+  function achOf(s) {
+    var o;
+    try { o = JSON.parse(str(s.ach) || '{}'); } catch (e) { o = {}; }
+    if (!o || typeof o !== 'object') o = {};
+    o.b = o.b || {}; o.c = o.c || {}; o.lib = o.lib || []; o.st = o.st || []; o.sk = o.sk || {};
+    o.p = num(o.p); o.d = num(o.d);
+    return o;
+  }
+  function rewardsPublic(ach, s, today) {
+    var lv = levelOf(num(s.totalWords));
+    return { points: ach.p, badges: ach.b, days: ach.d, stampedToday: ach.ld === today, theme: ach.th || 'blue', icon: ach.ic || '',
+      weekDays: ach.wk === weekStart(today) ? num(ach.wd) : 0, read: ach.lib, counts: ach.c,
+      stamps: ach.st.slice(-40), newStamps: ach.st.filter(function (x) { return x.n; }).length,
+      icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index };
+  }
+  function stampRulesOn(store) {
+    var v = str(store.getSetting('自動スタンプ'));
+    if (!v) return STAMP_RULES.map(function (r) { return r.id; });
+    if (v === 'なし') return [];
+    return v.split(/[,、\s]+/).filter(Boolean);
+  }
+
   // 現在の日時（日本時間 'YYYY-MM-DDTHH:MM'）。処理のたびに handle() で設定
   var NOW_STR = '';
   function isScheduled(a) { return !!str(a.start) && str(a.start).slice(0, 16) > NOW_STR; }
@@ -1155,7 +1327,8 @@ window.APP_CONFIG = {
       showRanking: bool(store.getSetting('ランキングを表示')),
       appTitle: str(store.getSetting('アプリ名')),
       phraseCheck: boolDef(store.getSetting('合言葉チェック'), true),
-      saveAudio: boolDef(store.getSetting('音声を保存'), true)
+      saveAudio: boolDef(store.getSetting('音声を保存'), true),
+      autoStamps: stampRulesOn(store)
     };
   }
   // 不正の判定
@@ -1188,7 +1361,7 @@ window.APP_CONFIG = {
     var pub = studentPublic(s);
     if (pub.todayDate !== today) pub.todayWords = 0;
     if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
-    return { student: pub, assignments: list, settings: settingsForClient(store), today: today };
+    return { student: pub, assignments: list, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today) };
   };
 
   handlers.getAssignment = function (p, store, ctx) {
@@ -1215,9 +1388,9 @@ window.APP_CONFIG = {
       if (aTypes(a).indexOf(type) < 0) throw err('この課題では、その音読の種類は選べません。');
       text = a.text; kind = (bool(a.contest) ? '大会' : '課題') + (type > 1 ? '（' + TYPE_NAME[type] + '）' : '');
     } else {
-      text = str(p.text).slice(0, 3000);
+      text = str(p.text).slice(0, MAX_TEXT);
       if (!text) throw err('英文がありません。');
-      kind = p.kind === 'proverb' ? 'ことわざ' : '自主練';
+      kind = { proverb: 'ことわざ', library: 'ライブラリ', omikuji: 'おみくじ', repeat: 'リピート' }[p.kind] || '自主練';
     }
     var transcript = str(p.transcript).slice(0, 6000);
     var cfg = settingsForClient(store);
@@ -1257,6 +1430,7 @@ window.APP_CONFIG = {
 
     // 生徒の累計を更新
     var before = levelOf(num(s.totalWords));
+    var prevLast = str(s.lastDate), firstToday = r.correct > 0 && prevLast !== today;
     var upd = {};
     upd.totalWords = num(s.totalWords) + r.correct;
     if (r.correct > 0) {
@@ -1268,7 +1442,6 @@ window.APP_CONFIG = {
     }
     upd.todayWords = (str(s.todayDate) === today ? num(s.todayWords) : 0) + r.correct;
     upd.todayDate = today;
-    store.updateStudent(s.id, upd);
     for (var k in upd) s[k] = upd[k];
     var after = levelOf(num(s.totalWords));
 
@@ -1291,12 +1464,90 @@ window.APP_CONFIG = {
       transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
     });
     var after2 = a ? progress(store, s.id, a) : null;
+    var achievedNew = !!(after2 && after2.achieved && !before2.achieved);
+    var masterNew = !!(after2 && after2.masterCleared && !before2.masterCleared);
+
+    // ---- ごほうび（バッジ・ポイント・スタンプカード・先生スタンプ） ----
+    var ach = achOf(s), c = ach.c, newBadges = [], newStamps = [], bonus = 0, ws = weekStart(today);
+    var firstEver = !ach.b.first && num(s.totalWords) - r.correct <= 0;
+    // スタンプカード・今週の日数（その日の最初の音読で1つ）
+    var newDay = r.correct > 0 && ach.ld !== today;
+    if (newDay) {
+      ach.d += 1; ach.ld = today;
+      if (ach.wk !== ws) { ach.wk = ws; ach.wd = 0; }
+      ach.wd = num(ach.wd) + 1;
+    }
+    if (ach.td !== today) { ach.td = today; ach.tn = 0; }
+    ach.tn = num(ach.tn) + 1;
+    function inc(key) { c[key] = num(c[key]) + 1; }
+    if (p.kind === 'proverb' && !aid) inc('pv');
+    if (p.kind === 'omikuji' && !aid) inc('om');
+    if (p.kind === 'repeat' && !aid) inc('rp');
+    if (p.kind === 'library' && !aid) {
+      var lid = str(p.libId).replace(/[^\w-]/g, '').slice(0, 30);
+      if (lid && ach.lib.indexOf(lid) < 0) { ach.lib.push(lid); if (ach.lib.length > 300) ach.lib.shift(); }
+    }
+    if (r.accuracy >= 100) inc('pf');
+    // 暗唱（英文を隠して読む）・⑤日本語→英語の合格でボーナスポイント
+    var thr = a ? passLine(a) : 80;
+    var recite = bool(p.recite) && type !== 5, trans = !!a && type === 5;
+    if ((recite || trans) && r.accuracy >= thr && r.correct > 0) {
+      bonus = r.correct; ach.p += bonus;
+      inc(recite ? 'rc' : 'tr');
+    }
+    function award(id, cond) { if (cond && !ach.b[id]) { ach.b[id] = today; newBadges.push(id); } }
+    award('first', true);
+    award('streak3', num(s.streak) >= 3); award('streak7', num(s.streak) >= 7); award('streak30', num(s.streak) >= 30);
+    award('perfect', num(c.pf) >= 1); award('perfect10', num(c.pf) >= 10);
+    award('words1000', num(s.totalWords) >= 1000); award('words10000', num(s.totalWords) >= 10000);
+    award('assign', !!(after2 && after2.achieved)); award('master', !!(after2 && after2.masterCleared));
+    award('recite', num(c.rc) >= 1); award('recite10', num(c.rc) >= 10);
+    award('trans', num(c.tr) >= 1); award('trans10', num(c.tr) >= 10);
+    award('library5', ach.lib.length >= 5); award('library20', ach.lib.length >= 20);
+    award('repeat', num(c.rp) >= 1); award('stamp10', ach.d >= 10); award('omikuji', num(c.om) >= 1);
+    var hour = (now.getUTCHours() + 9) % 24;
+    award('early', r.correct > 0 && hour >= 4 && hour < 7);
+    award('daikichi', p.kind === 'omikuji' && str(p.fortune) === '大吉' && r.accuracy >= 60);
+    award('proverb7', num(c.pv) >= 7);
+    award('marathon', num(s.todayWords) >= 1000);
+    award('five', ach.tn >= 5);
+    var dow = new Date(today + 'T00:00:00Z').getUTCDay();
+    if (dow === 6 && r.correct > 0) ach.sat = today;
+    award('weekend', dow === 0 && r.correct > 0 && ach.sat === addDays(today, -1));
+    var comeback = firstToday && !!prevLast && prevLast < addDays(today, -7);
+    award('comeback', comeback);
+    award('alltypes', !!(after2 && after2.types.length === 5 && after2.types.every(function (t) { return after2.passes[t] >= 1; })));
+    award('shodan', after.index >= 10);
+    // 先生スタンプ（条件を満たすと自動で押す。同じ条件では1回だけ）
+    var on = stampRulesOn(store);
+    function stamp(ruleId, key, cond) {
+      if (!cond || on.indexOf(ruleId) < 0 || ach.sk[key]) return;
+      var rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0];
+      ach.sk[key] = 1;
+      ach.st.push({ a: rule.a, t: rule.t, r: ruleId, d: today, n: 1 });
+      newStamps.push({ a: rule.a, t: rule.t, r: ruleId });
+    }
+    stamp('first', 'first', firstEver && r.correct > 0);
+    stamp('week3', 'w3:' + ws, newDay && ach.wd === 3);
+    stamp('week5', 'w5:' + ws, newDay && ach.wd === 5);
+    stamp('week7', 'w7:' + ws, newDay && ach.wd === 7);
+    stamp('achieve', 'a:' + aid, achievedNew);
+    stamp('perfect', 'pf:' + ws, r.accuracy >= 100);
+    stamp('comeback', 'cb:' + today, comeback);
+    award('teacher', ach.st.length >= 1);
+    // 古い記録を整理（データが大きくなりすぎないように）
+    if (ach.st.length > 60) ach.st = ach.st.slice(-60);
+    var sk = Object.keys(ach.sk);
+    if (sk.length > 150) sk.slice(0, sk.length - 150).forEach(function (x) { delete ach.sk[x]; });
+    upd.ach = JSON.stringify(ach); s.ach = upd.ach;
+    store.updateStudent(s.id, upd);
+
     return {
-      progress: after2, masterNew: !!(after2 && after2.masterCleared && !before2.masterCleared),
-      achievedNew: !!(after2 && after2.achieved && !before2.achieved),
+      progress: after2, masterNew: masterNew, achievedNew: achievedNew,
       passed: a ? r.accuracy >= passLine(a) : null,
       result: r, student: studentPublic(s), newBest: newBest,
-      levelUp: after.index > before.index ? after.name : null
+      levelUp: after.index > before.index ? after.name : null,
+      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today)
     };
   };
 
@@ -1369,6 +1620,76 @@ window.APP_CONFIG = {
     });
     for (var i = 13; i >= 0; i--) { var d = addDays(today, -i); days.push({ date: d, words: map[d] || 0 }); }
     return { records: recs, days: days };
+  };
+
+  // ---- 着せ替え（テーマ色・アイコン） ----
+  handlers.setLook = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var ach = achOf(s), lv = levelOf(num(s.totalWords));
+    if (p.theme !== undefined) {
+      var th = THEMES.filter(function (t) { return t.id === p.theme; })[0];
+      if (!th) throw err('そのテーマはありません。');
+      if (lv.index < th.lv) throw err('そのテーマは「' + LEVELS[th.lv][1] + '」になると使えます。');
+      ach.th = th.id;
+    }
+    if (p.icon !== undefined) {
+      var ic = str(p.icon);
+      if (ic && iconsUnlocked(lv.index, ach.d).indexOf(ic) < 0) throw err('そのアイコンはまだ使えません。');
+      ach.ic = ic;
+    }
+    store.updateStudent(s.id, { ach: JSON.stringify(ach) });
+    return { theme: ach.th || 'blue', icon: ach.ic || '' };
+  };
+  // ---- 届いた先生スタンプを「見た」にする ----
+  handlers.seenStamps = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var ach = achOf(s), changed = false;
+    ach.st.forEach(function (x) { if (x.n) { delete x.n; changed = true; } });
+    if (changed) store.updateStudent(s.id, { ach: JSON.stringify(ach) });
+    return {};
+  };
+  // ---- 英文ライブラリ（先生が追加したもの・非表示にしたもの） ----
+  function libraryHidden(store) { return str(store.getSetting('ライブラリ非表示')).split(',').filter(Boolean); }
+  function libPublic(x) { return { id: str(x.id), level: num(x.level) || 1, title: str(x.title), text: str(x.text), ja: str(x.ja), cat: '先生から' }; }
+  handlers.library = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    return { custom: (store.getLibrary ? store.getLibrary() : []).map(libPublic), hidden: libraryHidden(store), read: achOf(s).lib };
+  };
+  handlers.t_library = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    return { custom: (store.getLibrary ? store.getLibrary() : []).map(function (x) { var o = libPublic(x); o.owner = str(x.owner); return o; }), hidden: libraryHidden(store) };
+  };
+  handlers.t_saveLibrary = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var it = p.item || {};
+    var title = str(it.title).slice(0, 80), text = str(it.text), lv = Math.round(num(it.level));
+    if (!title) throw err('タイトルを入力してください。');
+    if (!text || !Sc.countWords(text)) throw err('英文を入力してください。');
+    if (text.length > 3000 || str(it.ja).length > 3000) throw err('ライブラリの英文・和訳は3000文字以内にしてください。');
+    if (lv < 1 || lv > 4) lv = 1;
+    var data = { level: lv, title: title, text: text, ja: str(it.ja) };
+    if (it.id) {
+      var cur = store.getLibrary().filter(function (x) { return str(x.id) === str(it.id); })[0];
+      if (!cur) throw err('見つかりません。');
+      store.updateLibrary(str(it.id), data);
+      return { id: str(it.id) };
+    }
+    var id = 'c' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    data.id = id; data.owner = me.id; data.created = ctx.now().toISOString();
+    store.addLibrary(data);
+    return { id: id };
+  };
+  handlers.t_deleteLibrary = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    store.deleteLibrary(str(p.id));
+    return {};
+  };
+  handlers.t_hideLibrary = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var id = str(p.id).replace(/[^\w-]/g, ''), list = libraryHidden(store).filter(function (x) { return x !== id; });
+    if (p.hidden) list.push(id);
+    store.setSetting('ライブラリ非表示', list.join(','));
+    return { hidden: list };
   };
 
   handlers.setNick = function (p, store, ctx) {
@@ -1571,7 +1892,7 @@ window.APP_CONFIG = {
         flag: str(r.flag), audio: str(r.audio), reviewed: str(r.reviewed), rid: rid(r) };
     });
     var pub = studentPublic(s); pub.name = str(s.name);
-    return { student: pub, records: recs };
+    return { student: pub, records: recs, rewards: rewardsPublic(achOf(s), s, jstDate(ctx.now())) };
   };
 
   handlers.t_export = function (p, store, ctx) {
@@ -1635,6 +1956,10 @@ window.APP_CONFIG = {
     if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
     if ('phraseCheck' in st) store.setSetting('合言葉チェック', st.phraseCheck ? 'TRUE' : 'FALSE');
     if ('saveAudio' in st) store.setSetting('音声を保存', st.saveAudio ? 'TRUE' : 'FALSE');
+    if ('autoStamps' in st) {
+      var ids = [].concat(st.autoStamps || []).filter(function (x) { return STAMP_RULES.some(function (r) { return r.id === x; }); });
+      store.setSetting('自動スタンプ', ids.length ? ids.join(',') : 'なし');
+    }
     return {};
   };
 
@@ -1832,7 +2157,7 @@ window.APP_CONFIG = {
     return { mime: a.mime, b64: a.b64 };
   };
 
-  var WRITE_ACTIONS = { submit: 1, setNick: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1 };
 
@@ -1850,7 +2175,8 @@ window.APP_CONFIG = {
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS };
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS,
+    BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
@@ -1983,6 +2309,14 @@ window.APP_CONFIG = {
   P.deleteClass = function (name) { this.d.classes = (this.d.classes || []).filter(function (c) { return c.name !== name; }); this._changed(); };
   P.deleteStudent = function (id) { this.d.students = this.d.students.filter(function (s) { return s.id !== id; }); this._changed(); };
 
+  // 英文ライブラリ（先生が追加したもの）
+  P.getLibrary = function () { return (this.d.library || []).slice(); };
+  P.addLibrary = function (x) { this.d.library = this.d.library || []; this.d.library.push(x); this._changed(); };
+  P.updateLibrary = function (id, f) {
+    (this.d.library || []).forEach(function (x) { if (x.id === id) for (var k in f) x[k] = f[k]; });
+    this._changed();
+  };
+  P.deleteLibrary = function (id) { this.d.library = (this.d.library || []).filter(function (x) { return x.id !== id; }); this._changed(); };
   P.getSetting = function (k) { return this.d.settings[k]; };
   P.setSetting = function (k, v) { this.d.settings[k] = v; this._changed(); };
 
@@ -2085,6 +2419,267 @@ window.SAMPLE_ASSIGNMENTS = [
     types: [1, 2, 3, 4, 5], mode: 'master', pass: 80, seed: 2
   }
 ];
+
+</script>
+  <script>
+/*
+ * 英文ライブラリ（最初から入っている英文。すべてこのアプリのために書いたオリジナルの文章です）
+ * lv：1＝中1 / 2＝中2 / 3＝中3 / 4＝高校
+ * en と ja は、文の数をそろえています（生徒の画面で「日本語（上）→英語（下）」の組になります）
+ */
+(function (root) {
+  'use strict';
+  var L = [
+    // ---------------- 中1 ----------------
+    { id: 'l1-01', lv: 1, cat: '自己紹介', title: 'Hello, I am Mika',
+      en: 'Hello, I am Mika. I am twelve years old. I like music and cats. I play the piano every day. Nice to meet you.',
+      ja: 'こんにちは、私はミカです。私は12歳です。私は音楽とねこが好きです。私は毎日ピアノをひきます。はじめまして。' },
+    { id: 'l1-02', lv: 1, cat: '家族', title: 'My Family',
+      en: 'There are four people in my family. My father is a cook. My mother is a nurse. My brother is a high school student. We often eat dinner together.',
+      ja: '私の家族は4人です。父は料理人です。母は看護師です。兄は高校生です。私たちはよくいっしょに夕食を食べます。' },
+    { id: 'l1-03', lv: 1, cat: '日常', title: 'My Morning',
+      en: 'I get up at six thirty. I wash my face and eat breakfast. I usually have rice and miso soup. I leave home at seven forty. I walk to school with my friend.',
+      ja: '私は6時30分に起きます。顔を洗って朝ごはんを食べます。ふだんはごはんとみそ汁です。7時40分に家を出ます。友だちといっしょに歩いて学校へ行きます。' },
+    { id: 'l1-04', lv: 1, cat: '動物', title: 'My Dog Kuro',
+      en: 'I have a dog. His name is Kuro. He is black and very friendly. He can run fast. I walk with him in the park every evening.',
+      ja: '私は犬を飼っています。名前はクロです。クロは黒くて、とても人なつっこいです。クロは速く走ることができます。私は毎晩、公園でクロと散歩します。' },
+    { id: 'l1-05', lv: 1, cat: '学校', title: 'My Favorite Subject',
+      en: 'My favorite subject is science. I like experiments. Our science teacher is kind and funny. Science class is on Tuesday and Friday. I always look forward to it.',
+      ja: '私のいちばん好きな教科は理科です。私は実験が好きです。理科の先生はやさしくて、おもしろいです。理科の授業は火曜日と金曜日にあります。私はいつも楽しみにしています。' },
+    { id: 'l1-06', lv: 1, cat: '季節', title: 'Summer Festival',
+      en: 'Look at the fireworks! They are so beautiful. My sister is wearing a yukata. We are eating shaved ice. Summer is my favorite season.',
+      ja: '花火を見て！とてもきれいです。妹はゆかたを着ています。私たちはかき氷を食べています。夏は私のいちばん好きな季節です。' },
+    { id: 'l1-07', lv: 1, cat: '日記', title: 'Last Sunday',
+      en: 'Last Sunday, I went to the zoo with my family. We saw pandas and giraffes. The baby panda was very cute. I took a lot of pictures. I had a great time.',
+      ja: 'この前の日曜日、私は家族と動物園へ行きました。パンダやキリンを見ました。赤ちゃんパンダはとてもかわいかったです。私はたくさん写真をとりました。とても楽しかったです。' },
+    { id: 'l1-08', lv: 1, cat: '部活', title: 'The Tennis Club',
+      en: 'I am in the tennis club. We practice after school. Our club has twenty members. I am not good at tennis yet. But I practice hard every day.',
+      ja: '私はテニス部に入っています。私たちは放課後に練習します。部員は20人います。私はまだテニスが上手ではありません。でも毎日いっしょうけんめい練習しています。' },
+    { id: 'l1-09', lv: 1, cat: '友だち', title: 'My Friend Tom',
+      en: 'This is my friend Tom. He is from Canada. He lives near my house. He speaks Japanese a little. We play soccer together on weekends.',
+      ja: 'こちらは友だちのトムです。彼はカナダ出身です。彼は私の家の近くに住んでいます。彼は日本語を少し話します。私たちは週末にいっしょにサッカーをします。' },
+    { id: 'l1-10', lv: 1, cat: '食べ物', title: 'Lunch Time',
+      en: 'It is lunch time. I am very hungry. Today we have curry and salad. Curry is my favorite food. Let us eat!',
+      ja: 'お昼の時間です。私はとてもおなかがすいています。今日はカレーとサラダです。カレーは私のいちばん好きな食べ物です。さあ、食べましょう！' },
+    { id: 'l1-11', lv: 1, cat: '名言', title: 'Small Steps',
+      en: 'Every day is a new start. Small steps are important. Do your best today. You can do it!',
+      ja: '毎日が新しいスタートです。小さな一歩が大切です。今日もベストをつくそう。きみならできる！' },
+    { id: 'l1-12', lv: 1, cat: '物語', title: 'The Little Bird',
+      en: 'A little bird lived in a big tree. One day, the bird could not fly well. A kind girl found the bird. She gave it some water and seeds. The next morning, the bird flew up into the blue sky.',
+      ja: '小さな鳥が大きな木に住んでいました。ある日、その鳥はうまく飛べませんでした。やさしい女の子がその鳥を見つけました。女の子は水と種をあげました。次の朝、鳥は青い空へ飛んでいきました。' },
+    { id: 'l1-13', lv: 1, cat: '町', title: 'My Town',
+      en: 'I live in a small town by the sea. There is a nice beach near my house. Many people come here in summer. I love the sunset over the sea.',
+      ja: '私は海のそばの小さな町に住んでいます。家の近くにすてきな浜辺があります。夏にはたくさんの人がここに来ます。私は海にしずむ夕日が大好きです。' },
+
+    // ---------------- 中2 ----------------
+    { id: 'l2-01', lv: 2, cat: 'スピーチ', title: 'My Dream',
+      en: 'I want to be a vet in the future. I love animals, and I want to help them. To become a vet, I have to study hard. I will do my best in science and math. I hope my dream will come true.',
+      ja: '私は将来、獣医になりたいです。動物が大好きで、動物を助けたいからです。獣医になるために、一生けんめい勉強しなければなりません。理科と数学をがんばるつもりです。夢がかなうといいなと思います。' },
+    { id: 'l2-02', lv: 2, cat: '日記', title: 'A Rainy Day',
+      en: 'It was raining when I woke up this morning. I could not play outside, so I read a book at home. The story was more interesting than I expected. I finished it before dinner. Rainy days are not so bad.',
+      ja: '今朝起きたとき、雨が降っていました。外で遊べなかったので、家で本を読みました。その物語は思っていたよりおもしろかったです。夕食の前に読み終えました。雨の日も悪くありません。' },
+    { id: 'l2-03', lv: 2, cat: '説明文', title: 'Why Do We Sleep?',
+      en: 'Sleeping is important for our bodies and minds. When we sleep, our brain sorts the things we learned that day. Students need about nine hours of sleep. If you do not sleep enough, it is hard to study. So let us go to bed early tonight.',
+      ja: '眠ることは、体と心にとって大切です。眠っている間に、脳はその日に学んだことを整理します。生徒はおよそ9時間の睡眠が必要です。十分に眠らないと、勉強するのがむずかしくなります。だから今夜は早く寝ましょう。' },
+    { id: 'l2-04', lv: 2, cat: '物語', title: 'The Lost Umbrella',
+      en: 'Ken found a blue umbrella at the bus stop. There was a name on it. He decided to take it to the police box. The next day, an old woman came to his school to say thank you. Ken felt very happy.',
+      ja: 'ケンはバス停で青いかさを見つけました。かさには名前が書いてありました。ケンはそれを交番に届けることにしました。次の日、おばあさんがお礼を言いに学校へ来ました。ケンはとてもうれしい気持ちになりました。' },
+    { id: 'l2-05', lv: 2, cat: '比較', title: 'Three Mountains',
+      en: 'Mount Fuji is the highest mountain in Japan. It is about three thousand seven hundred meters high. Mount Kita is the second highest. Many people climb Mount Fuji every summer. Climbing it is hard, but the view from the top is amazing.',
+      ja: '富士山は日本でいちばん高い山です。高さはおよそ3700メートルです。北岳は2番目に高い山です。毎年夏に、たくさんの人が富士山に登ります。登るのは大変ですが、頂上からのながめはすばらしいです。' },
+    { id: 'l2-06', lv: 2, cat: '手紙', title: 'A Letter to My Host Family',
+      en: 'Dear Mr. and Mrs. Brown, thank you for a wonderful week. I enjoyed cooking with you very much. Your apple pie was the best that I have ever eaten. I am looking forward to seeing you again. Best wishes, Yuki.',
+      ja: 'ブラウンさんご夫妻へ、すてきな1週間をありがとうございました。いっしょに料理をして、とても楽しかったです。あなたのアップルパイは、私が食べた中でいちばんおいしかったです。また会えるのを楽しみにしています。ユキより。' },
+    { id: 'l2-07', lv: 2, cat: '説明文', title: 'Plastic and the Sea',
+      en: 'A lot of plastic goes into the sea every year. Some sea animals eat it by mistake. We can help them in many ways. For example, we can use our own bags when we go shopping. Small actions can make a big difference.',
+      ja: '毎年、たくさんのプラスチックが海に流れこんでいます。海の生き物の中には、それをまちがえて食べてしまうものもいます。私たちはいろいろな方法で助けることができます。たとえば、買い物に行くときに自分のバッグを使うことができます。小さな行動が大きなちがいを生むのです。' },
+    { id: 'l2-08', lv: 2, cat: '会話', title: 'At the Station',
+      en: 'Excuse me, could you tell me the way to the museum? Sure, take the Green Line and get off at the third station. It takes about ten minutes. Thank you very much. You are welcome.',
+      ja: 'すみません、博物館への行き方を教えていただけますか？いいですよ、緑線に乗って3つ目の駅で降りてください。10分くらいかかります。どうもありがとうございます。どういたしまして。' },
+    { id: 'l2-09', lv: 2, cat: '日記', title: 'Cooking for My Mother',
+      en: 'My mother was sick yesterday, so I made dinner for her. I made rice porridge with egg. It was my first time to cook it. She said it was delicious. I want to learn how to cook more dishes.',
+      ja: '昨日、母が体調をくずしたので、私が夕食を作りました。卵のおかゆを作りました。作るのは初めてでした。母はおいしいと言ってくれました。もっといろいろな料理の作り方を覚えたいです。' },
+    { id: 'l2-10', lv: 2, cat: '名言', title: 'Words of Wisdom',
+      en: 'Well done is better than well said. These are the words of Benjamin Franklin. Talking about a plan is easy. Doing it is the important part.',
+      ja: '「うまく言うより、うまくやるほうがよい。」これはベンジャミン・フランクリンの言葉です。計画について話すのはかんたんです。実際にやることこそが大切なのです。' },
+    { id: 'l2-11', lv: 2, cat: '物語', title: 'The Race',
+      en: 'Aya was the slowest runner in her class. She practiced running every morning for three months. On the day of the sports festival, she did not win. But she ran faster than ever before. Everyone gave her a big hand.',
+      ja: 'アヤはクラスでいちばん走るのがおそい生徒でした。アヤは3か月の間、毎朝走る練習をしました。運動会の日、アヤは1位にはなれませんでした。でも、今までのどんなときよりも速く走りました。みんなが大きな拍手を送りました。' },
+    { id: 'l2-12', lv: 2, cat: '文化', title: 'New Year in Japan',
+      en: 'New Year is a special event in Japan. Many families eat osechi and visit a shrine. Children are happy because they get otoshidama. People also send New Year cards to their friends. It is a time to start fresh.',
+      ja: 'お正月は日本の特別な行事です。多くの家族がおせちを食べ、神社にお参りします。子どもたちはお年玉をもらえるのでうれしいです。人々は友だちに年賀状も送ります。新しい気持ちでスタートする時期なのです。' },
+    { id: 'l2-13', lv: 2, cat: 'スピーチ', title: 'My Treasure',
+      en: 'My treasure is an old baseball glove. My grandfather gave it to me when I was eight. He taught me how to catch a ball with it. He is not with us now, but I still use the glove. It always gives me courage.',
+      ja: '私の宝物は古い野球のグローブです。8歳のとき、祖父がくれました。祖父はそれでボールのとり方を教えてくれました。祖父はもういませんが、私は今もそのグローブを使っています。それはいつも私に勇気をくれます。' },
+
+    // ---------------- 中3 ----------------
+    { id: 'l3-01', lv: 3, cat: 'スピーチ', title: 'What I Learned from Volunteering',
+      en: 'Last summer, I joined a volunteer group that cleans the beach. At first, I thought it would be boring. However, I met many people who cared about nature. Some of them had been doing it for over ten years. Through this activity, I learned that anyone can help the earth.',
+      ja: '去年の夏、私は浜辺をそうじするボランティアグループに参加しました。最初は退屈だろうと思っていました。しかし、自然を大切に思う多くの人に出会いました。その中には10年以上続けている人もいました。この活動を通して、私はだれでも地球を助けることができると学びました。' },
+    { id: 'l3-02', lv: 3, cat: '説明文', title: 'Robots in Our Lives',
+      en: 'Robots are used in many places today. Some robots help doctors during surgery. Others carry heavy things in factories. In the future, robots may take care of elderly people at home. We should think about how to live together with them.',
+      ja: '今日、ロボットはいろいろな場所で使われています。手術のときに医者を手伝うロボットもあります。工場で重い物を運ぶロボットもあります。将来は、ロボットが家でお年寄りの世話をするかもしれません。私たちはロボットといっしょに生きていく方法を考えるべきです。' },
+    { id: 'l3-03', lv: 3, cat: '物語', title: 'The Old Clock',
+      en: 'There was an old clock in the corner of the library. It had stopped many years ago. One day, a boy who loved machines asked if he could repair it. He worked on it every day after school. When the clock finally began to tick, the whole library was filled with smiles.',
+      ja: '図書館のすみに、古い時計がありました。その時計は何年も前に止まっていました。ある日、機械が大好きな少年が、直してもいいかとたずねました。少年は毎日放課後に修理をしました。ついに時計が時を刻み始めたとき、図書館じゅうが笑顔でいっぱいになりました。' },
+    { id: 'l3-04', lv: 3, cat: '説明文', title: 'Food Loss',
+      en: 'In Japan, a lot of food that can still be eaten is thrown away. This problem is called food loss. Stores, restaurants, and homes all produce food loss. Buying only what we need is one simple solution. If everyone tries, we can reduce it a lot.',
+      ja: '日本では、まだ食べられる食品がたくさん捨てられています。この問題は食品ロスと呼ばれています。お店も、レストランも、家庭も食品ロスを出しています。必要な分だけ買うことは、かんたんな解決策の一つです。みんなが取り組めば、大きく減らすことができます。' },
+    { id: 'l3-05', lv: 3, cat: '伝記', title: 'A Scientist Who Never Gave Up',
+      en: 'Marie Curie was a scientist who was born in Poland. She studied very hard, even when life was difficult. She discovered two new elements with her husband. She became the first woman to win a Nobel Prize. Her story has encouraged many young people around the world.',
+      ja: 'マリー・キュリーはポーランドで生まれた科学者です。生活が苦しいときでも、彼女は一生けんめい勉強しました。彼女は夫といっしょに2つの新しい元素を発見しました。彼女は女性として初めてノーベル賞を受賞しました。彼女の物語は、世界中の多くの若者を勇気づけてきました。' },
+    { id: 'l3-06', lv: 3, cat: '意見文', title: 'Should Students Use Smartphones at School?',
+      en: 'Some people think that students should not use smartphones at school. They say that phones make it hard to focus on lessons. On the other hand, smartphones can be useful tools for learning. In my opinion, we should use them only when teachers allow us to. It is important to make good rules together.',
+      ja: '生徒は学校でスマートフォンを使うべきではないと考える人もいます。スマートフォンがあると授業に集中しにくくなると言うのです。一方で、スマートフォンは学習の役に立つ道具にもなります。私の意見では、先生が許可したときだけ使うべきです。みんなでよいルールを作ることが大切です。' },
+    { id: 'l3-07', lv: 3, cat: '日記', title: 'Graduation',
+      en: 'Today was the day I had been waiting for and also afraid of. We sang our school song for the last time. My best friend, who is moving to Osaka, cried during the ceremony. I promised to write to her every month. Three years have passed so quickly.',
+      ja: '今日は、待ち遠しくもあり、こわくもあった日でした。私たちは最後に校歌を歌いました。大阪へ引っこす親友は、式の間に泣いていました。私は毎月手紙を書くと約束しました。3年間はあっという間に過ぎました。' },
+    { id: 'l3-08', lv: 3, cat: '説明文', title: 'The Language of Bees',
+      en: 'Bees are known for their special dance. When a bee finds flowers, it goes back to the hive and dances. The dance shows other bees where the flowers are. The angle of the dance tells them the direction. Isn\'t it amazing that such small insects can share information like this?',
+      ja: 'ミツバチは特別なダンスで知られています。花を見つけたミツバチは、巣にもどってダンスをします。そのダンスは、花がどこにあるかをほかのミツバチに伝えます。ダンスの角度で方角がわかるのです。こんなに小さな虫がこのように情報を伝え合えるなんて、おどろきではありませんか？' },
+    { id: 'l3-09', lv: 3, cat: '物語', title: 'The Promise',
+      en: 'Sota had a younger brother who was in the hospital. He promised to bring him a picture of the sea. Every weekend, Sota rode his bike to the beach to draw. After two months, the picture was finished. His brother smiled and said it was the most beautiful sea he had ever seen.',
+      ja: 'ソウタには入院している弟がいました。ソウタは弟に海の絵を持っていくと約束しました。毎週末、ソウタは自転車で浜辺へ行って絵をかきました。2か月後、絵は完成しました。弟はほほえんで、今まで見た中でいちばん美しい海だと言いました。' },
+    { id: 'l3-10', lv: 3, cat: '名言', title: 'Learning from Mistakes',
+      en: 'A person who has never made a mistake has never tried anything new. This saying is often said to come from Albert Einstein. Mistakes are not something to be ashamed of. They are signs that you are challenging yourself.',
+      ja: '「一度もまちがえたことのない人は、何も新しいことに挑戦したことがない人だ。」この言葉は、アインシュタインの言葉だとよく言われています。まちがいは、はずかしいものではありません。それは自分に挑戦しているしるしなのです。' },
+    { id: 'l3-11', lv: 3, cat: '文化', title: 'Washoku',
+      en: 'Washoku, or traditional Japanese food, was added to the UNESCO list in 2013. It is loved for its healthy balance and seasonal ingredients. Dashi, which is made from kelp and dried fish, is the base of many dishes. People around the world are now interested in washoku. Let us learn more about our own food culture.',
+      ja: '和食、つまり日本の伝統的な料理は、2013年にユネスコの一覧に加えられました。健康的なバランスと、季節の食材を使うことで愛されています。昆布や干した魚から作られるだしは、多くの料理のもとになっています。今、世界中の人々が和食に関心を持っています。自分たちの食文化について、もっと学びましょう。' },
+    { id: 'l3-12', lv: 3, cat: 'スピーチ', title: 'Thank You, Teachers',
+      en: 'I would like to thank all the teachers who have supported us. When I could not understand math, you stayed after school with me. When I was sad, you listened to me. Because of you, I have grown a lot. I will never forget these three years.',
+      ja: '私たちを支えてくださったすべての先生方に感謝したいと思います。数学がわからなかったとき、先生は放課後に残っていっしょに考えてくれました。悲しかったとき、先生は私の話を聞いてくれました。先生方のおかげで、私は大きく成長しました。この3年間を決して忘れません。' },
+
+    // ---------------- 高校 ----------------
+    { id: 'l4-01', lv: 4, cat: '説明文', title: 'The Power of Habits',
+      en: 'Habits shape much of our daily lives. According to some studies, nearly half of what we do each day is done out of habit. Building a good habit is not about willpower alone. It helps to start with something small and to repeat it at the same time every day. Over time, these small actions can lead to remarkable changes.',
+      ja: '習慣は、私たちの日々の生活の多くを形づくっています。ある研究によると、私たちが毎日していることのほぼ半分は、習慣によるものだそうです。よい習慣を身につけるのは、意志の力だけの問題ではありません。小さなことから始め、毎日同じ時間にくり返すことが役に立ちます。時間がたつにつれ、こうした小さな行動が、驚くほどの変化につながるのです。' },
+    { id: 'l4-02', lv: 4, cat: '意見文', title: 'Learning a Foreign Language',
+      en: 'Learning a foreign language does more than help us communicate with people from other countries. It also allows us to see the world from a different point of view. When we notice that some ideas cannot be translated perfectly, we begin to understand other cultures more deeply. In this sense, language learning is a journey into new ways of thinking.',
+      ja: '外国語を学ぶことは、ほかの国の人と意思を伝え合う助けになるだけではありません。それは、ちがった視点から世界を見ることも可能にしてくれます。完全には訳せない考えがあることに気づくと、私たちはほかの文化をより深く理解し始めます。この意味で、言語を学ぶことは新しい考え方への旅なのです。' },
+    { id: 'l4-03', lv: 4, cat: '物語', title: 'The Lighthouse Keeper',
+      en: 'For forty years, an old man kept the light burning in a lighthouse on a lonely island. Few people knew his name, and fewer still had ever visited him. Yet every night, ships passed safely because of the light he protected. When he finally retired, the captains of the town gathered to thank him. He simply said that he had only done what needed to be done.',
+      ja: '40年の間、ひとりの老人がさびしい島の灯台で明かりをともし続けました。彼の名前を知る人はほとんどおらず、彼をたずねたことのある人はさらに少なかったのです。それでも毎晩、彼が守った明かりのおかげで、船は安全に通ることができました。ついに彼が引退したとき、町の船長たちが感謝を伝えに集まりました。彼はただ、必要なことをしただけだと言いました。' },
+    { id: 'l4-04', lv: 4, cat: '説明文', title: 'Why Forests Matter',
+      en: 'Forests cover about a third of the land on Earth. They provide homes for countless species of plants and animals. Trees absorb carbon dioxide and help to slow down climate change. In addition, forests protect us from floods by holding water in the soil. Protecting them is therefore one of the most important challenges of our time.',
+      ja: '森林は地球の陸地のおよそ3分の1をおおっています。森林は数えきれないほどの種類の植物や動物にすみかを与えています。木は二酸化炭素を吸収し、気候変動をゆるやかにする助けとなります。さらに、森林は土の中に水をたくわえることで、私たちを洪水から守っています。だからこそ、森林を守ることは、私たちの時代の最も重要な課題の一つなのです。' },
+    { id: 'l4-05', lv: 4, cat: 'スピーチ', title: 'Failure Is a Teacher',
+      en: 'When I failed my first entrance exam, I felt as if my world had ended. For weeks, I did not want to talk to anyone. Then my grandmother told me that failure is simply a teacher who is a little strict. I started to look at what I could learn from my mistakes. Today, I am grateful for that experience, because it made me stronger.',
+      ja: '最初の入試に落ちたとき、私は自分の世界が終わってしまったかのように感じました。何週間も、だれとも話したくありませんでした。そのとき祖母が、失敗とは少しきびしい先生にすぎないのだと言ってくれました。私は自分のまちがいから何を学べるかを考えるようになりました。今では、その経験が私を強くしてくれたことに感謝しています。' },
+    { id: 'l4-06', lv: 4, cat: '説明文', title: 'Artificial Intelligence and Us',
+      en: 'Artificial intelligence can now write sentences, draw pictures, and even compose music. Some people worry that it will take away many jobs. Others believe that it will free us from boring tasks and give us more time to be creative. What matters most is how we choose to use this technology. We need to learn not only how it works, but also how to use it responsibly.',
+      ja: '人工知能は今や、文章を書き、絵をかき、作曲さえもできます。それが多くの仕事をうばうのではないかと心配する人もいます。退屈な作業から私たちを解放し、創造的になる時間を増やしてくれると信じている人もいます。最も大切なのは、私たちがこの技術をどう使うかを選ぶことです。私たちは、そのしくみだけでなく、責任をもって使う方法も学ぶ必要があります。' },
+    { id: 'l4-07', lv: 4, cat: '名言', title: 'The Journey of a Thousand Miles',
+      en: 'The journey of a thousand miles begins with a single step. This well-known saying comes from ancient China. It reminds us that even the greatest goals start with small actions. If you feel that your dream is too far away, focus on the step you can take today.',
+      ja: '「千里の道も一歩から。」このよく知られた言葉は、古代中国から伝わるものです。それは、どんなに大きな目標も小さな行動から始まることを思い出させてくれます。夢があまりにも遠いと感じたら、今日ふみ出せる一歩に集中しましょう。' },
+    { id: 'l4-08', lv: 4, cat: '物語', title: 'Two Seeds',
+      en: 'Two seeds lay side by side in the spring soil. The first seed said, "I want to grow tall and feel the sun on my leaves." The second seed was afraid of the dark earth and the hard rocks, so it decided to wait. Soon, the first seed became a beautiful flower. The second seed was still waiting when a bird came and ate it.',
+      ja: '春の土の中に、2つの種が並んで横たわっていました。1つ目の種は「大きく育って、葉っぱにお日さまを感じたい」と言いました。2つ目の種は暗い土やかたい岩がこわくて、待つことにしました。やがて、1つ目の種は美しい花になりました。2つ目の種は、鳥がやってきて食べてしまったときも、まだ待っていました。' },
+    { id: 'l4-09', lv: 4, cat: '説明文', title: 'The Science of Laughter',
+      en: 'Laughter is not just a reaction to something funny. Scientists have found that people laugh far more often when they are with others than when they are alone. Laughing together helps to build trust and strengthens relationships. It may also reduce stress and improve our health. Perhaps a good laugh really is the best medicine.',
+      ja: '笑いは、おもしろいことへの反応にすぎないのではありません。人はひとりでいるときよりも、ほかの人といるときのほうがはるかに多く笑うことが、科学者によってわかっています。いっしょに笑うことは信頼を築き、関係を強める助けになります。また、ストレスを減らし、健康をよくする可能性もあります。よく笑うことは、本当に最高の薬なのかもしれません。' },
+    { id: 'l4-10', lv: 4, cat: '意見文', title: 'The Value of Reading Aloud',
+      en: 'Reading aloud is one of the oldest ways to learn a language, and it is still one of the most effective. When we read aloud, we use our eyes, mouth, and ears at the same time. This helps us remember new words and natural rhythms of speech. It also builds the confidence we need to speak in front of others. A few minutes a day can make a real difference.',
+      ja: '音読は、言語を学ぶ最も古い方法の一つであり、今でも最も効果的な方法の一つです。音読するとき、私たちは目と口と耳を同時に使います。これは、新しい単語や自然な話し方のリズムを覚える助けになります。また、人前で話すために必要な自信も育ててくれます。1日数分の音読でも、本当に大きなちがいを生むのです。' },
+    { id: 'l4-11', lv: 4, cat: '伝記', title: 'The Woman Who Planted Trees',
+      en: 'Wangari Maathai was an environmental activist from Kenya. She noticed that cutting down forests was making life harder for women in rural areas. In 1977, she started a movement that encouraged women to plant trees. Over the years, millions of trees were planted across the country. In 2004, she became the first African woman to receive the Nobel Peace Prize.',
+      ja: 'ワンガリ・マータイは、ケニアの環境活動家でした。彼女は、森林を切りたおすことが、農村の女性たちの生活を苦しくしていることに気づきました。1977年、彼女は女性たちに木を植えるようよびかける運動を始めました。何年にもわたって、国じゅうで何百万本もの木が植えられました。2004年、彼女はアフリカの女性として初めてノーベル平和賞を受賞しました。' },
+    { id: 'l4-12', lv: 4, cat: 'スピーチ', title: 'Our Future Starts Now',
+      en: 'Many of us are told that we are the leaders of the future. But I believe that the future does not wait for us to grow up. Every choice we make today, from the food we buy to the words we use, shapes the world we will live in. We do not need to be perfect to make a difference. We only need to begin.',
+      ja: '私たちの多くは、未来のリーダーだと言われます。しかし私は、未来は私たちが大人になるのを待ってはくれないと信じています。買う食べ物から使う言葉まで、今日私たちがするすべての選択が、これから生きていく世界を形づくるのです。変化を生み出すために、完璧である必要はありません。ただ始めればよいのです。' }
+  ];
+  var LEVEL_NAMES = { 1: '中1', 2: '中2', 3: '中3', 4: '高校' };
+  root.LIBRARY = L;
+  root.LIBRARY_LEVELS = LEVEL_NAMES;
+  if (typeof module !== 'undefined' && module.exports) module.exports = { LIBRARY: L, LIBRARY_LEVELS: LEVEL_NAMES };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+  <script>
+/*
+ * 先生スタンプ・スタンプカードの絵（このアプリ用のオリジナルのイラスト。SVGで描いています）
+ */
+(function (root) {
+  'use strict';
+  var COLORS = {
+    cat: { ring: '#f4a259', bg: '#fff4e6' }, rabbit: { ring: '#f28bb3', bg: '#fff0f6' },
+    bear: { ring: '#b07b4f', bg: '#fbf1e6' }, chick: { ring: '#f2c230', bg: '#fffbe3' },
+    dog: { ring: '#5aa9e6', bg: '#eef7ff' }, panda: { ring: '#56b38a', bg: '#ecf9f2' }
+  };
+  function eyes(y, gap) {
+    return '<ellipse cx="' + (60 - gap) + '" cy="' + y + '" rx="4" ry="5" fill="#3a2e2a"/><ellipse cx="' + (60 + gap) + '" cy="' + y + '" rx="4" ry="5" fill="#3a2e2a"/>' +
+      '<circle cx="' + (61 - gap) + '" cy="' + (y - 2) + '" r="1.4" fill="#fff"/><circle cx="' + (61 + gap) + '" cy="' + (y - 2) + '" r="1.4" fill="#fff"/>';
+  }
+  function cheeks(y, gap) {
+    return '<ellipse cx="' + (60 - gap) + '" cy="' + y + '" rx="6" ry="4" fill="#ff9eb5" opacity=".7"/><ellipse cx="' + (60 + gap) + '" cy="' + y + '" rx="6" ry="4" fill="#ff9eb5" opacity=".7"/>';
+  }
+  function smile(y) { return '<path d="M53 ' + y + ' q3.5 4 7 0 q3.5 4 7 0" fill="none" stroke="#3a2e2a" stroke-width="2.2" stroke-linecap="round"/>'; }
+  var FACES = {
+    cat: function () {
+      return '<path d="M33 40 L38 16 L54 32 Z" fill="#ffc98b" stroke="#e59a4f" stroke-width="2"/><path d="M87 40 L82 16 L66 32 Z" fill="#ffc98b" stroke="#e59a4f" stroke-width="2"/>' +
+        '<path d="M39 34 L41 23 L49 31 Z" fill="#ffb3c6"/><path d="M81 34 L79 23 L71 31 Z" fill="#ffb3c6"/>' +
+        '<ellipse cx="60" cy="55" rx="30" ry="26" fill="#ffc98b" stroke="#e59a4f" stroke-width="2"/>' +
+        '<path d="M52 33 l2 6 M60 31 v7 M68 33 l-2 6" stroke="#e59a4f" stroke-width="2.4" stroke-linecap="round"/>' +
+        eyes(52, 11) + cheeks(62, 19) + '<path d="M57.5 58 h5 l-2.5 3 z" fill="#e5687f"/>' + smile(61) +
+        '<path d="M30 57 h-10 M30 62 l-9 3 M90 57 h10 M90 62 l9 3" stroke="#c98b5a" stroke-width="1.6" stroke-linecap="round"/>';
+    },
+    rabbit: function () {
+      return '<ellipse cx="47" cy="22" rx="8" ry="20" fill="#fff" stroke="#e7a3bf" stroke-width="2"/><ellipse cx="73" cy="22" rx="8" ry="20" fill="#fff" stroke="#e7a3bf" stroke-width="2"/>' +
+        '<ellipse cx="47" cy="23" rx="3.6" ry="13" fill="#ffc2d6"/><ellipse cx="73" cy="23" rx="3.6" ry="13" fill="#ffc2d6"/>' +
+        '<ellipse cx="60" cy="57" rx="29" ry="25" fill="#fff" stroke="#e7a3bf" stroke-width="2"/>' +
+        eyes(54, 11) + cheeks(63, 18) + '<ellipse cx="60" cy="60" rx="3" ry="2.2" fill="#f07ca0"/>' + smile(62);
+    },
+    bear: function () {
+      return '<circle cx="36" cy="33" r="11" fill="#c8915f" stroke="#9c6a3e" stroke-width="2"/><circle cx="84" cy="33" r="11" fill="#c8915f" stroke="#9c6a3e" stroke-width="2"/>' +
+        '<circle cx="36" cy="33" r="5.5" fill="#ffd9b8"/><circle cx="84" cy="33" r="5.5" fill="#ffd9b8"/>' +
+        '<ellipse cx="60" cy="56" rx="30" ry="27" fill="#c8915f" stroke="#9c6a3e" stroke-width="2"/>' +
+        '<ellipse cx="60" cy="64" rx="13" ry="10" fill="#f3d6b8"/>' +
+        eyes(50, 12) + cheeks(60, 20) + '<ellipse cx="60" cy="60" rx="4.5" ry="3.2" fill="#3a2e2a"/>' + smile(64);
+    },
+    chick: function () {
+      return '<path d="M56 22 q2 -9 6 -2 q3 -8 6 1" fill="none" stroke="#f2b705" stroke-width="3" stroke-linecap="round"/>' +
+        '<ellipse cx="60" cy="54" rx="30" ry="29" fill="#ffe066" stroke="#f2b705" stroke-width="2"/>' +
+        '<path d="M31 60 q-8 -2 -6 -12 q6 4 9 4" fill="#ffd43b" stroke="#f2b705" stroke-width="1.6"/><path d="M89 60 q8 -2 6 -12 q-6 4 -9 4" fill="#ffd43b" stroke="#f2b705" stroke-width="1.6"/>' +
+        eyes(50, 11) + cheeks(59, 19) + '<path d="M54 57 L66 57 L60 64 Z" fill="#ff9f43" stroke="#e8822a" stroke-width="1.2" stroke-linejoin="round"/>';
+    },
+    dog: function () {
+      return '<ellipse cx="34" cy="44" rx="10" ry="18" fill="#c99267" stroke="#9c6a3e" stroke-width="2" transform="rotate(18 34 44)"/>' +
+        '<ellipse cx="86" cy="44" rx="10" ry="18" fill="#c99267" stroke="#9c6a3e" stroke-width="2" transform="rotate(-18 86 44)"/>' +
+        '<ellipse cx="60" cy="55" rx="27" ry="26" fill="#fff8ee" stroke="#c9a27a" stroke-width="2"/>' +
+        '<ellipse cx="70" cy="47" rx="9" ry="8" fill="#e8c39e" opacity=".8"/>' +
+        eyes(50, 10) + cheeks(60, 17) + '<ellipse cx="60" cy="59" rx="5" ry="3.6" fill="#3a2e2a"/>' +
+        '<path d="M60 62 v3" stroke="#3a2e2a" stroke-width="2"/>' + smile(64) + '<path d="M57 68 q3 6 6 0" fill="#ff8fa3"/>';
+    },
+    panda: function () {
+      return '<circle cx="36" cy="32" r="11" fill="#2f2f37"/><circle cx="84" cy="32" r="11" fill="#2f2f37"/>' +
+        '<ellipse cx="60" cy="56" rx="30" ry="27" fill="#fff" stroke="#c9ced6" stroke-width="2"/>' +
+        '<ellipse cx="48" cy="52" rx="8" ry="10" fill="#2f2f37" transform="rotate(-25 48 52)"/><ellipse cx="72" cy="52" rx="8" ry="10" fill="#2f2f37" transform="rotate(25 72 52)"/>' +
+        '<circle cx="49" cy="51" r="3.2" fill="#fff"/><circle cx="71" cy="51" r="3.2" fill="#fff"/><circle cx="49.6" cy="50.4" r="1.6" fill="#2f2f37"/><circle cx="70.4" cy="50.4" r="1.6" fill="#2f2f37"/>' +
+        cheeks(63, 20) + '<ellipse cx="60" cy="62" rx="4" ry="3" fill="#2f2f37"/>' + smile(65);
+    }
+  };
+  // 先生スタンプ（円いハンコの形）
+  function stampSVG(animal, text, size) {
+    var c = COLORS[animal] || COLORS.cat, face = (FACES[animal] || FACES.cat)();
+    var fs = text.length > 11 ? 11 : text.length > 8 ? 12.5 : 14;
+    return '<svg class="stamp-svg" width="' + (size || 96) + '" height="' + (size || 96) + '" viewBox="0 0 120 120" role="img" aria-label="' + text + '">' +
+      '<circle cx="60" cy="60" r="56" fill="' + c.bg + '" stroke="' + c.ring + '" stroke-width="5"/>' +
+      '<circle cx="60" cy="60" r="49" fill="none" stroke="' + c.ring + '" stroke-width="1.5" stroke-dasharray="3 4" opacity=".7"/>' +
+      '<g transform="translate(0,-4)">' + face + '</g>' +
+      '<rect x="14" y="84" width="92" height="22" rx="11" fill="' + c.ring + '"/>' +
+      '<text x="60" y="99.5" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-weight="700" font-size="' + fs + '" fill="#fff">' + text + '</text></svg>';
+  }
+  // スタンプカードのマーク（肉球）
+  function pawSVG(color, size) {
+    color = color || '#f28bb3';
+    return '<svg width="' + (size || 30) + '" height="' + (size || 30) + '" viewBox="0 0 40 40" aria-hidden="true">' +
+      '<circle cx="20" cy="20" r="18" fill="' + color + '" opacity=".18"/>' +
+      '<ellipse cx="20" cy="25" rx="8" ry="6.5" fill="' + color + '"/>' +
+      '<ellipse cx="11" cy="17" rx="3.4" ry="4.2" fill="' + color + '"/><ellipse cx="17" cy="12" rx="3.4" ry="4.4" fill="' + color + '"/>' +
+      '<ellipse cx="23" cy="12" rx="3.4" ry="4.4" fill="' + color + '"/><ellipse cx="29" cy="17" rx="3.4" ry="4.2" fill="' + color + '"/></svg>';
+  }
+  root.Art = { stampSVG: stampSVG, pawSVG: pawSVG, ANIMALS: Object.keys(FACES) };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
 
 </script>
   <script>
@@ -2516,6 +3111,7 @@ window.SAMPLE_ASSIGNMENTS = [
   }
   function logout(silent) {
     store(SESSION_KEY, null); state.session = null; state.home = null; state.overview = null;
+    document.documentElement.setAttribute('data-theme', 'blue'); setPref('theme', 'blue');
     clearInterval(state.flagTimer); state.flagTimer = null; state.flagCount = 0;
     if (!silent) toast('ログアウトしました');
     go('#/');
@@ -2537,7 +3133,7 @@ window.SAMPLE_ASSIGNMENTS = [
     document.body.classList.remove('has-nav');
     if (!state.session || state.session.role !== 'student' || active === 'none') return;
     var showRank = !state.home || !state.home.settings || state.home.settings.showRanking;
-    var items = [['home', '🏠', 'ホーム', '#/home'], ['free', '📖', '自主練', '#/free']];
+    var items = [['home', '🏠', 'ホーム', '#/home'], ['lib', '📚', 'ライブラリ', '#/lib'], ['free', '📖', '自主練', '#/free']];
     if (showRank) items.push(['rank', '🏆', 'ランキング', '#/rank']);
     items.push(['me', '📈', 'きろく', '#/me']);
     var nav = document.createElement('nav');
@@ -2553,6 +3149,54 @@ window.SAMPLE_ASSIGNMENTS = [
     var list = window.PROVERBS || [];
     var day = Math.floor((Date.now() + 9 * 3600000) / 86400000);
     return list.length ? list[day % list.length] : ['Practice makes perfect.', '練習を重ねれば完璧になる。'];
+  }
+
+  // ================= ごほうび（バッジ・スタンプ・着せ替え） =================
+  var BADGES = (window.Core && Core.BADGES) || [];
+  function badgeById(id) { for (var i = 0; i < BADGES.length; i++) if (BADGES[i].id === id) return BADGES[i]; return null; }
+  function applyLook(rw) {
+    var th = (rw && rw.theme) || 'blue';
+    document.documentElement.setAttribute('data-theme', th);
+    setPref('theme', th);
+  }
+  function stampHTML(x, size) { return window.Art ? Art.stampSVG(x.a, x.t, size || 96) : esc(x.t); }
+  // 先生スタンプ・バッジが届いたときのお知らせ
+  function showRewardPopup(stamps, badges, onClose) {
+    stamps = stamps || []; badges = badges || [];
+    if (!stamps.length && !badges.length) { if (onClose) onClose(); return; }
+    var old = $('.reward-overlay'); if (old) old.remove();
+    var el = document.createElement('div');
+    el.className = 'reward-overlay';
+    el.setAttribute('role', 'dialog');
+    var html = '<div class="reward-box">';
+    if (stamps.length) {
+      html += '<h2>💌 先生からスタンプが届きました！</h2><div class="reward-stamps">' +
+        stamps.slice(-6).map(function (x) { return '<div class="pop-in">' + stampHTML(x, 110) + '</div>'; }).join('') + '</div>';
+    }
+    if (badges.length) {
+      html += '<h2>🏅 バッジをゲット！</h2><div class="reward-badges">' + badges.map(function (id) {
+        var b = badgeById(id); if (!b) return '';
+        return '<div class="badge-card got pop-in"><div class="ic">' + b.icon + '</div><div class="nm">' + esc(b.name) + '</div><div class="ds">' + esc(b.desc) + '</div></div>';
+      }).join('') + '</div>';
+    }
+    html += '<button class="btn-primary btn-big btn-block" id="bRewardOk">やったね！</button></div>';
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    $('#bRewardOk').onclick = function () { el.remove(); if (onClose) onClose(); };
+  }
+  // スタンプカード（1日読むと1個。10個で1枚）
+  function stampCardHTML(rw, today, lastDate) {
+    var d = (rw && rw.days) || 0, filled = d ? ((d - 1) % 10) + 1 : 0, done = Math.floor(d / 10);
+    var todayDone = !!(rw && rw.stampedToday);
+    var html = '<div class="card stamp-card"><div class="card-title"><h2>🎫 スタンプカード</h2><span class="muted" style="font-size:.85rem">' +
+      (done ? '完成 ' + done + '枚' : '') + '</span></div><div class="stamp-slots">';
+    for (var i = 1; i <= 10; i++) {
+      html += '<div class="slot' + (i <= filled ? ' on' : '') + '">' + (i <= filled ? Art.pawSVG(i === 10 ? '#f2b705' : '#f28bb3', 30) : '<span>' + i + '</span>') + '</div>';
+    }
+    html += '</div><div class="muted" style="font-size:.85rem;margin-top:6px">' +
+      (todayDone ? '✅ 今日のスタンプはもう押されています。また明日！' : '今日1回音読すると、スタンプが1個たまります。') +
+      ' 10個でカードが完成し、記念のアイコンがもらえます。</div></div>';
+    return html;
   }
 
   function loadScript(src) {
@@ -2642,12 +3286,13 @@ window.SAMPLE_ASSIGNMENTS = [
     state.home = h;
     if (h.settings && h.settings.appTitle) setTitle(h.settings.appTitle);
     bottomNav('home');
-    var s = h.student, lv = s.level, pv = todayProverb();
+    var s = h.student, lv = s.level, pv = todayProverb(), rw = h.rewards || {};
+    applyLook(rw);
     var todo = h.assignments.filter(function (a) { return a.best === null; });
     var html = '';
     html += '<div class="card level-card">' +
       '<div class="level-badge"><small>いまの級</small>' + esc(lv.name) + '</div>' +
-      '<div class="level-info"><div><b>' + esc(s.nick || s.cls + ' ' + s.no + '番') + '</b> さん</div>' +
+      '<div class="level-info"><div>' + (rw.icon ? '<span class="avatar">' + esc(rw.icon) + '</span> ' : '') + '<b>' + esc(s.nick || s.cls + ' ' + s.no + '番') + '</b> さん</div>' +
       (lv.next ? '<div class="bar"><span style="width:' + Math.round(lv.progress * 100) + '%"></span></div>' +
         '<small>' + esc(lv.next) + 'まで あと <b>' + n(lv.nextAt - s.totalWords) + '</b> 語</small>'
         : '<div class="bar"><span style="width:100%"></span></div><small>最高位に到達！</small>') +
@@ -2656,12 +3301,20 @@ window.SAMPLE_ASSIGNMENTS = [
       '<div class="stat"><div class="v">' + n(s.todayWords) + '</div><div class="l">今日の単語数</div></div>' +
       '<div class="stat"><div class="v">' + n(s.totalWords) + '</div><div class="l">累計の単語数</div></div>' +
       '<div class="stat"><div class="v">' + n(s.streak) + '<small style="font-size:.9rem">日</small></div><div class="l">連続音読</div></div>' +
-      '<div class="stat"><div class="v">' + todo.length + '</div><div class="l">未提出の課題</div></div>' +
+      '<div class="stat"><a href="#/rewards" style="text-decoration:none"><div class="v">' + n(rw.points) + '<small style="font-size:.8rem">pt</small></div><div class="l">ボーナスポイント</div></a></div>' +
       '</div><div style="height:16px"></div>';
+    // いろいろな読み方への入り口
+    var nb = Object.keys(rw.badges || {}).length;
+    html += '<div class="quick-row">' +
+      '<a class="quick" href="#/lib"><span class="ic">📚</span>英文ライブラリ</a>' +
+      '<a class="quick" href="#/omikuji"><span class="ic">🎲</span>おみくじ英文</a>' +
+      '<a class="quick" href="#/rewards"><span class="ic">🏅</span>バッジ ' + nb + '<small>/' + BADGES.length + '</small></a>' +
+      '</div>';
+    html += stampCardHTML(rw, h.today, s.lastDate);
     html += '<div class="card proverb"><div class="card-title"><h2>🌱 今日のことわざ</h2>' +
       '<a class="btn btn-small btn-primary" href="#/proverb">音読する</a></div>' +
       '<div class="ja">' + esc(pv[1]) + '</div><div class="en">' + esc(pv[0]) + '</div></div>';
-    html += '<div class="card"><div class="card-title"><h2>📚 課題</h2></div>';
+    html += '<div class="card"><div class="card-title"><h2>📝 課題</h2>' + (todo.length ? '<span class="pill todo">未提出 ' + todo.length + '</span>' : '') + '</div>';
     if (!h.assignments.length) html += '<div class="empty">今は課題がありません。自主練で音読してみましょう！</div>';
     else html += '<ul class="list">' + h.assignments.map(function (a) {
       var overdue = a.due && a.due < h.today && (a.master ? !a.masterCleared : !a.achieved);
@@ -2678,6 +3331,11 @@ window.SAMPLE_ASSIGNMENTS = [
     }).join('') + '</ul>';
     html += '</div>';
     $app.innerHTML = html;
+    // 届いたスタンプのお知らせ
+    if (rw.newStamps) {
+      var fresh = (rw.stamps || []).filter(function (x) { return x.n; });
+      showRewardPopup(fresh, [], function () { call('seenStamps').catch(function () {}); if (state.home && state.home.rewards) state.home.rewards.newStamps = 0; });
+    }
   }
 
   // ================= 生徒：練習 =================
@@ -2999,9 +3657,14 @@ window.SAMPLE_ASSIGNMENTS = [
       (jaFixed ? '' : '<button class="btn-small" id="bHide">🙈 英文を隠す</button>') +
       (hasJaDisp && !jaFixed ? '<button class="btn-small" id="bJaInline">' + (p.hideJa ? '日本語を表示' : '日本語を隠す') + '</button>' : '') +
       (opt.ja && !jaFixed && !jaPaired ? '<button class="btn-small" id="bJa">和訳</button>' : '') +
-      '</div>';
+      '<button class="btn-small' + (p.lineMode ? ' on' : '') + '" id="bLine">📍 1行ずつ</button>' +
+      '<button class="btn-small' + (p.spacious ? ' on' : '') + '" id="bSpace">↕ 行間</button>' +
+      (type === 1 && !opt.noRepeat ? '<button class="btn-small" id="bRepeat">🔁 リピート練習</button>' : '') +
+      '</div>' +
+      '<div class="line-nav hidden" id="lineNav"><button class="btn-small" id="bPrevLine">◀ 前の行</button><span id="lineCount"></span><button class="btn-small btn-primary" id="bNextLine">次の行 ▶</button></div>';
+    if (!jaFixed) html += '<div class="tip-line">🙈「英文を隠す」にしたまま読んで合格（' + (opt.passLine || 80) + '%以上）すると、暗唱ボーナスとバッジがもらえます。</div>';
     if (showJaBox) html += '<div class="ja-box">' + splitJaText(String(opt.ja).replace(/\n/g, '')).map(esc).join('<br>') + '</div>';
-    html += '<div class="passage ' + (p.size === 'mid' ? '' : p.size) + (hasJaDisp && p.hideJa && !jaFixed ? ' hide-ja' : '') + (type === 5 ? ' mode-trans' : '') + (type === 4 ? ' mode-shuffle' : '') + (type === 3 ? ' mode-nospace' : '') + '" id="passage">' + display(plainTokens(opt.text), false) + '</div>';
+    html += '<div class="passage ' + (p.size === 'mid' ? '' : p.size) + (p.spacious ? ' spacious' : '') + (hasJaDisp && p.hideJa && !jaFixed ? ' hide-ja' : '') + (type === 5 ? ' mode-trans' : '') + (type === 4 ? ' mode-shuffle' : '') + (type === 3 ? ' mode-nospace' : '') + '" id="passage">' + display(plainTokens(opt.text), false) + '</div>';
     if (opt.ja && !jaFixed && !jaPaired) html += '<div class="ja-text hidden" id="jaText">' + esc(opt.ja) + '</div>';
     html += '<div class="live" id="live">（ここに聞き取った英語が表示されます）</div>' +
       '<div class="mic-dock"><button class="mic-btn" id="bMic" aria-label="音読をはじめる">🎤</button>' +
@@ -3027,7 +3690,43 @@ window.SAMPLE_ASSIGNMENTS = [
         $all('#segSize button').forEach(function (x) { x.classList.toggle('active', x === b); });
       };
     });
-    if ($('#bHide')) $('#bHide').onclick = function () { passage.classList.toggle('blur'); this.textContent = passage.classList.contains('blur') ? '👀 英文を見る' : '🙈 英文を隠す'; };
+    var reciteOk = false;
+    if ($('#bHide')) $('#bHide').onclick = function () {
+      passage.classList.toggle('blur');
+      var on = passage.classList.contains('blur');
+      if (!on) reciteOk = false;   // 読んでいる途中で英文を見たら暗唱ボーナスなし
+      this.textContent = on ? '👀 英文を見る' : '🙈 英文を隠す';
+    };
+    // ---- 1行ずつ表示 ----
+    var lineOn = !!p.lineMode, lineIdx = 0;
+    function lineUnits() { return Array.prototype.filter.call(passage.children, function (el) { return !el.classList.contains('gap'); }); }
+    function applyLine(scroll) {
+      var us = lineUnits(), active = lineOn && lineIdx >= 0 && us.length > 1;
+      if (lineIdx >= us.length) lineIdx = us.length - 1;
+      passage.classList.toggle('line-mode', active);
+      us.forEach(function (el, i) { el.classList.toggle('focus', active && i === lineIdx); });
+      $('#lineNav').classList.toggle('hidden', !active);
+      if (active) {
+        $('#lineCount').textContent = (lineIdx + 1) + ' / ' + us.length + ' 行';
+        $('#bPrevLine').disabled = lineIdx <= 0; $('#bNextLine').disabled = lineIdx >= us.length - 1;
+        if (scroll && us[lineIdx]) us[lineIdx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+    function setPassage(h, showAll) { passage.innerHTML = h; if (showAll) lineIdx = -1; applyLine(false); }
+    $('#bLine').onclick = function () { lineOn = !lineOn; setPref('lineMode', lineOn); this.classList.toggle('on', lineOn); if (lineIdx < 0) lineIdx = 0; applyLine(true); };
+    $('#bSpace').onclick = function () { var on = !passage.classList.contains('spacious'); passage.classList.toggle('spacious', on); setPref('spacious', on); this.classList.toggle('on', on); };
+    $('#bPrevLine').onclick = function () { if (lineIdx > 0) { lineIdx--; applyLine(true); } };
+    $('#bNextLine').onclick = function () { if (lineIdx < lineUnits().length - 1) { lineIdx++; applyLine(true); } };
+    passage.addEventListener('click', function (ev) {
+      if (!passage.classList.contains('line-mode')) return;
+      var us = lineUnits();
+      for (var i = 0; i < us.length; i++) if (us[i].contains(ev.target)) { lineIdx = i === lineIdx && i < us.length - 1 ? i + 1 : i; applyLine(true); return; }
+    });
+    applyLine(false);
+    if ($('#bRepeat')) $('#bRepeat').onclick = function () {
+      state.repeatCtx = { title: opt.title, text: opt.text, ja: opt.ja, back: location.hash || '#/home' };
+      go('#/repeat');
+    };
     if ($('#bJaInline')) $('#bJaInline').onclick = function () {
       var hide = !passage.classList.contains('hide-ja');
       passage.classList.toggle('hide-ja', hide); setPref('hideJa', hide);
@@ -3075,7 +3774,9 @@ window.SAMPLE_ASSIGNMENTS = [
       // 合言葉（毎回変わる）を英文の途中に入れる
       if (settings.phraseCheck) { phrase = Scoring.makePhrase(opt.text); phraseAt = Scoring.phrasePosition(opt.text); }
       else { phrase = ''; phraseAt = 0; }
-      passage.innerHTML = display(previewTokens(), false);
+      lineIdx = 0;
+      setPassage(display(previewTokens(), false));
+      reciteOk = passage.classList.contains('blur');
       if (type === 4) passage.classList.add('mode-shuffle');
       if (type === 3) passage.classList.add('mode-nospace');
       if (type === 5) passage.classList.add('mode-trans');
@@ -3143,10 +3844,11 @@ window.SAMPLE_ASSIGNMENTS = [
       var local = phrase ? Scoring.scoreWithPhrase(opt.text, transcript, phrase, phraseAt) : Scoring.score(opt.text, transcript);
       // はっきりした不正（お手本音声・合言葉なし）はその場で無効にする
       var flag = ttsDetected ? 'tts' : (phrase && local.phrase && local.phrase.matched === 0) ? 'phrase' : '';
-      passage.innerHTML = display(local.tokens, true);
+      setPassage(display(local.tokens, true), true);
       passage.classList.remove('mode-trans', 'mode-shuffle', 'mode-nospace');
       var payload = { aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur,
-        phrase: phrase, phraseAt: phraseAt, flag: flag, type: type };
+        phrase: phrase, phraseAt: phraseAt, flag: flag, type: type,
+        recite: reciteOk && passage.classList.contains('blur'), libId: opt.libId || '', fortune: opt.fortune || '' };
       if (audio && settings.saveAudio) payload.audio = audio;
       if (flag) {
         showCheatWarning(flag);
@@ -3160,7 +3862,7 @@ window.SAMPLE_ASSIGNMENTS = [
       showResult(local, null, true);
       try {
         var r = await call('submit', payload);
-        passage.innerHTML = display(r.result.tokens, true);
+        setPassage(display(r.result.tokens, true), true);
         if (r.flagged && r.definite) {
           showCheatWarning(r.flagged);
           $('#resultArea').innerHTML = '<div class="card result"><div class="cheat-inline">⚠️ この音読は無効になりました</div></div>';
@@ -3175,7 +3877,10 @@ window.SAMPLE_ASSIGNMENTS = [
           showResult(r.result, r, false);
           if (opt.aid && (opt.best === null || opt.best === undefined || r.result.accuracy > opt.best)) { opt.best = r.result.accuracy; }
           if (r.progress && opt.onProgress) opt.onProgress(r.progress, r);
-          if (state.home) state.home.student = r.student;
+          if (state.home) { state.home.student = r.student; if (r.rewards) state.home.rewards = r.rewards; }
+          if (r.rewards) applyLook(r.rewards);
+          if (opt.onDone) opt.onDone(r);
+          showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); });
         }
       } catch (e) {
         showError(e);
@@ -3198,6 +3903,7 @@ window.SAMPLE_ASSIGNMENTS = [
       if (server && server.newBest && opt.aid && opt.best !== null && opt.best !== undefined) html += '<div class="celebrate">⭐ 自己ベスト更新！（前回まで ' + opt.best + '%）</div>';
       if (server && opt.aid && (opt.best === null || opt.best === undefined)) html += '<div class="celebrate">🎉 はじめての記録です！</div>';
       if (server && opt.resultExtra) html += opt.resultExtra(server, r);
+      if (server && server.bonus) html += '<div class="celebrate bonus">🧠 ' + (type === 5 ? '日本語→英語' : '暗唱') + 'ボーナス +' + server.bonus + 'ポイント！（合計 ' + n(server.rewards ? server.rewards.points : 0) + 'pt）</div>';
       html += '<div class="muted" id="saveState">' + (pending ? '記録を保存中…' : '✅ 記録しました（+' + r.correct + '語）') + '</div>';
       html += '<div class="btn-row" style="justify-content:center;margin-top:12px">' +
         '<button class="btn-primary" id="bAgain">🔁 もう一度</button>' +
@@ -3271,7 +3977,7 @@ window.SAMPLE_ASSIGNMENTS = [
         if (nx !== null && pg.types.indexOf(type) > pg.types.indexOf(nx)) type = nx;
       }
       bottomNav('home');
-      practiceView({ title: a.title, text: a.text, ja: a.ja, aid: a.id, contest: a.contest,
+      practiceView({ title: a.title, text: a.text, ja: a.ja, aid: a.id, contest: a.contest, passLine: pg.pass,
         best: pg.bests[type], kind: 'assignment', type: type, blanks: Blanks.parse(a.blanks),
         header: typeHeaderHTML(a, pg, type),
         onProgress: function (np) { var h = $('#typeHeader'); if (h) h.innerHTML = typeHeaderHTML(a, np, type); pg = np; },
@@ -3302,6 +4008,282 @@ window.SAMPLE_ASSIGNMENTS = [
     var pv = todayProverb();
     // 日本語（上）＋英語（下）で表示。日本語は「日本語を隠す」で消せる（判定は英語のみ）
     practiceView({ title: '今日のことわざ', text: pv[1] + '\n' + pv[0], kind: 'proverb' });
+  }
+
+  // ================= 生徒：英文ライブラリ =================
+  var LV_NAME = window.LIBRARY_LEVELS || { 1: '中1', 2: '中2', 3: '中3', 4: '高校' };
+  async function loadLibrary() {
+    var r = await call('library');
+    var hidden = r.hidden || [];
+    var items = (window.LIBRARY || []).filter(function (x) { return hidden.indexOf(x.id) < 0; })
+      .map(function (x) { return { id: x.id, level: x.lv, title: x.title, text: x.en, ja: x.ja, cat: x.cat }; })
+      .concat((r.custom || []).map(function (x) { return { id: x.id, level: x.level, title: x.title, text: x.text, ja: x.ja, cat: '先生から' }; }));
+    state.library = { items: items, read: r.read || [] };
+    return state.library;
+  }
+  async function viewLibrary(level) {
+    bottomNav('lib'); loading();
+    try {
+      level = +level || prefs().libLevel || 1; setPref('libLevel', level);
+      var L = await loadLibrary(), read = L.read;
+      var html = '<div class="card"><div class="card-title"><h2>📚 英文ライブラリ</h2><span class="muted" style="font-size:.85rem">読んだ本数 ' + read.length + '</span></div>' +
+        '<p class="muted" style="margin:0 0 8px">好きな英文を選んで音読しよう。レベルは自由に選べます。</p><div class="seg lv-seg">' +
+        [1, 2, 3, 4].map(function (lv) {
+          var all = L.items.filter(function (x) { return x.level === lv; }), done = all.filter(function (x) { return read.indexOf(x.id) >= 0; }).length;
+          return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + ' <small>' + done + '/' + all.length + '</small></button>';
+        }).join('') + '</div>';
+      var list = L.items.filter(function (x) { return x.level === level; });
+      html += list.length ? '<ul class="list" style="margin-top:10px">' + list.map(function (x) {
+        var done = read.indexOf(x.id) >= 0;
+        return '<li><a class="item" href="#/libitem/' + encodeURIComponent(x.id) + '"><div class="main"><div class="title">' + esc(x.title) + '</div>' +
+          '<div class="sub"><span class="pill gray">' + esc(x.cat) + '</span> ' + Scoring.countWords(x.text) + '語</div></div>' +
+          (done ? '<span class="pill done">✓ 読んだ</span>' : '<span class="pill">はじめて</span>') + '</a></li>';
+      }).join('') + '</ul>' : '<div class="empty">このレベルの英文はまだありません。</div>';
+      html += '</div>';
+      $app.innerHTML = html;
+      $all('.lv-seg button').forEach(function (b) { b.onclick = function () { go('#/lib/' + b.dataset.lv); }; });
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+  async function viewLibItem(id) {
+    loading();
+    try {
+      await ensureHome();
+      var L = state.library || await loadLibrary();
+      var it = L.items.filter(function (x) { return x.id === id; })[0];
+      if (!it) { toast('英文が見つかりません', true); return go('#/lib'); }
+      practiceView({ title: it.title + '（' + LV_NAME[it.level] + '）', text: it.text, ja: it.ja, kind: 'library', libId: it.id, back: '#/lib/' + it.level,
+        onDone: function () { if (state.library && state.library.read.indexOf(it.id) < 0) state.library.read.push(it.id); } });
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ================= 生徒：おみくじ英文 =================
+  var FORTUNES = [['大吉', 15, '最高の一日になりそう！'], ['中吉', 30, 'いいことがありそう！'], ['小吉', 30, 'こつこつがんばると吉！'], ['吉', 25, '笑顔でいると運が開けるよ！']];
+  async function viewOmikuji() {
+    bottomNav('home'); loading();
+    try {
+      await ensureHome();
+      var L = state.library || await loadLibrary();
+      var level = prefs().libLevel || 1;
+      var html = '<a class="back" href="#/home">← もどる</a><div class="card omikuji-card"><h2>🎲 おみくじ英文</h2>' +
+        '<p class="muted">ボタンを押すと、今日のラッキー英文が出てきます。出た英文を読んでみよう！</p>' +
+        '<div class="seg lv-seg">' + [1, 2, 3, 4].map(function (lv) { return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + '</button>'; }).join('') + '</div>' +
+        '<div class="omikuji-box" id="omBox"><div class="omikuji-tube">🎋</div></div>' +
+        '<button class="btn-primary btn-big btn-block" id="bDraw">🎲 おみくじを引く</button></div>';
+      $app.innerHTML = html;
+      $all('.lv-seg button').forEach(function (b) {
+        b.onclick = function () { level = +b.dataset.lv; setPref('libLevel', level); $all('.lv-seg button').forEach(function (x) { x.classList.toggle('active', x === b); }); };
+      });
+      $('#bDraw').onclick = function () {
+        var pool = L.items.filter(function (x) { return x.level === level; });
+        if (!pool.length) pool = L.items;
+        if (!pool.length) { toast('英文がありません', true); return; }
+        var it = pool[Math.floor(Math.random() * pool.length)];
+        var en = enSentences(it.text), ja = splitJaText(String(it.ja || '').replace(/\n/g, ''));
+        var i = Math.floor(Math.random() * en.length), take = (en[i] || '').split(/\s+/).length < 8 && en[i + 1] ? 2 : 1;
+        if (i + take > en.length) i = Math.max(0, en.length - take);
+        var enT = en.slice(i, i + take).join(' '), jaT = ja.length === en.length ? ja.slice(i, i + take).join('') : '';
+        var r = Math.random() * 100, f = FORTUNES[FORTUNES.length - 1];
+        for (var k = 0, acc = 0; k < FORTUNES.length; k++) { acc += FORTUNES[k][1]; if (r < acc) { f = FORTUNES[k]; break; } }
+        var box = $('#omBox'); box.classList.add('shake'); this.disabled = true;
+        var btn = this;
+        setTimeout(function () {
+          box.classList.remove('shake');
+          box.innerHTML = '<div class="omikuji-paper pop-in"><div class="fortune f' + FORTUNES.indexOf(f) + '">' + f[0] + '</div><div class="muted">' + f[2] + '</div>' +
+            (jaT ? '<div class="om-ja">' + esc(jaT) + '</div>' : '') + '<div class="om-en">' + esc(enT) + '</div>' +
+            '<div class="muted" style="font-size:.8rem">出典：' + esc(it.title) + '</div></div>';
+          btn.disabled = false; btn.textContent = '🎲 もう一度引く';
+          var go2 = document.createElement('button');
+          go2.className = 'btn-accent btn-big btn-block'; go2.style.marginTop = '8px'; go2.textContent = '🎤 この英文を読む';
+          go2.onclick = function () {
+            practiceView({ title: 'おみくじ英文（' + f[0] + '）', text: enT, ja: jaT, kind: 'omikuji', fortune: f[0], back: '#/omikuji', noRepeat: true });
+          };
+          var old = $('#bGoRead'); if (old) old.remove();
+          go2.id = 'bGoRead'; btn.insertAdjacentElement('afterend', go2);
+        }, 900);
+      };
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ================= 生徒：リピート練習（お手本を1文聞く → 自分で読む） =================
+  function jaForSentences(text, ja, n) {
+    var list = [];
+    if (ja) list = splitJaText(String(ja).replace(/\n/g, ''));
+    else {
+      String(text).split('\n').forEach(function (line) { if (Scoring.isJaLine && Scoring.isJaLine(line)) list = list.concat(splitJaText(line)); });
+    }
+    return list.length === n ? list : [];
+  }
+  async function viewRepeat() {
+    var c = state.repeatCtx;
+    if (!c) return go('#/home');
+    await ensureHome();
+    bottomNav('none');
+    var sents = enSentences(c.text), jas = jaForSentences(c.text, c.ja, sents.length);
+    if (!sents.length) { toast('英文がありません', true); return go(c.back || '#/home'); }
+    var settings = (state.home && state.home.settings) || { phraseCheck: true };
+    var phrase = settings.phraseCheck ? Scoring.makePhrase(c.text) : '';
+    var steps = sents.map(function (x, i) { return { en: x, ja: jas[i] || '', tr: '', pct: null }; });
+    if (phrase) steps.push({ en: phrase, ja: '最後に合言葉を読もう', tr: '', pct: null, phrase: true });
+    var idx = 0, rec = null, recording = false, startedAt = 0, totalDur = 0, tts = false, ttsTimer = null, done = false;
+    var html = '<a class="back" href="' + esc(c.back || '#/home') + '">← もどる</a><div class="card"><div class="card-title"><h2>🔁 リピート練習</h2><span class="muted">' + esc(c.title || '') + '</span></div>' +
+      '<p class="muted" style="margin:0 0 8px">お手本を1文ずつ聞いて、すぐにまねして読もう。</p>' +
+      '<div class="rp-progress"><div class="bar"><span id="rpBar"></span></div><span id="rpCount"></span></div>' +
+      '<div class="rp-box"><div class="rp-ja" id="rpJa"></div><div class="rp-en passage" id="rpEn"></div><div class="rp-score" id="rpScore"></div></div>' +
+      '<div class="live" id="rpLive"></div>' +
+      '<div class="btn-row" style="justify-content:center;margin-top:8px"><button class="btn-small" id="rpListen">🔊 もう一度聞く</button><button class="btn-small" id="rpRetry">↺ もう一度読む</button><button class="btn-primary" id="rpNext">次へ ▶</button></div>' +
+      '<div class="mic-dock"><button class="mic-btn" id="rpMic" aria-label="読む">🎤</button><div class="mic-text"><div class="mic-label" id="rpLabel"></div></div></div></div>' +
+      '<div id="rpResult"></div>';
+    $app.innerHTML = html;
+    var mic = $('#rpMic'), label = $('#rpLabel'), live = $('#rpLive');
+    function draw() {
+      var st = steps[idx];
+      $('#rpBar').style.width = Math.round(idx / steps.length * 100) + '%';
+      $('#rpCount').textContent = (idx + 1) + ' / ' + steps.length;
+      $('#rpJa').textContent = st.ja;
+      $('#rpEn').innerHTML = st.phrase ? '<span class="w phrase">🔑 ' + esc(st.en) + '</span>' : spansHTML(plainTokens(st.en));
+      $('#rpScore').innerHTML = st.pct === null ? '' : '<b class="' + (st.pct >= 80 ? 'cell-good' : st.pct >= 60 ? 'cell-mid' : 'cell-low') + '">' + st.pct + '%</b>';
+      $('#rpListen').disabled = !!st.phrase;
+      $('#rpNext').textContent = idx === steps.length - 1 ? '結果を見る ✔' : '次へ ▶';
+      $('#rpNext').disabled = !st.tr;
+      live.textContent = st.tr || '';
+    }
+    function listen(then) {
+      var st = steps[idx];
+      if (st.phrase) { label.textContent = '🎤を押して、合言葉を読もう'; if (then) then(); return; }
+      label.textContent = '🔊 お手本を聞いてね…';
+      mic.disabled = true;
+      var fired = false, safety = null;
+      function ended() {
+        if (fired) return; fired = true; clearTimeout(safety);
+        mic.disabled = false; label.textContent = 'あなたの番！ 🎤を押して読もう';
+        if (then) then();
+      }
+      var ok = Speaker.speak(st.en, prefs().rate, CFG.SPEECH_LANG || 'en-US', ended);
+      // 読み上げの終わりが通知されない端末のための保険
+      safety = setTimeout(function () { if (!(window.speechSynthesis && speechSynthesis.speaking)) ended(); else safety = setTimeout(ended, 4000); },
+        st.en.split(/\s+/).length * 600 / (prefs().rate || 0.9) + 1500);
+      if (!ok) { fired = true; clearTimeout(safety); mic.disabled = false; label.textContent = '🎤を押して読もう'; }
+    }
+    function startRec() {
+      if (recording || done) return;
+      Speaker.stop();
+      rec = new Recognizer({ lang: CFG.SPEECH_LANG || 'en-US', onUpdate: function (t) { live.textContent = t || '…'; },
+        onError: function (m) { toast(m, true); stopUI(); } });
+      state.recognizer = rec;
+      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした', true); return; }
+      recording = true; startedAt = Date.now();
+      clearInterval(ttsTimer);
+      ttsTimer = setInterval(function () { if (recording && window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) tts = true; }, 200);
+      mic.classList.add('rec'); mic.textContent = '⏹'; label.textContent = '聞き取り中… 読み終えたら■';
+      live.textContent = '…';
+    }
+    function stopUI() { recording = false; clearInterval(ttsTimer); mic.classList.remove('rec'); mic.textContent = '🎤'; if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; } }
+    async function stopRec() {
+      if (!recording) return;
+      recording = false; clearInterval(ttsTimer);
+      totalDur += Math.round((Date.now() - startedAt) / 1000);
+      mic.disabled = true;
+      var t = await rec.stop(); state.recognizer = null;
+      mic.classList.remove('rec'); mic.textContent = '🎤'; mic.disabled = false;
+      var st = steps[idx];
+      if (!t) { label.textContent = '聞き取れませんでした。もう一度🎤を押してね'; return; }
+      var sc = st.phrase ? Scoring.score(st.en, t) : Scoring.score(st.en, t);
+      if (st.pct === null || sc.accuracy >= st.pct) { st.tr = t; st.pct = sc.accuracy; }
+      draw();
+      if (!st.phrase) $('#rpEn').innerHTML = spansHTML(sc.tokens);
+      label.textContent = sc.accuracy >= 80 ? 'いいね！「次へ」で進もう' : 'もう一度読んでもいいよ（「↺ もう一度読む」）';
+    }
+    mic.onclick = function () { if (recording) stopRec(); else startRec(); };
+    $('#rpListen').onclick = function () { if (!recording) listen(); };
+    $('#rpRetry').onclick = function () { if (!recording) listen(function () { setTimeout(startRec, 250); }); };
+    $('#rpNext').onclick = function () {
+      if (recording) return;
+      if (idx < steps.length - 1) { idx++; draw(); listen(function () { setTimeout(startRec, 250); }); }
+      else finish();
+    };
+    async function finish() {
+      done = true;
+      var body = steps.filter(function (x) { return !x.phrase; });
+      var text = body.map(function (x) { return x.en; }).join(' ');
+      var transcript = body.map(function (x) { return x.tr; }).join(' ') + (phrase ? ' ' + steps[steps.length - 1].tr : '');
+      $('#rpBar').style.width = '100%';
+      $('#rpResult').innerHTML = '<div class="card result"><div class="muted">判定中…</div></div>';
+      try {
+        var r = await call('submit', { text: text, kind: 'repeat', transcript: transcript, duration: totalDur, phrase: phrase,
+          phraseAt: phrase ? Scoring.tokenize(text).length : 0, flag: tts ? 'tts' : '', type: 1 });
+        if (r.flagged) {
+          if (r.definite) showCheatWarning(r.flagged);
+          $('#rpResult').innerHTML = '<div class="card result">' + (r.definite ? '<div class="cheat-inline">⚠️ この音読は無効になりました</div>' : '<div class="pending-title">🔍 先生が確認します</div>') + '</div>';
+          return;
+        }
+        if (state.home) { state.home.student = r.student; state.home.rewards = r.rewards; }
+        var pct = r.result.accuracy;
+        $('#rpResult').innerHTML = '<div class="card result"><h2>🔁 リピート練習 完走！</h2><div class="ring">' + ringSVG(pct) + '<div class="center"><div class="big">' + pct + '<small style="font-size:1.2rem">%</small></div><div class="detail">正確さ</div></div></div>' +
+          '<div class="detail">' + r.result.correct + ' / ' + r.result.total + ' 語 読めました</div>' +
+          '<ul class="rp-list">' + body.map(function (x) { return '<li><span class="' + (x.pct >= 80 ? 'cell-good' : x.pct >= 60 ? 'cell-mid' : 'cell-low') + '">' + x.pct + '%</span> ' + esc(x.en) + '</li>'; }).join('') + '</ul>' +
+          '<div class="muted">✅ 記録しました（+' + r.result.correct + '語）</div>' +
+          '<div class="btn-row" style="justify-content:center;margin-top:10px"><a class="btn btn-primary" href="' + esc(c.back || '#/home') + '">もとの画面へ</a><a class="btn" href="#/home">ホーム</a></div></div>';
+        $('#rpResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); });
+      } catch (e) { showError(e); $('#rpResult').innerHTML = ''; done = false; }
+    }
+    draw();
+    label.textContent = '「🔊 もう一度聞く」でお手本を聞いてから、🎤で読もう';
+    if (!Recognizer.isSupported()) { mic.disabled = true; label.textContent = 'このブラウザは音声認識に対応していません'; }
+  }
+
+  // ================= 生徒：ごほうび（バッジ・スタンプ・着せ替え） =================
+  async function viewRewards(tab) {
+    bottomNav('me'); loading();
+    try {
+      var h = await call('home'); state.home = h;
+      var rw = h.rewards || {}, got = rw.badges || {};
+      tab = tab || 'badges';
+      applyLook(rw);
+      var html = '<a class="back" href="#/me">← きろく</a><div class="card"><h2>🏅 ごほうび</h2>' +
+        '<div class="kpi-inline"><span>バッジ <b>' + Object.keys(got).length + ' / ' + BADGES.length + '</b></span><span>ボーナス <b>' + n(rw.points) + 'pt</b></span>' +
+        '<span>スタンプカード <b>' + (rw.days || 0) + '日</b></span><span>先生スタンプ <b>' + (rw.stamps || []).length + '個</b></span></div>' +
+        '<div class="seg" id="rwTabs" style="margin-top:10px">' + [['badges', 'バッジ'], ['stamps', '先生スタンプ'], ['look', '着せ替え']].map(function (t) {
+          return '<button data-t="' + t[0] + '" class="' + (tab === t[0] ? 'active' : '') + '">' + t[1] + '</button>';
+        }).join('') + '</div></div>';
+      if (tab === 'badges') {
+        html += '<div class="card"><div class="badge-grid">' + BADGES.map(function (b) {
+          if (got[b.id]) return '<div class="badge-card got"><div class="ic">' + b.icon + '</div><div class="nm">' + esc(b.name) + '</div><div class="ds">' + esc(b.desc) + '</div><div class="dt">' + fmtDay(got[b.id]) + '</div></div>';
+          if (b.hidden) return '<div class="badge-card secret"><div class="ic">？</div><div class="nm">ひみつのバッジ</div><div class="ds">条件はないしょ。いろいろ試してみよう！</div></div>';
+          return '<div class="badge-card"><div class="ic">' + b.icon + '</div><div class="nm">' + esc(b.name) + '</div><div class="ds">' + esc(b.desc) + '</div></div>';
+        }).join('') + '</div></div>';
+      } else if (tab === 'stamps') {
+        var st = (rw.stamps || []).slice().reverse();
+        var names = {}; ((window.Core && Core.STAMP_RULES) || []).forEach(function (r) { names[r.id] = r.name; });
+        html += '<div class="card">' + (st.length ? '<div class="stamp-grid">' + st.map(function (x) {
+          return '<div class="stamp-item">' + stampHTML(x, 92) + '<div class="muted">' + fmtDay(x.d) + '</div><div class="ds">' + esc(names[x.r] || '') + '</div></div>';
+        }).join('') + '</div>' : '<div class="empty">まだスタンプはありません。音読を続けると、先生からスタンプが届きます！</div>') + '</div>';
+      } else {
+        var lvIdx = rw.levelIndex || 0, LV = (window.Core && Core.LEVELS) || [];
+        html += '<div class="card"><h3>🎨 テーマの色</h3><p class="muted" style="font-size:.85rem">級・段が上がると、新しい色が使えるようになります。</p><div class="theme-grid">' +
+          ((window.Core && Core.THEMES) || []).map(function (t) {
+            var open = lvIdx >= t.lv;
+            return '<button class="theme-swatch t-' + t.id + (rw.theme === t.id ? ' active' : '') + '" data-th="' + t.id + '"' + (open ? '' : ' disabled') + '>' +
+              '<span class="sw"></span>' + esc(t.name) + (open ? '' : '<small>🔒 ' + esc(LV[t.lv] ? LV[t.lv][1] : '') + '</small>') + '</button>';
+          }).join('') + '</div>' +
+          '<h3 style="margin-top:16px">🙂 アイコン</h3><p class="muted" style="font-size:.85rem">級・段が上がったり、スタンプカードを完成させたりすると増えます。</p><div class="icon-grid">' +
+          '<button class="icon-pick' + (!rw.icon ? ' active' : '') + '" data-ic="">なし</button>' +
+          (rw.icons || []).map(function (ic) { return '<button class="icon-pick' + (rw.icon === ic ? ' active' : '') + '" data-ic="' + esc(ic) + '">' + esc(ic) + '</button>'; }).join('') +
+          '</div></div>';
+      }
+      $app.innerHTML = html;
+      $all('#rwTabs button').forEach(function (b) { b.onclick = function () { viewRewards(b.dataset.t); }; });
+      $all('.theme-swatch').forEach(function (b) {
+        b.onclick = async function () {
+          try { var x = await call('setLook', { theme: b.dataset.th }); applyLook({ theme: x.theme }); viewRewards('look'); } catch (e) { showError(e); }
+        };
+      });
+      $all('.icon-pick').forEach(function (b) {
+        b.onclick = async function () {
+          try { await call('setLook', { icon: b.dataset.ic }); viewRewards('look'); } catch (e) { showError(e); }
+        };
+      });
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
 
   // ================= 生徒：自主練（カメラ取り込み） =================
@@ -3556,10 +4538,11 @@ window.SAMPLE_ASSIGNMENTS = [
         return '<div class="col" title="' + d.date + '：' + d.words + '語"><div class="b' + (d.words ? '' : ' zero') + '" style="height:' + Math.max(2, hgt) + '%"></div><div class="d">' + fmtDay(d.date).split('/')[1] + '</div></div>';
       }).join('') + '</div>' +
         '<div class="kpi-inline" style="margin-top:10px"><span>累計 <b>' + n(s.totalWords) + '</b> 語</span><span>連続 <b>' + s.streak + '</b> 日</span><span>最長連続 <b>' + s.bestStreak + '</b> 日</span><span>級・段 <b>' + esc(s.level.name) + '</b></span></div></div>';
+      html += '<a class="card rewards-link" href="#/rewards"><span style="font-size:1.6rem">🏅</span><div><b>ごほうび</b><div class="muted" style="font-size:.85rem">バッジ・先生スタンプ・着せ替え</div></div><span class="pill">' + Object.keys(((h.rewards || {}).badges) || {}).length + '個</span></a>';
       html += '<div class="card"><h2>📝 音読のきろく</h2>';
       html += r.records.length ? '<div class="table-wrap"><table><thead><tr><th>日時</th><th>内容</th><th class="num">正確さ</th><th class="num">単語</th></tr></thead><tbody>' +
         r.records.map(function (x) {
-          return '<tr><td>' + fmtDate(x.time) + '</td><td>' + (x.kind === '大会' ? '🏆 ' : x.kind === 'ことわざ' ? '🌱 ' : x.kind === '自主練' ? '📖 ' : '') + esc(x.title) + '</td>' +
+          return '<tr><td>' + fmtDate(x.time) + '</td><td>' + ({ '大会': '🏆 ', 'ことわざ': '🌱 ', '自主練': '📖 ', 'ライブラリ': '📚 ', 'おみくじ': '🎲 ', 'リピート': '🔁 ' }[x.kind] || '') + esc(x.title) + '</td>' +
             '<td class="num ' + scoreClass(x.accuracy) + '">' + x.accuracy + '%</td><td class="num">' + x.correct + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<div class="empty">まだきろくがありません。</div>';
       html += '</div>';
@@ -3581,7 +4564,7 @@ window.SAMPLE_ASSIGNMENTS = [
     return '<span class="badge' + (state.flagCount ? '' : ' hidden') + '" data-flagbadge>' + (state.flagCount || 0) + '</span>';
   }
   function teacherTabs(active) {
-    var tabs = [['assign', '課題', '#/t'], ['students', '生徒', '#/t/students'], ['flags', '⚠ 要確認' + flagBadge(), '#/t/flags']];
+    var tabs = [['assign', '課題', '#/t'], ['students', '生徒', '#/t/students'], ['library', '📚 ライブラリ', '#/t/library'], ['flags', '⚠ 要確認' + flagBadge(), '#/t/flags']];
     if (isAdmin()) tabs.push(['admin', '👥 先生・クラス', '#/t/admin']);
     tabs.push(['settings', '設定', '#/t/settings']);
     return '<div class="tabs no-print">' + tabs.map(function (t) {
@@ -4006,7 +4989,11 @@ window.SAMPLE_ASSIGNMENTS = [
       var s = r.student;
       var html = '<a class="back" href="#/t/students">← 生徒一覧</a>';
       html += '<div class="card"><h2>' + esc(s.cls) + ' ' + esc(s.no) + '番 ' + esc(s.name) + (s.nick ? ' <small class="muted">(' + esc(s.nick) + ')</small>' : '') + '</h2>' +
-        '<div class="kpi-inline"><span>級・段 <b>' + esc(s.level.name) + '</b></span><span>累計 <b>' + n(s.totalWords) + '</b> 語</span><span>連続 <b>' + s.streak + '</b> 日</span><span>最長連続 <b>' + s.bestStreak + '</b> 日</span><span>最終 <b>' + (s.lastDate ? fmtDay(s.lastDate) : '—') + '</b></span></div></div>';
+        '<div class="kpi-inline"><span>級・段 <b>' + esc(s.level.name) + '</b></span><span>累計 <b>' + n(s.totalWords) + '</b> 語</span><span>連続 <b>' + s.streak + '</b> 日</span><span>最長連続 <b>' + s.bestStreak + '</b> 日</span><span>最終 <b>' + (s.lastDate ? fmtDay(s.lastDate) : '—') + '</b></span></div>';
+      var rw = r.rewards || {};
+      html += '<div class="kpi-inline" style="margin-top:6px"><span>バッジ <b>' + Object.keys(rw.badges || {}).length + '</b></span><span>ボーナス <b>' + n(rw.points) + 'pt</b></span>' +
+        '<span>スタンプカード <b>' + (rw.days || 0) + '日</b></span><span>今週 <b>' + (rw.weekDays || 0) + '日</b></span><span>ライブラリ <b>' + (rw.read || []).length + '本</b></span></div>' +
+        ((rw.stamps || []).length ? '<div class="mini-stamps">' + rw.stamps.slice(-8).reverse().map(function (x) { return '<span title="' + esc(x.d) + '">' + stampHTML(x, 46) + '</span>'; }).join('') + '</div>' : '') + '</div>';
       html += '<div class="card"><h2>音読のきろく（最新200件）</h2>';
       html += r.records.length ? '<div class="table-wrap"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th class="num">正確さ</th><th class="num">単語</th><th>音声</th></tr></thead><tbody>' +
         r.records.map(function (x, i) {
@@ -4098,6 +5085,11 @@ window.SAMPLE_ASSIGNMENTS = [
           '<label class="check"><input type="checkbox" id="sPhrase"' + (st.phraseCheck ? ' checked' : '') + '>🔑 合言葉チェック（音読の途中に毎回変わる合言葉を読ませる。確認できないと記録しない）</label>' +
           '<label class="check"><input type="checkbox" id="sAudio"' + (st.saveAudio ? ' checked' : '') + '>🎙 音読の音声を保存し、先生画面で再生できるようにする</label>' +
           '<p class="muted" style="font-size:.85rem">お手本音声の検知（判定中にお手本が流れたら記録しない）は常に有効です。音声を保存する場合は、生徒と保護者に事前にお知らせください。</p>' +
+          '<h3 style="margin-top:16px">💌 先生スタンプ（自動）</h3><p class="muted" style="font-size:.85rem">条件を満たした生徒に、先生からのスタンプが自動で届きます。押さない条件はチェックを外してください。</p>' +
+          '<div class="auto-stamps">' + ((window.Core && Core.STAMP_RULES) || []).map(function (r) {
+            return '<label class="auto-stamp"><input type="checkbox" class="sStamp" value="' + r.id + '"' + ((st.autoStamps || []).indexOf(r.id) >= 0 ? ' checked' : '') + '>' +
+              stampHTML(r, 64) + '<span>' + esc(r.name) + '</span></label>';
+          }).join('') + '</div>' +
           '<div style="margin-top:14px"><button class="btn-primary" id="sSave">保存する</button></div></div>';
       } else {
         html += '<div class="card muted">アプリ全体の設定（アプリ名・ランキング・不正防止など）は、管理者が変更できます。</div>';
@@ -4115,7 +5107,8 @@ window.SAMPLE_ASSIGNMENTS = [
       };
       if ($('#sSave')) $('#sSave').onclick = async function () {
         try {
-          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, phraseCheck: $('#sPhrase').checked, saveAudio: $('#sAudio').checked } });
+          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, phraseCheck: $('#sPhrase').checked, saveAudio: $('#sAudio').checked,
+            autoStamps: $all('.sStamp').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }) } });
           state.overview = null; setTitle($('#sTitle').value); toast('保存しました');
         } catch (e) { showError(e); }
       };
@@ -4123,6 +5116,62 @@ window.SAMPLE_ASSIGNMENTS = [
         if (!confirm('デモデータをリセットしますか？')) return;
         API.resetDemo(); logout(true); toast('リセットしました');
       };
+    } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ---- 英文ライブラリの管理 ----
+  async function viewTeacherLibrary(editId) {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var r = await call('t_library'), hidden = r.hidden || [], custom = r.custom || [];
+      var level = +(sessionStorage.getItem('tLibLv') || 1);
+      var editing = editId === 'new' ? { id: '', level: level, title: '', text: '', ja: '' } : custom.filter(function (x) { return x.id === editId; })[0];
+      var html = teacherTabs('library');
+      if (editing) {
+        html += '<div class="card"><h2>' + (editing.id ? '英文を編集' : '英文を追加') + '</h2>' +
+          '<div class="form-row"><div><label for="lbTitle">タイトル</label><input type="text" id="lbTitle" maxlength="80" value="' + esc(editing.title) + '"></div>' +
+          '<div><label for="lbLv">レベル</label><select id="lbLv">' + [1, 2, 3, 4].map(function (lv) { return '<option value="' + lv + '"' + (lv === editing.level ? ' selected' : '') + '>' + LV_NAME[lv] + '</option>'; }).join('') + '</select></div></div>' +
+          '<label for="lbText">英文</label><textarea id="lbText">' + esc(editing.text) + '</textarea>' +
+          '<label for="lbJa">和訳（任意・英文と同じ数の文にすると、1文ずつ組で表示されます）</label><textarea id="lbJa" style="min-height:80px">' + esc(editing.ja) + '</textarea>' +
+          '<p class="muted" style="font-size:.85rem">歌詞や市販の教材の文章など、著作権のある文章は入れないでください。</p>' +
+          '<div class="btn-row"><button class="btn-primary" id="lbSave">保存する</button><a class="btn" href="#/t/library">キャンセル</a>' +
+          (editing.id ? '<button class="btn-danger" id="lbDel">削除</button>' : '') + '</div><div class="error" id="lbErr"></div></div>';
+        $app.innerHTML = html;
+        $('#lbSave').onclick = async function () {
+          var btn = this; btn.disabled = true;
+          try {
+            await call('t_saveLibrary', { item: { id: editing.id, level: +$('#lbLv').value, title: $('#lbTitle').value, text: $('#lbText').value, ja: $('#lbJa').value } });
+            sessionStorage.setItem('tLibLv', $('#lbLv').value); toast('保存しました'); go('#/t/library');
+          } catch (e) { $('#lbErr').textContent = e.message; btn.disabled = false; }
+        };
+        if ($('#lbDel')) $('#lbDel').onclick = async function () {
+          if (!confirm('この英文を削除しますか？')) return;
+          try { await call('t_deleteLibrary', { id: editing.id }); toast('削除しました'); go('#/t/library'); } catch (e) { showError(e); }
+        };
+        return;
+      }
+      var items = (window.LIBRARY || []).map(function (x) { return { id: x.id, level: x.lv, title: x.title, text: x.en, cat: x.cat, builtin: true }; })
+        .concat(custom.map(function (x) { return { id: x.id, level: x.level, title: x.title, text: x.text, cat: '先生が追加', builtin: false }; }));
+      html += '<div class="card"><div class="card-title"><h2>📚 英文ライブラリ</h2><a class="btn btn-primary" href="#/t/library/new">＋ 英文を追加</a></div>' +
+        '<p class="muted" style="font-size:.88rem">生徒が自由に選んで読める英文です（おみくじ英文もここから出ます）。最初から' + (window.LIBRARY || []).length + '本入っています（すべてこのアプリ用に書いたオリジナルの文章です）。表示したくない英文は「非表示」にできます。</p>' +
+        '<div class="seg" id="tLv">' + [1, 2, 3, 4].map(function (lv) {
+          return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + ' <small>' + items.filter(function (x) { return x.level === lv; }).length + '</small></button>';
+        }).join('') + '</div>' +
+        '<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>タイトル</th><th>種類</th><th class="num">語数</th><th>状態</th><th></th></tr></thead><tbody>' +
+        items.filter(function (x) { return x.level === level; }).map(function (x) {
+          var hid = hidden.indexOf(x.id) >= 0;
+          return '<tr><td>' + esc(x.title) + '<details><summary class="muted" style="font-size:.8rem">英文を見る</summary><small>' + esc(x.text) + '</small></details></td><td>' + esc(x.cat) + '</td><td class="num">' + Scoring.countWords(x.text) + '</td>' +
+            '<td>' + (hid ? '<span class="pill gray">非表示</span>' : '<span class="pill done">表示中</span>') + '</td>' +
+            '<td><div class="btn-row" style="flex-wrap:nowrap">' + (x.builtin ? '' : '<a class="btn btn-small" href="#/t/library/' + encodeURIComponent(x.id) + '">編集</a>') +
+            '<button class="btn-small" data-hide="' + esc(x.id) + '" data-on="' + (hid ? '0' : '1') + '">' + (hid ? '表示する' : '非表示') + '</button></div></td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+      $app.innerHTML = html;
+      $all('#tLv button').forEach(function (b) { b.onclick = function () { sessionStorage.setItem('tLibLv', b.dataset.lv); viewTeacherLibrary(); }; });
+      $all('button[data-hide]').forEach(function (b) {
+        b.onclick = async function () {
+          try { await call('t_hideLibrary', { id: b.dataset.hide, hidden: b.dataset.on === '1' }); viewTeacherLibrary(); } catch (e) { showError(e); }
+        };
+      });
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
 
@@ -4261,6 +5310,7 @@ window.SAMPLE_ASSIGNMENTS = [
     if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; }
     Speaker.stop();
     var ov = document.querySelector('.cheat-overlay'); if (ov) ov.remove();
+    var rov = document.querySelector('.reward-overlay'); if (rov) rov.remove();
     $app.classList.remove('wide');
     window.scrollTo(0, 0);
     var hash = location.hash.replace(/^#/, '') || '/';
@@ -4274,6 +5324,11 @@ window.SAMPLE_ASSIGNMENTS = [
         case 'a': return viewAssignment(parts[1], parts[2]);
         case 'proverb': return viewProverb();
         case 'free': return viewFree();
+        case 'lib': return viewLibrary(parts[1]);
+        case 'libitem': return viewLibItem(parts[1]);
+        case 'omikuji': return viewOmikuji();
+        case 'repeat': return viewRepeat();
+        case 'rewards': return viewRewards(parts[1]);
         case 'rank': return viewRank();
         case 'contest': return viewContest(parts[1]);
         case 'me': return viewMe();
@@ -4295,12 +5350,14 @@ window.SAMPLE_ASSIGNMENTS = [
         case 'settings': return viewSettings();
         case 'flags': return viewFlags(false);
         case 'admin': return viewAdmin(parts[2]);
+        case 'library': return viewTeacherLibrary(parts[2]);
         default: return viewTeacher();
       }
     }
   }
 
   setTitle();
+  try { var th0 = (store(SESSION_KEY) || {}).role === 'student' ? prefs().theme : 'blue'; document.documentElement.setAttribute('data-theme', th0 || 'blue'); } catch (e) { /* noop */ }
   if (API.isDemo()) document.getElementById('demoBanner').hidden = false;
   window.addEventListener('hashchange', render);
   render();

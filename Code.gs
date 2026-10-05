@@ -353,6 +353,62 @@
   }
   function monthStart(dateStr) { return dateStr.slice(0, 8) + '01'; }
 
+  // ---------------- ごほうび（バッジ・先生スタンプ・着せ替え） ----------------
+  // hidden: true … 「ひみつのバッジ」（取るまで条件がわからない）
+  var BADGES = [
+    { id: 'first', icon: '🌱', name: 'はじめの一歩', desc: 'はじめて音読した' },
+    { id: 'streak3', icon: '🔥', name: '3日連続', desc: '3日続けて音読した' },
+    { id: 'streak7', icon: '🔥', name: '1週間連続', desc: '7日続けて音読した' },
+    { id: 'streak30', icon: '🏅', name: '30日連続', desc: '30日続けて音読した' },
+    { id: 'perfect', icon: '💯', name: 'パーフェクト', desc: '正確さ100%を出した' },
+    { id: 'perfect10', icon: '💎', name: 'パーフェクト10', desc: '正確さ100%を10回出した' },
+    { id: 'words1000', icon: '📘', name: '1000語', desc: '累計1000語を読んだ' },
+    { id: 'words10000', icon: '📚', name: '1万語', desc: '累計1万語を読んだ' },
+    { id: 'assign', icon: '✅', name: '課題クリア', desc: '課題を達成した' },
+    { id: 'master', icon: '🎓', name: '音読マスター', desc: 'マスターモードをクリアした' },
+    { id: 'recite', icon: '🧠', name: '暗唱チャレンジ', desc: '英文を隠したまま合格した' },
+    { id: 'recite10', icon: '🧠', name: '暗唱名人', desc: '英文を隠したまま10回合格した' },
+    { id: 'trans', icon: '🔄', name: '日本語→英語', desc: '⑤日本語→英語に合格した' },
+    { id: 'trans10', icon: '🌏', name: '通訳名人', desc: '⑤日本語→英語に10回合格した' },
+    { id: 'library5', icon: '📖', name: 'ライブラリ5', desc: 'ライブラリの英文を5本読んだ' },
+    { id: 'library20', icon: '🏛', name: 'ライブラリ20', desc: 'ライブラリの英文を20本読んだ' },
+    { id: 'repeat', icon: '🔁', name: 'リピート完走', desc: 'リピート練習を最後までやった' },
+    { id: 'stamp10', icon: '🎫', name: 'スタンプカード', desc: 'スタンプカードを1枚うめた' },
+    { id: 'omikuji', icon: '🎲', name: 'おみくじ', desc: 'おみくじ英文を読んだ' },
+    { id: 'teacher', icon: '💌', name: '先生からのスタンプ', desc: '先生からスタンプをもらった' },
+    { id: 'early', icon: '🌅', name: '早起き音読', desc: '朝7時より前に音読した', hidden: true },
+    { id: 'daikichi', icon: '🎊', name: '大吉', desc: 'おみくじで大吉を引いて読んだ', hidden: true },
+    { id: 'proverb7', icon: '🍀', name: 'ことわざ好き', desc: 'ことわざを7回読んだ', hidden: true },
+    { id: 'marathon', icon: '🏃', name: '1日1000語', desc: '1日に1000語読んだ', hidden: true },
+    { id: 'five', icon: '✋', name: '1日5回', desc: '1日に5回音読した', hidden: true },
+    { id: 'weekend', icon: '🗓', name: '週末も音読', desc: '土曜と日曜の両方で音読した', hidden: true },
+    { id: 'comeback', icon: '🌈', name: 'おかえり', desc: '1週間以上あいてから、また音読した', hidden: true },
+    { id: 'alltypes', icon: '🎨', name: '全種類制覇', desc: '1つの課題で①〜⑤すべてに合格した', hidden: true },
+    { id: 'shodan', icon: '🥋', name: '初段', desc: '初段になった', hidden: true }
+  ];
+  // 条件を満たすと自動で押される「先生スタンプ」（a：動物、t：スタンプの言葉）
+  var STAMP_RULES = [
+    { id: 'first', a: 'dog', t: 'Welcome!', name: 'はじめて音読したとき' },
+    { id: 'week3', a: 'cat', t: 'Good job!', name: '1週間に3日読んだとき' },
+    { id: 'week5', a: 'rabbit', t: 'Great!', name: '1週間に5日読んだとき' },
+    { id: 'week7', a: 'bear', t: 'Perfect week!', name: '1週間に7日読んだとき' },
+    { id: 'achieve', a: 'chick', t: 'Excellent!', name: '課題を達成したとき' },
+    { id: 'perfect', a: 'panda', t: 'Wonderful!', name: '正確さ100%を出したとき（週1回まで）' },
+    { id: 'comeback', a: 'dog', t: 'Welcome back!', name: '1週間以上あいてから、また読んだとき' }
+  ];
+  // 着せ替え（級・段で解放）lv：LEVELSの番号
+  var THEMES = [
+    { id: 'blue', name: 'ブルー', lv: 0 }, { id: 'sakura', name: 'さくら', lv: 2 }, { id: 'mint', name: 'ミント', lv: 4 },
+    { id: 'sunset', name: 'ゆうやけ', lv: 6 }, { id: 'lavender', name: 'ラベンダー', lv: 8 }, { id: 'ocean', name: 'オーシャン', lv: 10 },
+    { id: 'gold', name: 'ゴールド', lv: 12 }, { id: 'night', name: 'ナイト', lv: 14 }
+  ];
+  var LEVEL_ICONS = ['🐣', '🐥', '🐤', '🐦', '🕊', '🦜', '🦉', '🦢', '🦩', '🦚', '🦅', '🐬', '🐳', '🦄', '🐉', '🦁', '🐯', '🦊', '🐼', '🐨', '👑'];
+  var CARD_ICONS = ['🌸', '🍀', '⭐', '🌈', '🎈', '🍩', '🍉', '🎵', '🍓', '🌻', '🍰', '🚀', '🎁', '🌙', '🍦', '🧸', '🎀', '🪐', '🐠', '🏆'];
+  function iconsUnlocked(levelIdx, days) {
+    var list = LEVEL_ICONS.slice(0, levelIdx + 1);
+    return list.concat(CARD_ICONS.slice(0, Math.min(CARD_ICONS.length, Math.floor(days / 10))));
+  }
+
   // ---------------- ユーティリティ ----------------
   function err(msg) { var e = new Error(msg); e.userMessage = msg; return e; }
   function str(v) { return v === null || v === undefined ? '' : String(v).trim(); }
@@ -372,6 +428,29 @@
       level: lv
     };
   }
+  // ごほうびのデータ（生徒シートの「実績データ」列にJSONで保存）
+  function achOf(s) {
+    var o;
+    try { o = JSON.parse(str(s.ach) || '{}'); } catch (e) { o = {}; }
+    if (!o || typeof o !== 'object') o = {};
+    o.b = o.b || {}; o.c = o.c || {}; o.lib = o.lib || []; o.st = o.st || []; o.sk = o.sk || {};
+    o.p = num(o.p); o.d = num(o.d);
+    return o;
+  }
+  function rewardsPublic(ach, s, today) {
+    var lv = levelOf(num(s.totalWords));
+    return { points: ach.p, badges: ach.b, days: ach.d, stampedToday: ach.ld === today, theme: ach.th || 'blue', icon: ach.ic || '',
+      weekDays: ach.wk === weekStart(today) ? num(ach.wd) : 0, read: ach.lib, counts: ach.c,
+      stamps: ach.st.slice(-40), newStamps: ach.st.filter(function (x) { return x.n; }).length,
+      icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index };
+  }
+  function stampRulesOn(store) {
+    var v = str(store.getSetting('自動スタンプ'));
+    if (!v) return STAMP_RULES.map(function (r) { return r.id; });
+    if (v === 'なし') return [];
+    return v.split(/[,、\s]+/).filter(Boolean);
+  }
+
   // 現在の日時（日本時間 'YYYY-MM-DDTHH:MM'）。処理のたびに handle() で設定
   var NOW_STR = '';
   function isScheduled(a) { return !!str(a.start) && str(a.start).slice(0, 16) > NOW_STR; }
@@ -582,7 +661,8 @@
       showRanking: bool(store.getSetting('ランキングを表示')),
       appTitle: str(store.getSetting('アプリ名')),
       phraseCheck: boolDef(store.getSetting('合言葉チェック'), true),
-      saveAudio: boolDef(store.getSetting('音声を保存'), true)
+      saveAudio: boolDef(store.getSetting('音声を保存'), true),
+      autoStamps: stampRulesOn(store)
     };
   }
   // 不正の判定
@@ -615,7 +695,7 @@
     var pub = studentPublic(s);
     if (pub.todayDate !== today) pub.todayWords = 0;
     if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
-    return { student: pub, assignments: list, settings: settingsForClient(store), today: today };
+    return { student: pub, assignments: list, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today) };
   };
 
   handlers.getAssignment = function (p, store, ctx) {
@@ -642,9 +722,9 @@
       if (aTypes(a).indexOf(type) < 0) throw err('この課題では、その音読の種類は選べません。');
       text = a.text; kind = (bool(a.contest) ? '大会' : '課題') + (type > 1 ? '（' + TYPE_NAME[type] + '）' : '');
     } else {
-      text = str(p.text).slice(0, 3000);
+      text = str(p.text).slice(0, MAX_TEXT);
       if (!text) throw err('英文がありません。');
-      kind = p.kind === 'proverb' ? 'ことわざ' : '自主練';
+      kind = { proverb: 'ことわざ', library: 'ライブラリ', omikuji: 'おみくじ', repeat: 'リピート' }[p.kind] || '自主練';
     }
     var transcript = str(p.transcript).slice(0, 6000);
     var cfg = settingsForClient(store);
@@ -684,6 +764,7 @@
 
     // 生徒の累計を更新
     var before = levelOf(num(s.totalWords));
+    var prevLast = str(s.lastDate), firstToday = r.correct > 0 && prevLast !== today;
     var upd = {};
     upd.totalWords = num(s.totalWords) + r.correct;
     if (r.correct > 0) {
@@ -695,7 +776,6 @@
     }
     upd.todayWords = (str(s.todayDate) === today ? num(s.todayWords) : 0) + r.correct;
     upd.todayDate = today;
-    store.updateStudent(s.id, upd);
     for (var k in upd) s[k] = upd[k];
     var after = levelOf(num(s.totalWords));
 
@@ -718,12 +798,90 @@
       transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
     });
     var after2 = a ? progress(store, s.id, a) : null;
+    var achievedNew = !!(after2 && after2.achieved && !before2.achieved);
+    var masterNew = !!(after2 && after2.masterCleared && !before2.masterCleared);
+
+    // ---- ごほうび（バッジ・ポイント・スタンプカード・先生スタンプ） ----
+    var ach = achOf(s), c = ach.c, newBadges = [], newStamps = [], bonus = 0, ws = weekStart(today);
+    var firstEver = !ach.b.first && num(s.totalWords) - r.correct <= 0;
+    // スタンプカード・今週の日数（その日の最初の音読で1つ）
+    var newDay = r.correct > 0 && ach.ld !== today;
+    if (newDay) {
+      ach.d += 1; ach.ld = today;
+      if (ach.wk !== ws) { ach.wk = ws; ach.wd = 0; }
+      ach.wd = num(ach.wd) + 1;
+    }
+    if (ach.td !== today) { ach.td = today; ach.tn = 0; }
+    ach.tn = num(ach.tn) + 1;
+    function inc(key) { c[key] = num(c[key]) + 1; }
+    if (p.kind === 'proverb' && !aid) inc('pv');
+    if (p.kind === 'omikuji' && !aid) inc('om');
+    if (p.kind === 'repeat' && !aid) inc('rp');
+    if (p.kind === 'library' && !aid) {
+      var lid = str(p.libId).replace(/[^\w-]/g, '').slice(0, 30);
+      if (lid && ach.lib.indexOf(lid) < 0) { ach.lib.push(lid); if (ach.lib.length > 300) ach.lib.shift(); }
+    }
+    if (r.accuracy >= 100) inc('pf');
+    // 暗唱（英文を隠して読む）・⑤日本語→英語の合格でボーナスポイント
+    var thr = a ? passLine(a) : 80;
+    var recite = bool(p.recite) && type !== 5, trans = !!a && type === 5;
+    if ((recite || trans) && r.accuracy >= thr && r.correct > 0) {
+      bonus = r.correct; ach.p += bonus;
+      inc(recite ? 'rc' : 'tr');
+    }
+    function award(id, cond) { if (cond && !ach.b[id]) { ach.b[id] = today; newBadges.push(id); } }
+    award('first', true);
+    award('streak3', num(s.streak) >= 3); award('streak7', num(s.streak) >= 7); award('streak30', num(s.streak) >= 30);
+    award('perfect', num(c.pf) >= 1); award('perfect10', num(c.pf) >= 10);
+    award('words1000', num(s.totalWords) >= 1000); award('words10000', num(s.totalWords) >= 10000);
+    award('assign', !!(after2 && after2.achieved)); award('master', !!(after2 && after2.masterCleared));
+    award('recite', num(c.rc) >= 1); award('recite10', num(c.rc) >= 10);
+    award('trans', num(c.tr) >= 1); award('trans10', num(c.tr) >= 10);
+    award('library5', ach.lib.length >= 5); award('library20', ach.lib.length >= 20);
+    award('repeat', num(c.rp) >= 1); award('stamp10', ach.d >= 10); award('omikuji', num(c.om) >= 1);
+    var hour = (now.getUTCHours() + 9) % 24;
+    award('early', r.correct > 0 && hour >= 4 && hour < 7);
+    award('daikichi', p.kind === 'omikuji' && str(p.fortune) === '大吉' && r.accuracy >= 60);
+    award('proverb7', num(c.pv) >= 7);
+    award('marathon', num(s.todayWords) >= 1000);
+    award('five', ach.tn >= 5);
+    var dow = new Date(today + 'T00:00:00Z').getUTCDay();
+    if (dow === 6 && r.correct > 0) ach.sat = today;
+    award('weekend', dow === 0 && r.correct > 0 && ach.sat === addDays(today, -1));
+    var comeback = firstToday && !!prevLast && prevLast < addDays(today, -7);
+    award('comeback', comeback);
+    award('alltypes', !!(after2 && after2.types.length === 5 && after2.types.every(function (t) { return after2.passes[t] >= 1; })));
+    award('shodan', after.index >= 10);
+    // 先生スタンプ（条件を満たすと自動で押す。同じ条件では1回だけ）
+    var on = stampRulesOn(store);
+    function stamp(ruleId, key, cond) {
+      if (!cond || on.indexOf(ruleId) < 0 || ach.sk[key]) return;
+      var rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0];
+      ach.sk[key] = 1;
+      ach.st.push({ a: rule.a, t: rule.t, r: ruleId, d: today, n: 1 });
+      newStamps.push({ a: rule.a, t: rule.t, r: ruleId });
+    }
+    stamp('first', 'first', firstEver && r.correct > 0);
+    stamp('week3', 'w3:' + ws, newDay && ach.wd === 3);
+    stamp('week5', 'w5:' + ws, newDay && ach.wd === 5);
+    stamp('week7', 'w7:' + ws, newDay && ach.wd === 7);
+    stamp('achieve', 'a:' + aid, achievedNew);
+    stamp('perfect', 'pf:' + ws, r.accuracy >= 100);
+    stamp('comeback', 'cb:' + today, comeback);
+    award('teacher', ach.st.length >= 1);
+    // 古い記録を整理（データが大きくなりすぎないように）
+    if (ach.st.length > 60) ach.st = ach.st.slice(-60);
+    var sk = Object.keys(ach.sk);
+    if (sk.length > 150) sk.slice(0, sk.length - 150).forEach(function (x) { delete ach.sk[x]; });
+    upd.ach = JSON.stringify(ach); s.ach = upd.ach;
+    store.updateStudent(s.id, upd);
+
     return {
-      progress: after2, masterNew: !!(after2 && after2.masterCleared && !before2.masterCleared),
-      achievedNew: !!(after2 && after2.achieved && !before2.achieved),
+      progress: after2, masterNew: masterNew, achievedNew: achievedNew,
       passed: a ? r.accuracy >= passLine(a) : null,
       result: r, student: studentPublic(s), newBest: newBest,
-      levelUp: after.index > before.index ? after.name : null
+      levelUp: after.index > before.index ? after.name : null,
+      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today)
     };
   };
 
@@ -796,6 +954,76 @@
     });
     for (var i = 13; i >= 0; i--) { var d = addDays(today, -i); days.push({ date: d, words: map[d] || 0 }); }
     return { records: recs, days: days };
+  };
+
+  // ---- 着せ替え（テーマ色・アイコン） ----
+  handlers.setLook = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var ach = achOf(s), lv = levelOf(num(s.totalWords));
+    if (p.theme !== undefined) {
+      var th = THEMES.filter(function (t) { return t.id === p.theme; })[0];
+      if (!th) throw err('そのテーマはありません。');
+      if (lv.index < th.lv) throw err('そのテーマは「' + LEVELS[th.lv][1] + '」になると使えます。');
+      ach.th = th.id;
+    }
+    if (p.icon !== undefined) {
+      var ic = str(p.icon);
+      if (ic && iconsUnlocked(lv.index, ach.d).indexOf(ic) < 0) throw err('そのアイコンはまだ使えません。');
+      ach.ic = ic;
+    }
+    store.updateStudent(s.id, { ach: JSON.stringify(ach) });
+    return { theme: ach.th || 'blue', icon: ach.ic || '' };
+  };
+  // ---- 届いた先生スタンプを「見た」にする ----
+  handlers.seenStamps = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    var ach = achOf(s), changed = false;
+    ach.st.forEach(function (x) { if (x.n) { delete x.n; changed = true; } });
+    if (changed) store.updateStudent(s.id, { ach: JSON.stringify(ach) });
+    return {};
+  };
+  // ---- 英文ライブラリ（先生が追加したもの・非表示にしたもの） ----
+  function libraryHidden(store) { return str(store.getSetting('ライブラリ非表示')).split(',').filter(Boolean); }
+  function libPublic(x) { return { id: str(x.id), level: num(x.level) || 1, title: str(x.title), text: str(x.text), ja: str(x.ja), cat: '先生から' }; }
+  handlers.library = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx);
+    return { custom: (store.getLibrary ? store.getLibrary() : []).map(libPublic), hidden: libraryHidden(store), read: achOf(s).lib };
+  };
+  handlers.t_library = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    return { custom: (store.getLibrary ? store.getLibrary() : []).map(function (x) { var o = libPublic(x); o.owner = str(x.owner); return o; }), hidden: libraryHidden(store) };
+  };
+  handlers.t_saveLibrary = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var it = p.item || {};
+    var title = str(it.title).slice(0, 80), text = str(it.text), lv = Math.round(num(it.level));
+    if (!title) throw err('タイトルを入力してください。');
+    if (!text || !Sc.countWords(text)) throw err('英文を入力してください。');
+    if (text.length > 3000 || str(it.ja).length > 3000) throw err('ライブラリの英文・和訳は3000文字以内にしてください。');
+    if (lv < 1 || lv > 4) lv = 1;
+    var data = { level: lv, title: title, text: text, ja: str(it.ja) };
+    if (it.id) {
+      var cur = store.getLibrary().filter(function (x) { return str(x.id) === str(it.id); })[0];
+      if (!cur) throw err('見つかりません。');
+      store.updateLibrary(str(it.id), data);
+      return { id: str(it.id) };
+    }
+    var id = 'c' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    data.id = id; data.owner = me.id; data.created = ctx.now().toISOString();
+    store.addLibrary(data);
+    return { id: id };
+  };
+  handlers.t_deleteLibrary = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    store.deleteLibrary(str(p.id));
+    return {};
+  };
+  handlers.t_hideLibrary = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var id = str(p.id).replace(/[^\w-]/g, ''), list = libraryHidden(store).filter(function (x) { return x !== id; });
+    if (p.hidden) list.push(id);
+    store.setSetting('ライブラリ非表示', list.join(','));
+    return { hidden: list };
   };
 
   handlers.setNick = function (p, store, ctx) {
@@ -998,7 +1226,7 @@
         flag: str(r.flag), audio: str(r.audio), reviewed: str(r.reviewed), rid: rid(r) };
     });
     var pub = studentPublic(s); pub.name = str(s.name);
-    return { student: pub, records: recs };
+    return { student: pub, records: recs, rewards: rewardsPublic(achOf(s), s, jstDate(ctx.now())) };
   };
 
   handlers.t_export = function (p, store, ctx) {
@@ -1062,6 +1290,10 @@
     if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
     if ('phraseCheck' in st) store.setSetting('合言葉チェック', st.phraseCheck ? 'TRUE' : 'FALSE');
     if ('saveAudio' in st) store.setSetting('音声を保存', st.saveAudio ? 'TRUE' : 'FALSE');
+    if ('autoStamps' in st) {
+      var ids = [].concat(st.autoStamps || []).filter(function (x) { return STAMP_RULES.some(function (r) { return r.id === x; }); });
+      store.setSetting('自動スタンプ', ids.length ? ids.join(',') : 'なし');
+    }
     return {};
   };
 
@@ -1259,7 +1491,7 @@
     return { mime: a.mime, b64: a.b64 };
   };
 
-  var WRITE_ACTIONS = { submit: 1, setNick: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1 };
 
@@ -1277,7 +1509,8 @@
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS };
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS,
+    BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
@@ -1291,7 +1524,7 @@ var SHEETS = {
     ['cls', 'クラス', '@'], ['no', '番号', '0'], ['name', '名前', '@'], ['pass', 'パスコード', '@'],
     ['nick', 'ニックネーム', '@'], ['totalWords', '累計単語数', '0'], ['streak', '連続日数', '0'],
     ['bestStreak', '最長連続日数', '0'], ['lastDate', '最終音読日', '@'], ['todayDate', '今日の日付', '@'],
-    ['todayWords', '今日の単語数', '0']] },
+    ['todayWords', '今日の単語数', '0'], ['ach', '実績データ（自動）', '@']] },
   assignments: { name: '課題', cols: [
     ['id', '課題ID', '@'], ['title', 'タイトル', '@'], ['text', '英文', '@'], ['ja', '和訳', '@'],
     ['classes', '対象クラス', '@'], ['due', '締切', '@'], ['contest', '音読大会', 'check'],
@@ -1309,7 +1542,9 @@ var SHEETS = {
   teachers: { name: '先生', cols: [
     ['id', 'ログインID', '@'], ['name', '名前', '@'], ['pass', 'パスワード（暗号化）', '@'], ['role', '役割（admin＝管理者）', '@'],
     ['classes', '担当クラス', '@'], ['active', '有効', 'check'], ['created', '作成日時', '@']] },
-  classes: { name: 'クラス', cols: [['name', 'クラス', '@'], ['count', '人数', '0']] }
+  classes: { name: 'クラス', cols: [['name', 'クラス', '@'], ['count', '人数', '0']] },
+  library: { name: 'ライブラリ', cols: [['id', 'ID', '@'], ['level', 'レベル（1中1・2中2・3中3・4高校）', '0'], ['title', 'タイトル', '@'],
+    ['text', '英文', '@'], ['ja', '和訳', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] }
 };
 
 var DEFAULT_SETTINGS = [
@@ -1319,7 +1554,9 @@ var DEFAULT_SETTINGS = [
   ['ログイン有効日数', '30', '生徒が再ログインせずに使える日数'],
   ['合言葉チェック', 'TRUE', 'TRUE：音読の途中に毎回変わる合言葉を読ませ、確認できない場合は記録しない'],
   ['音声を保存', 'TRUE', 'TRUE：音読の音声をGoogleドライブに保存し、先生画面で再生できる'],
-  ['音声の保存日数', '60', 'メニュー「古い音声を削除」で、この日数より古い音声をゴミ箱へ移す']
+  ['音声の保存日数', '60', 'メニュー「古い音声を削除」で、この日数より古い音声をゴミ箱へ移す'],
+  ['自動スタンプ', '', '条件を満たした生徒に自動で押す先生スタンプ（空欄：すべて / なし：押さない）'],
+  ['ライブラリ非表示', '', '生徒に表示しない、最初から入っているライブラリ英文のID']
 ];
 
 function ss_() {
@@ -1340,6 +1577,12 @@ function SheetStore() { this.cache = {}; this.book = ss_(); }
 
 SheetStore.prototype.sheet = function (k) {
   var sh = this.book.getSheetByName(SHEETS[k].name);
+  if (!sh && k === 'library') {
+    // あとから追加したシートは、なければ自動で作る
+    sh = this.book.insertSheet(SHEETS[k].name);
+    sh.getRange(1, 1, 1, SHEETS[k].cols.length).setValues([SHEETS[k].cols.map(function (c) { return c[1]; })]).setFontWeight('bold').setBackground('#e3f1f6');
+    sh.setFrozenRows(1);
+  }
   if (!sh) throw new Error('「' + SHEETS[k].name + '」シートがありません。メニューの「音読アプリ」→「初期設定」を実行してください。');
   return sh;
 };
@@ -1391,6 +1634,18 @@ SheetStore.prototype.updateStudent = function (id, f) {
 SheetStore.prototype.addStudent = function (s) {
   this.writeRow('students', s);
   this.load('students').push(s);
+};
+
+// 英文ライブラリ（先生が追加したもの）
+SheetStore.prototype.getLibrary = function () { return this.load('library').filter(function (x) { return x.id; }); };
+SheetStore.prototype.addLibrary = function (x) { this.writeRow('library', x); this.load('library').push(x); };
+SheetStore.prototype.updateLibrary = function (id, f) {
+  var l = this.getLibrary();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('library', l[i]); }
+};
+SheetStore.prototype.deleteLibrary = function (id) {
+  var l = this.getLibrary();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.sheet('library').deleteRow(l[i]._row); this.cache.library = null; return; }
 };
 
 // 課題
