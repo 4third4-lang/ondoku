@@ -1011,15 +1011,19 @@
           created: str(a.created), best: b ? num(b.best) : null, attempts: pg.attempts,
           types: pg.types, bests: pg.bests, master: pg.master, pass: pg.pass,
           clearedSteps: pg.clearedSteps, masterCleared: pg.masterCleared,
-          achieved: pg.achieved, totalPasses: pg.totalPasses, need: pg.need,
+          achieved: pg.achieved, totalPasses: pg.totalPasses, need: pg.need, folder: str(a.folder),
           detail: assignmentDetail(a, b, pg) // 課題を開いたときにすぐ表示できるよう、本文などもいっしょに送る
         };
       });
     list.sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
+    var used = {};
+    list.forEach(function (a) { if (a.folder) used[a.folder] = 1; });
+    var folders = foldersFor(store, used), fm = folderMap(folders);
+    list.forEach(function (a) { if (a.folder && !fm[a.folder]) a.folder = ''; }); // 消えたフォルダ → その他
     var pub = studentPublic(s);
     if (pub.todayDate !== today) pub.todayWords = 0;
     if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
-    return { student: pub, assignments: list, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today, store), live: liveForStudent(store, s, ctx.now()) };
+    return { student: pub, assignments: list, folders: folders, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today, store), live: liveForStudent(store, s, ctx.now()) };
   };
 
   handlers.getAssignment = function (p, store, ctx) {
@@ -1533,7 +1537,7 @@
         owner: str(a.owner), ownerName: tname[str(a.owner)] || '', canEdit: canEditAssignment(me, a),
         start: str(a.start), scheduled: isScheduled(a), achieved: achievedN,
         mine: str(a.owner) === me.id || splitClasses(a.classes).some(function (c) { return me.classes.indexOf(c) >= 0; }),
-        targets: targets.length, done: done, avg: avg, passCount: passNeed(a)
+        targets: targets.length, done: done, avg: avg, passCount: passNeed(a), folder: str(a.folder)
       };
     }).sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
     var weekSince = weekStart(today);
@@ -1553,7 +1557,8 @@
     });
     var settings = settingsForClient(store);
     return { assignments: assignments, students: list, classes: classList(store).map(function (c) { return c.name; }), today: today, settings: settings,
-      openFlags: openFlags(store, today) + pendingPics(store, me).length, me: me };
+      openFlags: openFlags(store, today) + pendingPics(store, me).length, me: me,
+      folders: folderList(store).map(function (f) { return folderPublic(f, me, tname); }) };
   };
 
   handlers.t_getAssignment = function (p, store, ctx) {
@@ -1564,7 +1569,7 @@
       id: a.id, title: a.title, text: a.text, ja: str(a.ja), classes: str(a.classes),
       due: str(a.due), contest: bool(a.contest), published: bool(a.published),
       types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal', pass: passLine(a), passCount: passNeed(a), blanks: str(a.blanks),
-      start: str(a.start), canEdit: canEditAssignment(me, a)
+      start: str(a.start), canEdit: canEditAssignment(me, a), folder: str(a.folder)
     } };
   };
 
@@ -1594,6 +1599,7 @@
     data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 8000);
     data.start = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str(a.start)) ? str(a.start).slice(0, 16) : '';
     if (data.start && data.due && data.due < data.start.slice(0, 10)) throw err('締切が開始日時より前になっています。');
+    if (a.folder !== undefined) data.folder = folderMap(folderList(store))[str(a.folder)] ? str(a.folder) : '';
     // 権限：担当クラスにだけ出せる（全員向けは管理者のみ）
     var cls = splitClasses(data.classes);
     if (!me.admin) {
@@ -1620,6 +1626,100 @@
     if (da && !canEditAssignment(me, da)) throw err('この課題を削除する権限がありません。');
     store.deleteAssignment(str(p.aid));
     return {};
+  };
+
+  // ================= 課題フォルダ =================
+  // いちばん上のフォルダ（例：教材A）の中に、サブフォルダを3階層まで作れる（合わせて4階層）
+  var FOLDER_DEPTH = 4;
+  var DEPTH_MSG = 'フォルダは、いちばん上のフォルダの中に3階層までしか作れません。';
+  function folderList(store) { return store.getFolders ? store.getFolders() : []; }
+  function folderMap(list) { var m = {}; list.forEach(function (f) { m[str(f.id)] = f; }); return m; }
+  function folderDepth(m, id) { var d = 0, seen = {}; id = str(id); while (id && m[id] && !seen[id]) { seen[id] = 1; d++; id = str(m[id].parent); } return d; }
+  function folderHeight(list, id, seen) {
+    seen = seen || {}; if (seen[id]) return 0; seen[id] = 1;
+    return 1 + list.filter(function (f) { return str(f.parent) === id; })
+      .reduce(function (mx, k) { return Math.max(mx, folderHeight(list, str(k.id), seen)); }, 0);
+  }
+  function folderUnder(m, id, anc) { var seen = {}; id = str(id); while (id && m[id] && !seen[id]) { if (id === anc) return true; seen[id] = 1; id = str(m[id].parent); } return false; }
+  function folderCanEdit(me, f) { return !!(me.admin || str(f.owner) === me.id); }
+  function folderPublic(f, me, tname) {
+    var o = { id: str(f.id), name: str(f.name), parent: str(f.parent) };
+    if (me) { o.owner = str(f.owner); o.ownerName = (tname && tname[o.owner]) || ''; o.canEdit = folderCanEdit(me, f); }
+    return o;
+  }
+  // 生徒に見せるフォルダ：見える課題が入っているフォルダと、その上のフォルダだけ
+  function foldersFor(store, used) {
+    var list = folderList(store), m = folderMap(list), need = {};
+    Object.keys(used).forEach(function (id) { var seen = {}; while (id && m[id] && !seen[id]) { seen[id] = need[id] = 1; id = str(m[id].parent); } });
+    return list.filter(function (f) { return need[str(f.id)]; }).map(function (f) { return folderPublic(f); });
+  }
+  function moveFolder(store, me, list, m, id, parent) {
+    var cur = m[id];
+    if (!cur) throw err('フォルダが見つかりません。');
+    if (!folderCanEdit(me, cur)) throw err('「' + str(cur.name) + '」フォルダを変更する権限がありません（作った先生か管理者だけが変更できます）。');
+    if (parent && !m[parent]) throw err('移動先のフォルダが見つかりません。');
+    if (parent === id || folderUnder(m, parent, id)) throw err('フォルダを、そのフォルダ自身の中には移動できません。');
+    if (folderDepth(m, parent) + folderHeight(list, id) > FOLDER_DEPTH) throw err(DEPTH_MSG);
+    var name = str(cur.name);
+    if (list.some(function (x) { return str(x.parent) === parent && str(x.name) === name && str(x.id) !== id; })) throw err('移動先に同じ名前のフォルダ「' + name + '」があります。');
+    store.updateFolder(id, { parent: parent });
+    cur.parent = parent;
+  }
+
+  handlers.t_saveFolder = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var f = p.folder || {}, id = str(f.id), name = str(f.name).replace(/\s+/g, ' ').trim().slice(0, 40), parent = str(f.parent);
+    if (!name) throw err('フォルダの名前を入力してください。');
+    var list = folderList(store), m = folderMap(list);
+    if (parent && !m[parent]) throw err('入れる先のフォルダが見つかりません。');
+    if (list.some(function (x) { return str(x.parent) === parent && str(x.name) === name && str(x.id) !== id; })) throw err('同じ場所に「' + name + '」フォルダがすでにあります。');
+    if (id) {
+      if (!m[id]) throw err('フォルダが見つかりません。');
+      if (!folderCanEdit(me, m[id])) throw err('このフォルダを変更する権限がありません（作った先生か管理者だけが変更できます）。');
+      if (parent !== str(m[id].parent)) moveFolder(store, me, list, m, id, parent);
+      store.updateFolder(id, { name: name });
+      return { id: id };
+    }
+    if (folderDepth(m, parent) + 1 > FOLDER_DEPTH) throw err(DEPTH_MSG);
+    do { id = 'F' + ctx.now().getTime().toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase(); } while (m[id]);
+    store.addFolder({ id: id, name: name, parent: parent, owner: me.id, created: ctx.now().toISOString() });
+    return { id: id };
+  };
+
+  // フォルダを消す：中の課題とサブフォルダは、ひとつ上のフォルダへ出す（課題は消えない）
+  handlers.t_deleteFolder = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var id = str(p.fid), list = folderList(store), m = folderMap(list), f = m[id];
+    if (!f) throw err('フォルダが見つかりません。');
+    if (!folderCanEdit(me, f)) throw err('このフォルダを削除する権限がありません（作った先生か管理者だけが削除できます）。');
+    var up = str(f.parent), movedA = 0, movedF = 0;
+    store.getAssignments().forEach(function (a) { if (str(a.folder) === id) { store.updateAssignment(a.id, { folder: up }); movedA++; } });
+    list.forEach(function (x) {
+      if (str(x.parent) !== id) return;
+      var nm = str(x.name), dup = list.some(function (y) { return y !== x && str(y.parent) === up && str(y.name) === nm; });
+      store.updateFolder(str(x.id), dup ? { parent: up, name: (nm + '（' + str(f.name) + '）').slice(0, 40) } : { parent: up }); movedF++;
+    });
+    store.deleteFolder(id);
+    return { movedAssignments: movedA, movedFolders: movedF };
+  };
+
+  // まとめて移動（課題 aids と フォルダ fids を、folder の中へ。folder が空なら「その他（フォルダなし）」へ）
+  handlers.t_moveToFolder = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var to = str(p.folder), list = folderList(store), m = folderMap(list);
+    if (to && !m[to]) throw err('移動先のフォルダが見つかりません。');
+    var moved = 0, skipped = [];
+    [].concat(p.aids || []).slice(0, 500).forEach(function (aid) {
+      var a = store.getAssignment(str(aid)); if (!a) return;
+      if (!canEditAssignment(me, a)) { skipped.push(str(a.title)); return; }
+      if (str(a.folder) !== to) { store.updateAssignment(a.id, { folder: to }); }
+      moved++;
+    });
+    [].concat(p.fids || []).slice(0, 100).forEach(function (fid) {
+      fid = str(fid); if (!m[fid] || str(m[fid].parent) === to) return;
+      moveFolder(store, me, list, m, fid, to); moved++;
+    });
+    return { moved: moved, skipped: skipped };
   };
 
   // 課題の音読記録の集計（全回の平均・合計時間）。無効になった記録（不正・未確認）は数えない
@@ -2145,7 +2245,7 @@
     return { mime: a.mime, b64: a.b64 };
   };
 
-  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1, t_saveFolder: 1, t_deleteFolder: 1, t_moveToFolder: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
     t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
@@ -2165,7 +2265,7 @@
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
     weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit,
-    BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
+    FOLDER_DEPTH: FOLDER_DEPTH, BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
@@ -2184,7 +2284,9 @@ var SHEETS = {
     ['id', '課題ID', '@'], ['title', 'タイトル', '@'], ['text', '英文', '@'], ['ja', '和訳', '@'],
     ['classes', '対象クラス', '@'], ['due', '締切', '@'], ['contest', '音読大会', 'check'],
     ['published', '公開', 'check'], ['created', '作成日時', '@'], ['words', '単語数', '0'],
-    ['types', '音読の種類', '@'], ['mode', 'モード', '@'], ['blanks', '穴あき位置', '@'], ['pass', '合格ライン', '0'], ['owner', '作成した先生', '@'], ['start', '開始日時', '@'], ['passCount', '合格回数', '0']] },
+    ['types', '音読の種類', '@'], ['mode', 'モード', '@'], ['blanks', '穴あき位置', '@'], ['pass', '合格ライン', '0'], ['owner', '作成した先生', '@'], ['start', '開始日時', '@'], ['passCount', '合格回数', '0'], ['folder', 'フォルダID', '@']] },
+  folders: { name: '課題フォルダ', cols: [['id', 'ID', '@'], ['name', 'フォルダ名', '@'], ['parent', '親フォルダID（空欄＝いちばん上）', '@'],
+    ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] },
   records: { name: '記録', cols: [
     ['time', '日時', '@'], ['date', '日付', '@'], ['sid', '生徒ID', '@'], ['aid', '課題ID', '@'],
     ['kind', '種別', '@'], ['accuracy', '正確さ(%)', '0.0'], ['correct', '読めた単語数', '0'],
@@ -2240,7 +2342,7 @@ function fmtCell_(v, key) {
  * ・書き込む処理（ロック中）は必ずシートから読み、書いたあとの最新データをキャッシュに入れ直します。
  * ・キャッシュは「世代番号」つきで保存し、書き込みのたびに世代を新しくします（古いデータは使われません）。
  * ・スプレッドシートを手で編集したときは onEdit で世代を新しくします。行の削除などは最長10分で反映されます。 */
-var CACHED_SHEETS_ = ['students', 'settings', 'assignments', 'classes', 'teachers', 'library', 'bests', 'stamps', 'lives'];
+var CACHED_SHEETS_ = ['students', 'settings', 'assignments', 'classes', 'teachers', 'library', 'bests', 'stamps', 'lives', 'folders'];
 var CACHE_TTL_ = 600, CACHE_CHUNK_ = 30000;
 function sc_() { try { return CacheService.getScriptCache(); } catch (e) { return null; } }
 function newGen_() { return Date.now().toString(36) + Math.floor(Math.random() * 1e8).toString(36); }
@@ -2321,7 +2423,7 @@ SheetStore.prototype.publishCache_ = function () {
 
 SheetStore.prototype.sheet = function (k) {
   var sh = this.book_().getSheetByName(SHEETS[k].name);
-  if (!sh && (k === 'library' || k === 'stamps' || k === 'lives' || k === 'pics')) {
+  if (!sh && (k === 'library' || k === 'stamps' || k === 'lives' || k === 'pics' || k === 'folders')) {
     // あとから追加したシートは、なければ自動で作る
     try { sh = this.book_().insertSheet(SHEETS[k].name); }
     catch (e) { sh = this.book_().getSheetByName(SHEETS[k].name); if (!sh) throw e; return sh; } // 同時に作られたとき
@@ -2368,6 +2470,13 @@ SheetStore.prototype.load = function (k) {
 };
 SheetStore.prototype.writeRow = function (k, obj) {
   var cols = SHEETS[k].cols, sh = this.sheet(k);
+  // あとから増えた列（課題の「フォルダID」など）は、見出しがなければ書き足す
+  this.headOk_ = this.headOk_ || {};
+  if (!this.headOk_[k]) {
+    this.headOk_[k] = true;
+    var lc = sh.getLastColumn();
+    if (lc < cols.length) sh.getRange(1, lc + 1, 1, cols.length - lc).setValues([cols.slice(lc).map(function (c) { return c[1]; })]).setFontWeight('bold').setBackground('#e3f1f6');
+  }
   // 文字の列（クラス名など）は、スプレッドシートが日付や数値に自動変換しないよう「書式なしテキスト」にしてから書く
   var row = cols.map(function (c) { var v = obj[c[0]]; v = v === undefined || v === null ? '' : v; return c[2] === '@' && v !== '' ? String(v) : v; });
   var fmts = cols.map(function (c) { return c[2] === 'check' ? 'General' : c[2]; });
@@ -2467,6 +2576,18 @@ SheetStore.prototype.updateLive = function (id, f) {
 SheetStore.prototype.deleteLive = function (id) {
   var l = this.getLives();
   for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('lives', l[i]._row); return; }
+};
+
+// 課題フォルダ
+SheetStore.prototype.getFolders = function () { return this.load('folders').filter(function (x) { return x.id; }); };
+SheetStore.prototype.addFolder = function (x) { this.writeRow('folders', x); this.load('folders').push(x); };
+SheetStore.prototype.updateFolder = function (id, f) {
+  var l = this.getFolders();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('folders', l[i]); }
+};
+SheetStore.prototype.deleteFolder = function (id) {
+  var l = this.getFolders();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('folders', l[i]._row); return; }
 };
 
 // 課題
