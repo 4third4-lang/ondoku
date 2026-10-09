@@ -335,6 +335,83 @@
 })(typeof globalThis !== "undefined" ? globalThis : this);
 
 /*
+ * スタンプの一覧（このアプリ用のオリジナルデザイン）
+ *  k：種類 st＝ゆるかわステッカー / hk＝先生のハンコ / pp＝キラキラ・ポップ / lv＝ライブ表彰
+ *  rules：自動で押すときの条件（この中からランダムに1つ選ばれます）
+ *  絵は js/art.js の Art.design() で描きます。サーバー（Apps Script）にも同じ一覧が入ります。
+ */
+(function (root) {
+  'use strict';
+  var L = [
+    // ---- はじめて音読したとき ----
+    { id: 'st01', k: 'st', sp: 'dog', po: 'wave', ex: 'sparkle', t: 'Welcome!', c: '#ff6b6b', rules: ['first'] },
+    { id: 'st02', k: 'st', sp: 'chick', po: 'banzai', ex: 'happy', t: 'はじめの一歩！', c: '#f08c00', rules: ['first'] },
+    { id: 'pp01', k: 'pp', sh: 'ribbon', t: 'Nice start!', c1: '#ff8787', c2: '#ffa94d', rules: ['first'] },
+    { id: 'hk01', k: 'hk', sh: 'circle', t: 'ようこそ', ink: '#e03131', rot: -8, rules: ['first'] },
+    { id: 'st03', k: 'st', sp: 'hamster', po: 'heart', ex: 'happy', t: 'よろしくね！', c: '#e64980', rules: ['first'] },
+    // ---- 1週間に3日 ----
+    { id: 'st04', k: 'st', sp: 'cat', po: 'wave', ex: 'happy', t: 'Good job!', c: '#f76707', rules: ['week3'] },
+    { id: 'st05', k: 'st', sp: 'frog', po: 'banzai', ex: 'happy', t: 'いいね！', c: '#2b8a3e', rules: ['week3'] },
+    { id: 'hk02', k: 'hk', sh: 'circle', t: 'Good!', ink: '#e03131', rot: 6, face: 'bear', rules: ['week3'] },
+    { id: 'pp02', k: 'pp', sh: 'bubble', t: 'その調子！', c1: '#d0ebff', c2: '#1c7ed6', rules: ['week3'] },
+    { id: 'st06', k: 'st', sp: 'shiba', po: 'star', ex: 'sparkle', t: 'Keep going!', c: '#e8590c', rules: ['week3'] },
+    // ---- 1週間に5日 ----
+    { id: 'st07', k: 'st', sp: 'rabbit', po: 'banzai', ex: 'sparkle', t: 'すごい！', c: '#e64980', rules: ['week5'] },
+    { id: 'st08', k: 'st', sp: 'penguin', po: 'heart', ex: 'happy', t: 'Great!', c: '#1971c2', rules: ['week5'] },
+    { id: 'pp03', k: 'pp', sh: 'burst', t: 'WOW!', c1: '#fff3bf', c2: '#ff922b', c3: '#d9480f', rules: ['week5'] },
+    { id: 'hk03', k: 'hk', sh: 'sakura', t: 'えらい！', ink: '#d6336c', rot: -6, rules: ['week5'] },
+    { id: 'st09', k: 'st', sp: 'bear', po: 'star', ex: 'sparkle', t: 'Wonderful!', c: '#9c36b5', rules: ['week5'] },
+    // ---- 1週間に7日 ----
+    { id: 'pp04', k: 'pp', sh: 'medal', t: 'Perfect/week!', c1: '#7048e8', c2: '#f06595', rules: ['week7'] },
+    { id: 'st10', k: 'st', sp: 'panda', po: 'banzai', ex: 'happy', t: '毎日えらい！', c: '#c2255c', rules: ['week7'] },
+    { id: 'hk04', k: 'hk', sh: 'rect', t: '皆勤賞', t2: '7日連続', ink: '#c92a2a', rot: 5, rules: ['week7'] },
+    { id: 'pp05', k: 'pp', sh: 'star', t: 'Super star!', c1: '#ffe066', c2: '#f08c00', c3: '#e8590c', rules: ['week7'] },
+    { id: 'st11', k: 'st', sp: 'cat', po: 'star', ex: 'wink', t: '最強！', c: '#e03131', rules: ['week7'] },
+    // ---- 課題を達成したとき ----
+    { id: 'hk05', k: 'hk', sh: 'hanamaru', t: 'はなまる', ink: '#e03131', rot: -4, rules: ['achieve'] },
+    { id: 'hk06', k: 'hk', sh: 'double', t: 'たいへん', t2: 'よくでき/ました', ink: '#e03131', rot: -7, rules: ['achieve'] },
+    { id: 'st12', k: 'st', sp: 'chick', po: 'star', ex: 'sparkle', t: 'Excellent!', c: '#f08c00', rules: ['achieve'] },
+    { id: 'pp06', k: 'pp', sh: 'medal', t: 'CLEAR!', c1: '#74c0fc', c2: '#1864ab', rules: ['achieve'] },
+    { id: 'st13', k: 'st', sp: 'dog', po: 'heart', ex: 'happy', t: '合格！', c: '#e03131', rules: ['achieve'] },
+    { id: 'st14', k: 'st', sp: 'hamster', po: 'banzai', ex: 'wink', t: 'やったね！', c: '#f76707', rules: ['achieve'] },
+    // ---- 正確さ100% ----
+    { id: 'pp07', k: 'pp', sh: 'burst', t: '100点!', c1: '#fff0f6', c2: '#f06595', c3: '#a61e4d', rules: ['perfect'] },
+    { id: 'st15', k: 'st', sp: 'rabbit', po: 'star', ex: 'sparkle', t: '天才！', c: '#7048e8', rules: ['perfect'] },
+    { id: 'hk07', k: 'hk', sh: 'hanamaru', t: 'Perfect!', ink: '#e03131', rot: 7, rules: ['perfect'] },
+    { id: 'pp08', k: 'pp', sh: 'star', t: '100%!', c1: '#fff3bf', c2: '#fab005', c3: '#e67700', rules: ['perfect'] },
+    { id: 'st16', k: 'st', sp: 'shiba', po: 'banzai', ex: 'sparkle', t: 'Amazing!', c: '#d9480f', rules: ['perfect'] },
+    // ---- 1週間以上あいてから、また読んだとき ----
+    { id: 'st17', k: 'st', sp: 'dog', po: 'wave', ex: 'happy', t: 'おかえり！', c: '#1c7ed6', rules: ['comeback'] },
+    { id: 'st18', k: 'st', sp: 'bear', po: 'heart', ex: 'sparkle', t: 'Welcome back!', c: '#e64980', rules: ['comeback'] },
+    { id: 'pp09', k: 'pp', sh: 'bubble', t: '待ってたよ！', c1: '#fff0f6', c2: '#e64980', rules: ['comeback'] },
+    { id: 'st19', k: 'st', sp: 'penguin', po: 'wave', ex: 'sparkle', t: 'また会えたね', c: '#1971c2', rules: ['comeback'] },
+    // ---- 先生が選んで押すとき用（自動では出ません） ----
+    { id: 'st20', k: 'st', sp: 'frog', po: 'heart', ex: 'sparkle', t: 'ナイス音読！', c: '#2b8a3e' },
+    { id: 'st21', k: 'st', sp: 'cat', po: 'heart', ex: 'sparkle', t: 'Nice voice!', c: '#e64980' },
+    { id: 'hk08', k: 'hk', sh: 'circle', t: 'Very good', ink: '#1c7ed6', rot: -5, face: 'cat' },
+    { id: 'pp10', k: 'pp', sh: 'ribbon', t: 'がんばったね', c1: '#63e6be', c2: '#20c997' },
+    { id: 'st22', k: 'st', sp: 'panda', po: 'star', ex: 'wink', t: '発音◎', c: '#e03131' },
+    { id: 'pp11', k: 'pp', sh: 'bubble', t: 'Beautiful!', c1: '#f3f0ff', c2: '#7048e8' },
+    { id: 'hk09', k: 'hk', sh: 'sakura', t: 'Excellent', ink: '#e03131', rot: 4 },
+    { id: 'st23', k: 'st', sp: 'hamster', po: 'wave', ex: 'happy', t: 'ファイト！', c: '#f76707' },
+    { id: 'st24', k: 'st', sp: 'chick', po: 'heart', ex: 'happy', t: 'ありがとう', c: '#e64980' },
+    { id: 'pp12', k: 'pp', sh: 'medal', t: 'MVP', c1: '#ffd43b', c2: '#e67700' },
+    { id: 'st25', k: 'st', sp: 'heart', po: 'banzai', ex: 'sparkle', t: '大好き！', c: '#e64980' },
+    { id: 'st26', k: 'st', sp: 'star', po: 'banzai', ex: 'happy', t: 'キラキラ！', c: '#f08c00' },
+    // ---- ライブの表彰 ----
+    { id: 'lv1', k: 'lv', rank: 1, t: '優勝!!', t2: 'CHAMPION', live: 'rank1' },
+    { id: 'lv2', k: 'lv', rank: 2, t: '準優勝!', t2: 'Fantastic!', live: 'rank2' },
+    { id: 'lv3', k: 'lv', rank: 3, t: '3位入賞!', t2: 'Great job!', live: 'rank3' },
+    { id: 'lv10', k: 'lv', rank: 10, t: 'TOP 10!', t2: '入賞おめでとう', live: 'top10' }
+  ];
+  var byId = {};
+  L.forEach(function (d) { byId[d.id] = d; });
+  function pool(rule) { return L.filter(function (d) { return (d.rules || []).indexOf(rule) >= 0; }); }
+  var KINDS = { st: 'ゆるかわ', hk: 'ハンコ', pp: 'キラキラ', lv: 'ライブ表彰' };
+  root.StampSet = { list: L, byId: byId, pool: pool, KINDS: KINDS };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/*
  * アプリの中心となる処理（サーバー側ロジック）
  * - 本番：Google Apps Script の中で動きます（gas/Code.gs に自動で同梱）
  * - デモ：ブラウザの中で動きます（データは端末内に保存）
@@ -425,12 +502,23 @@
   ];
   // ライブの表彰スタンプ（最初から入っているもの。col：色、cr：王冠）
   var LIVE_STAMPS = {
-    rank1: { a: 'bear', t: 'No.1!', col: '#e0a800', cr: 1, name: 'ライブ1位' },
-    rank2: { a: 'rabbit', t: 'No.2!', col: '#8f9bab', cr: 1, name: 'ライブ2位' },
-    rank3: { a: 'cat', t: 'No.3!', col: '#c27c3a', cr: 1, name: 'ライブ3位' },
-    top10: { a: 'chick', t: 'Top 10!', col: '#3b9be0', name: 'ライブ10位以内' }
+    rank1: { g: 'lv1', t: '優勝!!', name: 'ライブ1位' },
+    rank2: { g: 'lv2', t: '準優勝!', name: 'ライブ2位' },
+    rank3: { g: 'lv3', t: '3位入賞!', name: 'ライブ3位' },
+    top10: { g: 'lv10', t: 'TOP 10!', name: 'ライブ10位以内' }
   };
-  var STAMP_ANIMALS = ['cat', 'rabbit', 'bear', 'chick', 'dog', 'panda', 'star', 'heart'];
+  // スタンプの絵の一覧（js/stamps.js）
+  function SS() { return root.StampSet || { list: [], byId: {}, pool: function () { return []; } }; }
+  var STAMP_ANIMALS = ['cat', 'rabbit', 'bear', 'dog', 'panda', 'chick', 'penguin', 'frog', 'hamster', 'shiba', 'star', 'heart'];
+  var STAMP_POSES = ['banzai', 'wave', 'heart', 'star'], STAMP_EXPRS = ['sparkle', 'happy', 'wink'];
+  // 条件ごとの絵の中からランダムに1つ（最近もらった絵はなるべく避ける）
+  function pickDesign(list, ach) {
+    if (!list.length) return null;
+    var recent = ((ach && ach.st) || []).slice(-6).map(function (x) { return x.g; });
+    var cand = list.filter(function (d) { return recent.indexOf(d.id) < 0; });
+    if (!cand.length) cand = list;
+    return cand[Math.floor(Math.random() * cand.length)];
+  }
   var MAX_STAMP_IMAGE = 45000;   // 画像スタンプのデータの上限（文字数）
   // 着せ替え（級・段で解放）lv：LEVELSの番号
   var THEMES = [
@@ -489,14 +577,20 @@
   // ---- 先生が作ったスタンプ ----
   function customStamps(store) { return store.getStamps ? store.getStamps().filter(function (x) { return str(x.id); }) : []; }
   function stampPublic(d) {
-    return { id: str(d.id), kind: str(d.kind) === 'image' ? 'image' : 'art', animal: str(d.animal) || 'cat', text: str(d.text),
+    var a = str(d.animal).split(':');
+    return { id: str(d.id), kind: str(d.kind) === 'image' ? 'image' : 'art', animal: a[0] || 'cat', pose: a[1] || 'banzai', expr: a[2] || 'sparkle', text: str(d.text),
       color: str(d.color), image: str(d.image), owner: str(d.owner), created: str(d.created) };
   }
   // 生徒の記録に入れるスタンプの形（a：絵、t：言葉、col：色、cr：王冠、c：画像スタンプのID）
   function stampEntry(def) {
     if (!def) return null;
+    if (def.g) return { g: str(def.g), t: str(def.t) };
+    if (def.k && def.id) return { g: str(def.id), t: str(def.t).replace(/\//g, '') };   // 絵の一覧のスタンプ
     if (str(def.kind) === 'image') return { c: str(def.id), t: str(def.text) };
-    var o = { a: str(def.animal || def.a) || 'cat', t: str(def.text || def.t) };
+    var parts = str(def.animal || def.a).split(':');
+    var o = { a: parts[0] || 'cat', t: str(def.text || def.t) };
+    if (parts[1]) o.po = parts[1];
+    if (parts[2]) o.ex = parts[2];
     var col = str(def.color || def.col); if (col) o.col = col;
     if (def.cr) o.cr = 1;
     return o;
@@ -508,8 +602,13 @@
       var id = key.slice(2);
       return customStamps(store).filter(function (x) { return str(x.id) === id; })[0] || null;
     }
-    if (key.indexOf('r:') === 0) return STAMP_RULES.filter(function (x) { return x.id === key.slice(2); })[0] || null;
+    if (key.indexOf('r:') === 0) {
+      var rule = STAMP_RULES.filter(function (x) { return x.id === key.slice(2); })[0];
+      return rule ? (pickDesign(SS().pool(rule.id)) || rule) : null;
+    }
     if (key.indexOf('l:') === 0) return LIVE_STAMPS[key.slice(2)] || null;
+    if (key.indexOf('g:') === 0) return SS().byId[key.slice(2)] || null;
+    if (key === 'rand:') return pickDesign(SS().list.filter(function (d) { return d.k !== 'lv'; }));
     return null;
   }
   // 画像スタンプの絵（表示に使われる分だけ送る）
@@ -963,7 +1062,7 @@
       var rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0];
       ach.sk[key] = 1;
       // 先生が作ったスタンプが選ばれていれば、そちらを押す
-      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || { a: rule.a, t: rule.t };
+      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(ruleId), ach)) || { a: rule.a, t: rule.t };
       e.r = ruleId;
       var rec = {}; for (var k in e) rec[k] = e[k];
       rec.d = today; rec.n = 1;
@@ -1413,7 +1512,9 @@
     var me = currentTeacher(p, store, ctx), it = p.stamp || {};
     var kind = it.kind === 'image' ? 'image' : 'art', text = str(it.text).slice(0, 14);
     if (kind === 'art' && !text) throw err('スタンプの言葉を入力してください。');
-    var data = { kind: kind, text: text, animal: STAMP_ANIMALS.indexOf(str(it.animal)) >= 0 ? str(it.animal) : 'cat',
+    var sp = STAMP_ANIMALS.indexOf(str(it.animal)) >= 0 ? str(it.animal) : 'cat';
+    var po = STAMP_POSES.indexOf(str(it.pose)) >= 0 ? str(it.pose) : 'banzai', ex = STAMP_EXPRS.indexOf(str(it.expr)) >= 0 ? str(it.expr) : 'sparkle';
+    var data = { kind: kind, text: text, animal: sp + ':' + po + ':' + ex,
       color: /^#[0-9a-fA-F]{6}$/.test(str(it.color)) ? str(it.color) : '', image: '' };
     if (kind === 'image') {
       var img = str(it.image);

@@ -9,6 +9,9 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@800;900&display=swap">
   <style>
 :root {
   --bg: #f4f6fa;
@@ -430,9 +433,10 @@ html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primar
 .badge-card .nm { font-weight: 800; font-size: .92rem; }
 .badge-card .ds { font-size: .75rem; color: var(--muted); }
 .badge-card .dt { font-size: .72rem; color: var(--gold); font-weight: 700; margin-top: 2px; }
-.stamp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; text-align: center; }
+.stamp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; text-align: center; }
+.stamp-item.champ { grid-column: span 2; background: radial-gradient(circle, #fff3bf, transparent 70%); border-radius: 16px; }
 .stamp-item .ds { font-size: .75rem; color: var(--muted); }
-.stamp-svg { display: inline-block; transform: rotate(-6deg); }
+.stamp-svg { display: inline-block; }
 .mini-stamps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .auto-stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
 .auto-stamp { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; cursor: pointer; font-size: .88rem; }
@@ -502,8 +506,9 @@ html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primar
 .se-color.active { box-shadow: 0 0 0 3px var(--primary); }
 #seColor { width: 40px; height: 32px; padding: 0; border: none; background: none; }
 .auto-art { display: grid; gap: 8px; }
-.auto-art-row { display: grid; grid-template-columns: 60px 1fr minmax(160px, 260px); gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 4px 10px; }
-@media (max-width: 560px) { .auto-art-row { grid-template-columns: 60px 1fr; } .auto-art-row select { grid-column: 1 / -1; } }
+.aa-prev { display: inline-flex; gap: 2px; }
+.auto-art-row { display: grid; grid-template-columns: auto 1fr minmax(160px, 260px); gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 4px 10px; }
+@media (max-width: 560px) { .auto-art-row { grid-template-columns: auto 1fr; } .auto-art-row select { grid-column: 1 / -1; } }
 .check-row { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 
 /* ===== ライブ ===== */
@@ -553,7 +558,8 @@ html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primar
 .pod1 .pod-base { background: linear-gradient(#f7c948, #e0a800); height: 150px; }
 .pod2 .pod-base { background: linear-gradient(#c3ccd6, #8f9bab); height: 110px; }
 .pod3 .pod-base { background: linear-gradient(#e2a97a, #c27c3a); height: 80px; }
-.pod1 .pod-stamp svg { width: 150px; height: 150px; }
+.pod1 .pod-stamp svg { width: 190px; height: 190px; }
+.pod2 .pod-stamp svg, .pod3 .pod-stamp svg { width: 140px; height: 140px; }
 @keyframes podUp { from { opacity: 0; transform: translateY(60px) scale(.8); } to { opacity: 1; transform: none; } }
 .cer-sub { font-size: 1.4rem; margin-top: 8px; }
 .top10 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; max-width: 980px; margin: 0 auto; text-align: left; }
@@ -567,6 +573,31 @@ html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primar
 @keyframes confFall { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: .9; transform: translateY(110vh) rotate(720deg); } }
 :fullscreen .topbar, :fullscreen .bottom-nav { display: none; }
 @media (prefers-reduced-motion: reduce) { .pod, .t10, .lb-row.enter, .cer-title { animation: none; opacity: 1; } .confetti { display: none; } }
+
+/* ===== スタンプ（第2版） ===== */
+.pick-group { margin-bottom: 8px; }
+.pick-title { font-weight: 700; font-size: .9rem; color: var(--muted); margin: 6px 0 4px; }
+.dice { display: flex; align-items: center; justify-content: center; width: 84px; height: 84px; font-size: 52px; }
+.pool-mini { display: inline-flex; gap: 2px; }
+.se-animal { display: inline-flex; flex-direction: column; align-items: center; border-radius: 14px; padding: 2px 4px; }
+.se-animal small { font-size: .68rem; line-height: 1.1; color: var(--muted); }
+.se-animal.active { background: var(--primary-soft); }
+.stamp-svg { overflow: visible; }
+/* ライブ1位のお知らせ（大げさに！） */
+.reward-overlay.legend { background: radial-gradient(circle at 50% 40%, rgba(255, 214, 80, .55), rgba(20, 25, 40, .8) 70%); }
+.legend-box { position: relative; overflow: hidden; text-align: center; background: linear-gradient(180deg, #fffbe6, #fff); border: 4px solid #f2c230; box-shadow: 0 0 0 6px rgba(255, 212, 59, .35), 0 20px 60px rgba(0, 0, 0, .35); animation: legendIn .9s cubic-bezier(.2, 1.4, .3, 1) both; }
+.legend-rays { position: absolute; inset: -60%; background: repeating-conic-gradient(from 0deg, rgba(255, 212, 59, .35) 0 10deg, transparent 10deg 20deg); animation: legendSpin 14s linear infinite; z-index: 0; }
+.legend-box > *:not(.legend-rays):not(.conf) { position: relative; z-index: 1; }
+.legend-crown { font-size: 3.2rem; line-height: 1; animation: legendBob 1.2s ease-in-out infinite alternate; }
+.legend-title { font-size: 2.4rem !important; font-weight: 900; color: #c92a2a; text-shadow: 0 3px 0 #ffd43b, 0 6px 14px rgba(201, 42, 42, .35); margin: 4px 0 !important; letter-spacing: .04em; }
+.legend-sub { font-weight: 800; font-size: 1.15rem; color: #5c3b00; margin-bottom: 6px; }
+.legend-stamp { display: inline-block; animation: legendStamp 1.3s cubic-bezier(.2, 1.3, .3, 1) .35s both; filter: drop-shadow(0 8px 18px rgba(224, 168, 0, .55)); }
+.legend-box .conf { position: absolute; top: -20px; width: 10px; height: 16px; border-radius: 2px; z-index: 2; animation-name: confFall; animation-timing-function: linear; animation-iteration-count: 2; pointer-events: none; }
+@keyframes legendIn { from { opacity: 0; transform: scale(.4) rotate(-8deg); } to { opacity: 1; transform: none; } }
+@keyframes legendSpin { to { transform: rotate(360deg); } }
+@keyframes legendBob { from { transform: translateY(0) rotate(-6deg); } to { transform: translateY(-8px) rotate(6deg); } }
+@keyframes legendStamp { 0% { opacity: 0; transform: scale(2.6) rotate(-35deg); } 60% { opacity: 1; transform: scale(.9) rotate(6deg); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .legend-box, .legend-rays, .legend-crown, .legend-stamp { animation: none; } }
 
 </style>
 </head>
@@ -1108,6 +1139,85 @@ window.APP_CONFIG = {
 </script>
   <script>
 /*
+ * スタンプの一覧（このアプリ用のオリジナルデザイン）
+ *  k：種類 st＝ゆるかわステッカー / hk＝先生のハンコ / pp＝キラキラ・ポップ / lv＝ライブ表彰
+ *  rules：自動で押すときの条件（この中からランダムに1つ選ばれます）
+ *  絵は js/art.js の Art.design() で描きます。サーバー（Apps Script）にも同じ一覧が入ります。
+ */
+(function (root) {
+  'use strict';
+  var L = [
+    // ---- はじめて音読したとき ----
+    { id: 'st01', k: 'st', sp: 'dog', po: 'wave', ex: 'sparkle', t: 'Welcome!', c: '#ff6b6b', rules: ['first'] },
+    { id: 'st02', k: 'st', sp: 'chick', po: 'banzai', ex: 'happy', t: 'はじめの一歩！', c: '#f08c00', rules: ['first'] },
+    { id: 'pp01', k: 'pp', sh: 'ribbon', t: 'Nice start!', c1: '#ff8787', c2: '#ffa94d', rules: ['first'] },
+    { id: 'hk01', k: 'hk', sh: 'circle', t: 'ようこそ', ink: '#e03131', rot: -8, rules: ['first'] },
+    { id: 'st03', k: 'st', sp: 'hamster', po: 'heart', ex: 'happy', t: 'よろしくね！', c: '#e64980', rules: ['first'] },
+    // ---- 1週間に3日 ----
+    { id: 'st04', k: 'st', sp: 'cat', po: 'wave', ex: 'happy', t: 'Good job!', c: '#f76707', rules: ['week3'] },
+    { id: 'st05', k: 'st', sp: 'frog', po: 'banzai', ex: 'happy', t: 'いいね！', c: '#2b8a3e', rules: ['week3'] },
+    { id: 'hk02', k: 'hk', sh: 'circle', t: 'Good!', ink: '#e03131', rot: 6, face: 'bear', rules: ['week3'] },
+    { id: 'pp02', k: 'pp', sh: 'bubble', t: 'その調子！', c1: '#d0ebff', c2: '#1c7ed6', rules: ['week3'] },
+    { id: 'st06', k: 'st', sp: 'shiba', po: 'star', ex: 'sparkle', t: 'Keep going!', c: '#e8590c', rules: ['week3'] },
+    // ---- 1週間に5日 ----
+    { id: 'st07', k: 'st', sp: 'rabbit', po: 'banzai', ex: 'sparkle', t: 'すごい！', c: '#e64980', rules: ['week5'] },
+    { id: 'st08', k: 'st', sp: 'penguin', po: 'heart', ex: 'happy', t: 'Great!', c: '#1971c2', rules: ['week5'] },
+    { id: 'pp03', k: 'pp', sh: 'burst', t: 'WOW!', c1: '#fff3bf', c2: '#ff922b', c3: '#d9480f', rules: ['week5'] },
+    { id: 'hk03', k: 'hk', sh: 'sakura', t: 'えらい！', ink: '#d6336c', rot: -6, rules: ['week5'] },
+    { id: 'st09', k: 'st', sp: 'bear', po: 'star', ex: 'sparkle', t: 'Wonderful!', c: '#9c36b5', rules: ['week5'] },
+    // ---- 1週間に7日 ----
+    { id: 'pp04', k: 'pp', sh: 'medal', t: 'Perfect/week!', c1: '#7048e8', c2: '#f06595', rules: ['week7'] },
+    { id: 'st10', k: 'st', sp: 'panda', po: 'banzai', ex: 'happy', t: '毎日えらい！', c: '#c2255c', rules: ['week7'] },
+    { id: 'hk04', k: 'hk', sh: 'rect', t: '皆勤賞', t2: '7日連続', ink: '#c92a2a', rot: 5, rules: ['week7'] },
+    { id: 'pp05', k: 'pp', sh: 'star', t: 'Super star!', c1: '#ffe066', c2: '#f08c00', c3: '#e8590c', rules: ['week7'] },
+    { id: 'st11', k: 'st', sp: 'cat', po: 'star', ex: 'wink', t: '最強！', c: '#e03131', rules: ['week7'] },
+    // ---- 課題を達成したとき ----
+    { id: 'hk05', k: 'hk', sh: 'hanamaru', t: 'はなまる', ink: '#e03131', rot: -4, rules: ['achieve'] },
+    { id: 'hk06', k: 'hk', sh: 'double', t: 'たいへん', t2: 'よくでき/ました', ink: '#e03131', rot: -7, rules: ['achieve'] },
+    { id: 'st12', k: 'st', sp: 'chick', po: 'star', ex: 'sparkle', t: 'Excellent!', c: '#f08c00', rules: ['achieve'] },
+    { id: 'pp06', k: 'pp', sh: 'medal', t: 'CLEAR!', c1: '#74c0fc', c2: '#1864ab', rules: ['achieve'] },
+    { id: 'st13', k: 'st', sp: 'dog', po: 'heart', ex: 'happy', t: '合格！', c: '#e03131', rules: ['achieve'] },
+    { id: 'st14', k: 'st', sp: 'hamster', po: 'banzai', ex: 'wink', t: 'やったね！', c: '#f76707', rules: ['achieve'] },
+    // ---- 正確さ100% ----
+    { id: 'pp07', k: 'pp', sh: 'burst', t: '100点!', c1: '#fff0f6', c2: '#f06595', c3: '#a61e4d', rules: ['perfect'] },
+    { id: 'st15', k: 'st', sp: 'rabbit', po: 'star', ex: 'sparkle', t: '天才！', c: '#7048e8', rules: ['perfect'] },
+    { id: 'hk07', k: 'hk', sh: 'hanamaru', t: 'Perfect!', ink: '#e03131', rot: 7, rules: ['perfect'] },
+    { id: 'pp08', k: 'pp', sh: 'star', t: '100%!', c1: '#fff3bf', c2: '#fab005', c3: '#e67700', rules: ['perfect'] },
+    { id: 'st16', k: 'st', sp: 'shiba', po: 'banzai', ex: 'sparkle', t: 'Amazing!', c: '#d9480f', rules: ['perfect'] },
+    // ---- 1週間以上あいてから、また読んだとき ----
+    { id: 'st17', k: 'st', sp: 'dog', po: 'wave', ex: 'happy', t: 'おかえり！', c: '#1c7ed6', rules: ['comeback'] },
+    { id: 'st18', k: 'st', sp: 'bear', po: 'heart', ex: 'sparkle', t: 'Welcome back!', c: '#e64980', rules: ['comeback'] },
+    { id: 'pp09', k: 'pp', sh: 'bubble', t: '待ってたよ！', c1: '#fff0f6', c2: '#e64980', rules: ['comeback'] },
+    { id: 'st19', k: 'st', sp: 'penguin', po: 'wave', ex: 'sparkle', t: 'また会えたね', c: '#1971c2', rules: ['comeback'] },
+    // ---- 先生が選んで押すとき用（自動では出ません） ----
+    { id: 'st20', k: 'st', sp: 'frog', po: 'heart', ex: 'sparkle', t: 'ナイス音読！', c: '#2b8a3e' },
+    { id: 'st21', k: 'st', sp: 'cat', po: 'heart', ex: 'sparkle', t: 'Nice voice!', c: '#e64980' },
+    { id: 'hk08', k: 'hk', sh: 'circle', t: 'Very good', ink: '#1c7ed6', rot: -5, face: 'cat' },
+    { id: 'pp10', k: 'pp', sh: 'ribbon', t: 'がんばったね', c1: '#63e6be', c2: '#20c997' },
+    { id: 'st22', k: 'st', sp: 'panda', po: 'star', ex: 'wink', t: '発音◎', c: '#e03131' },
+    { id: 'pp11', k: 'pp', sh: 'bubble', t: 'Beautiful!', c1: '#f3f0ff', c2: '#7048e8' },
+    { id: 'hk09', k: 'hk', sh: 'sakura', t: 'Excellent', ink: '#e03131', rot: 4 },
+    { id: 'st23', k: 'st', sp: 'hamster', po: 'wave', ex: 'happy', t: 'ファイト！', c: '#f76707' },
+    { id: 'st24', k: 'st', sp: 'chick', po: 'heart', ex: 'happy', t: 'ありがとう', c: '#e64980' },
+    { id: 'pp12', k: 'pp', sh: 'medal', t: 'MVP', c1: '#ffd43b', c2: '#e67700' },
+    { id: 'st25', k: 'st', sp: 'heart', po: 'banzai', ex: 'sparkle', t: '大好き！', c: '#e64980' },
+    { id: 'st26', k: 'st', sp: 'star', po: 'banzai', ex: 'happy', t: 'キラキラ！', c: '#f08c00' },
+    // ---- ライブの表彰 ----
+    { id: 'lv1', k: 'lv', rank: 1, t: '優勝!!', t2: 'CHAMPION', live: 'rank1' },
+    { id: 'lv2', k: 'lv', rank: 2, t: '準優勝!', t2: 'Fantastic!', live: 'rank2' },
+    { id: 'lv3', k: 'lv', rank: 3, t: '3位入賞!', t2: 'Great job!', live: 'rank3' },
+    { id: 'lv10', k: 'lv', rank: 10, t: 'TOP 10!', t2: '入賞おめでとう', live: 'top10' }
+  ];
+  var byId = {};
+  L.forEach(function (d) { byId[d.id] = d; });
+  function pool(rule) { return L.filter(function (d) { return (d.rules || []).indexOf(rule) >= 0; }); }
+  var KINDS = { st: 'ゆるかわ', hk: 'ハンコ', pp: 'キラキラ', lv: 'ライブ表彰' };
+  root.StampSet = { list: L, byId: byId, pool: pool, KINDS: KINDS };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+  <script>
+/*
  * アプリの中心となる処理（サーバー側ロジック）
  * - 本番：Google Apps Script の中で動きます（gas/Code.gs に自動で同梱）
  * - デモ：ブラウザの中で動きます（データは端末内に保存）
@@ -1198,12 +1308,23 @@ window.APP_CONFIG = {
   ];
   // ライブの表彰スタンプ（最初から入っているもの。col：色、cr：王冠）
   var LIVE_STAMPS = {
-    rank1: { a: 'bear', t: 'No.1!', col: '#e0a800', cr: 1, name: 'ライブ1位' },
-    rank2: { a: 'rabbit', t: 'No.2!', col: '#8f9bab', cr: 1, name: 'ライブ2位' },
-    rank3: { a: 'cat', t: 'No.3!', col: '#c27c3a', cr: 1, name: 'ライブ3位' },
-    top10: { a: 'chick', t: 'Top 10!', col: '#3b9be0', name: 'ライブ10位以内' }
+    rank1: { g: 'lv1', t: '優勝!!', name: 'ライブ1位' },
+    rank2: { g: 'lv2', t: '準優勝!', name: 'ライブ2位' },
+    rank3: { g: 'lv3', t: '3位入賞!', name: 'ライブ3位' },
+    top10: { g: 'lv10', t: 'TOP 10!', name: 'ライブ10位以内' }
   };
-  var STAMP_ANIMALS = ['cat', 'rabbit', 'bear', 'chick', 'dog', 'panda', 'star', 'heart'];
+  // スタンプの絵の一覧（js/stamps.js）
+  function SS() { return root.StampSet || { list: [], byId: {}, pool: function () { return []; } }; }
+  var STAMP_ANIMALS = ['cat', 'rabbit', 'bear', 'dog', 'panda', 'chick', 'penguin', 'frog', 'hamster', 'shiba', 'star', 'heart'];
+  var STAMP_POSES = ['banzai', 'wave', 'heart', 'star'], STAMP_EXPRS = ['sparkle', 'happy', 'wink'];
+  // 条件ごとの絵の中からランダムに1つ（最近もらった絵はなるべく避ける）
+  function pickDesign(list, ach) {
+    if (!list.length) return null;
+    var recent = ((ach && ach.st) || []).slice(-6).map(function (x) { return x.g; });
+    var cand = list.filter(function (d) { return recent.indexOf(d.id) < 0; });
+    if (!cand.length) cand = list;
+    return cand[Math.floor(Math.random() * cand.length)];
+  }
   var MAX_STAMP_IMAGE = 45000;   // 画像スタンプのデータの上限（文字数）
   // 着せ替え（級・段で解放）lv：LEVELSの番号
   var THEMES = [
@@ -1262,14 +1383,20 @@ window.APP_CONFIG = {
   // ---- 先生が作ったスタンプ ----
   function customStamps(store) { return store.getStamps ? store.getStamps().filter(function (x) { return str(x.id); }) : []; }
   function stampPublic(d) {
-    return { id: str(d.id), kind: str(d.kind) === 'image' ? 'image' : 'art', animal: str(d.animal) || 'cat', text: str(d.text),
+    var a = str(d.animal).split(':');
+    return { id: str(d.id), kind: str(d.kind) === 'image' ? 'image' : 'art', animal: a[0] || 'cat', pose: a[1] || 'banzai', expr: a[2] || 'sparkle', text: str(d.text),
       color: str(d.color), image: str(d.image), owner: str(d.owner), created: str(d.created) };
   }
   // 生徒の記録に入れるスタンプの形（a：絵、t：言葉、col：色、cr：王冠、c：画像スタンプのID）
   function stampEntry(def) {
     if (!def) return null;
+    if (def.g) return { g: str(def.g), t: str(def.t) };
+    if (def.k && def.id) return { g: str(def.id), t: str(def.t).replace(/\//g, '') };   // 絵の一覧のスタンプ
     if (str(def.kind) === 'image') return { c: str(def.id), t: str(def.text) };
-    var o = { a: str(def.animal || def.a) || 'cat', t: str(def.text || def.t) };
+    var parts = str(def.animal || def.a).split(':');
+    var o = { a: parts[0] || 'cat', t: str(def.text || def.t) };
+    if (parts[1]) o.po = parts[1];
+    if (parts[2]) o.ex = parts[2];
     var col = str(def.color || def.col); if (col) o.col = col;
     if (def.cr) o.cr = 1;
     return o;
@@ -1281,8 +1408,13 @@ window.APP_CONFIG = {
       var id = key.slice(2);
       return customStamps(store).filter(function (x) { return str(x.id) === id; })[0] || null;
     }
-    if (key.indexOf('r:') === 0) return STAMP_RULES.filter(function (x) { return x.id === key.slice(2); })[0] || null;
+    if (key.indexOf('r:') === 0) {
+      var rule = STAMP_RULES.filter(function (x) { return x.id === key.slice(2); })[0];
+      return rule ? (pickDesign(SS().pool(rule.id)) || rule) : null;
+    }
     if (key.indexOf('l:') === 0) return LIVE_STAMPS[key.slice(2)] || null;
+    if (key.indexOf('g:') === 0) return SS().byId[key.slice(2)] || null;
+    if (key === 'rand:') return pickDesign(SS().list.filter(function (d) { return d.k !== 'lv'; }));
     return null;
   }
   // 画像スタンプの絵（表示に使われる分だけ送る）
@@ -1736,7 +1868,7 @@ window.APP_CONFIG = {
       var rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0];
       ach.sk[key] = 1;
       // 先生が作ったスタンプが選ばれていれば、そちらを押す
-      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || { a: rule.a, t: rule.t };
+      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(ruleId), ach)) || { a: rule.a, t: rule.t };
       e.r = ruleId;
       var rec = {}; for (var k in e) rec[k] = e[k];
       rec.d = today; rec.n = 1;
@@ -2186,7 +2318,9 @@ window.APP_CONFIG = {
     var me = currentTeacher(p, store, ctx), it = p.stamp || {};
     var kind = it.kind === 'image' ? 'image' : 'art', text = str(it.text).slice(0, 14);
     if (kind === 'art' && !text) throw err('スタンプの言葉を入力してください。');
-    var data = { kind: kind, text: text, animal: STAMP_ANIMALS.indexOf(str(it.animal)) >= 0 ? str(it.animal) : 'cat',
+    var sp = STAMP_ANIMALS.indexOf(str(it.animal)) >= 0 ? str(it.animal) : 'cat';
+    var po = STAMP_POSES.indexOf(str(it.pose)) >= 0 ? str(it.pose) : 'banzai', ex = STAMP_EXPRS.indexOf(str(it.expr)) >= 0 ? str(it.expr) : 'sparkle';
+    var data = { kind: kind, text: text, animal: sp + ':' + po + ':' + ex,
       color: /^#[0-9a-fA-F]{6}$/.test(str(it.color)) ? str(it.color) : '', image: '' };
     if (kind === 'image') {
       var img = str(it.image);
@@ -3026,113 +3160,394 @@ window.SAMPLE_ASSIGNMENTS = [
 </script>
   <script>
 /*
- * 先生スタンプ・スタンプカードの絵（このアプリ用のオリジナルのイラスト。SVGで描いています）
+ * スタンプの絵（このアプリ用のオリジナルのイラスト。すべて SVG で描いています）
+ *  ・ゆるかわステッカー：キャラクター × ポーズ × 表情 の組み合わせ
+ *  ・先生のハンコ：はなまる・丸・二重丸・角印・さくら（インクのかすれつき）
+ *  ・キラキラ・ポップ：バースト・リボン・星・ふきだし・メダル
+ *  ・ライブ表彰：1位はトロフィー・王冠・後光・月桂樹・紙ふぶき（動きつき）
  */
 (function (root) {
   'use strict';
-  var COLORS = {
-    cat: { ring: '#f4a259', bg: '#fff4e6' }, rabbit: { ring: '#f28bb3', bg: '#fff0f6' },
-    bear: { ring: '#b07b4f', bg: '#fbf1e6' }, chick: { ring: '#f2c230', bg: '#fffbe3' },
-    dog: { ring: '#5aa9e6', bg: '#eef7ff' }, panda: { ring: '#56b38a', bg: '#ecf9f2' },
-    star: { ring: '#f0a500', bg: '#fff8e1' }, heart: { ring: '#ef5b8a', bg: '#fff0f5' }
-  };
-  // 好きな色から、うすい背景色を作る
+  var FONT = "'M PLUS Rounded 1c','Hiragino Maru Gothic ProN','Hiragino Maru Gothic Pro','Arial Rounded MT Bold','Yu Gothic UI','Meiryo',sans-serif";
+  var uid = 0;
+  function nid(p) { return (p || 'a') + (++uid).toString(36); }
+  function esc(t) { return String(t === undefined || t === null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function tint(hex, amt) {
     var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || ''); if (!m) return '#fff';
-    return '#' + [1, 2, 3].map(function (i) { var v = parseInt(m[i], 16); v = Math.round(v + (255 - v) * amt); return ('0' + v.toString(16)).slice(-2); }).join('');
+    return '#' + [1, 2, 3].map(function (i) { var v = parseInt(m[i], 16); v = Math.round(amt >= 0 ? v + (255 - v) * amt : v * (1 + amt)); return ('0' + Math.max(0, Math.min(255, v)).toString(16)).slice(-2); }).join('');
   }
-  function escText(t) { return String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-  // 王冠（ライブの表彰スタンプ）
-  function crownSVG() {
-    return '<g transform="translate(0,-2)"><path d="M38 14 L46 26 L60 8 L74 26 L82 14 L80 32 L40 32 Z" fill="#ffd43b" stroke="#e0a800" stroke-width="2" stroke-linejoin="round"/>' +
-      '<circle cx="60" cy="8" r="3" fill="#ff6b6b"/><circle cx="38" cy="14" r="2.6" fill="#4dabf7"/><circle cx="82" cy="14" r="2.6" fill="#4dabf7"/></g>';
-  }
-  function eyes(y, gap) {
-    return '<ellipse cx="' + (60 - gap) + '" cy="' + y + '" rx="4" ry="5" fill="#3a2e2a"/><ellipse cx="' + (60 + gap) + '" cy="' + y + '" rx="4" ry="5" fill="#3a2e2a"/>' +
-      '<circle cx="' + (61 - gap) + '" cy="' + (y - 2) + '" r="1.4" fill="#fff"/><circle cx="' + (61 + gap) + '" cy="' + (y - 2) + '" r="1.4" fill="#fff"/>';
-  }
-  function cheeks(y, gap) {
-    return '<ellipse cx="' + (60 - gap) + '" cy="' + y + '" rx="6" ry="4" fill="#ff9eb5" opacity=".7"/><ellipse cx="' + (60 + gap) + '" cy="' + y + '" rx="6" ry="4" fill="#ff9eb5" opacity=".7"/>';
-  }
-  function smile(y) { return '<path d="M53 ' + y + ' q3.5 4 7 0 q3.5 4 7 0" fill="none" stroke="#3a2e2a" stroke-width="2.2" stroke-linecap="round"/>'; }
-  var FACES = {
-    cat: function () {
-      return '<path d="M33 40 L38 16 L54 32 Z" fill="#ffc98b" stroke="#e59a4f" stroke-width="2"/><path d="M87 40 L82 16 L66 32 Z" fill="#ffc98b" stroke="#e59a4f" stroke-width="2"/>' +
-        '<path d="M39 34 L41 23 L49 31 Z" fill="#ffb3c6"/><path d="M81 34 L79 23 L71 31 Z" fill="#ffb3c6"/>' +
-        '<ellipse cx="60" cy="55" rx="30" ry="26" fill="#ffc98b" stroke="#e59a4f" stroke-width="2"/>' +
-        '<path d="M52 33 l2 6 M60 31 v7 M68 33 l-2 6" stroke="#e59a4f" stroke-width="2.4" stroke-linecap="round"/>' +
-        eyes(52, 11) + cheeks(62, 19) + '<path d="M57.5 58 h5 l-2.5 3 z" fill="#e5687f"/>' + smile(61) +
-        '<path d="M30 57 h-10 M30 62 l-9 3 M90 57 h10 M90 62 l9 3" stroke="#c98b5a" stroke-width="1.6" stroke-linecap="round"/>';
-    },
-    rabbit: function () {
-      return '<ellipse cx="47" cy="22" rx="8" ry="20" fill="#fff" stroke="#e7a3bf" stroke-width="2"/><ellipse cx="73" cy="22" rx="8" ry="20" fill="#fff" stroke="#e7a3bf" stroke-width="2"/>' +
-        '<ellipse cx="47" cy="23" rx="3.6" ry="13" fill="#ffc2d6"/><ellipse cx="73" cy="23" rx="3.6" ry="13" fill="#ffc2d6"/>' +
-        '<ellipse cx="60" cy="57" rx="29" ry="25" fill="#fff" stroke="#e7a3bf" stroke-width="2"/>' +
-        eyes(54, 11) + cheeks(63, 18) + '<ellipse cx="60" cy="60" rx="3" ry="2.2" fill="#f07ca0"/>' + smile(62);
-    },
-    bear: function () {
-      return '<circle cx="36" cy="33" r="11" fill="#c8915f" stroke="#9c6a3e" stroke-width="2"/><circle cx="84" cy="33" r="11" fill="#c8915f" stroke="#9c6a3e" stroke-width="2"/>' +
-        '<circle cx="36" cy="33" r="5.5" fill="#ffd9b8"/><circle cx="84" cy="33" r="5.5" fill="#ffd9b8"/>' +
-        '<ellipse cx="60" cy="56" rx="30" ry="27" fill="#c8915f" stroke="#9c6a3e" stroke-width="2"/>' +
-        '<ellipse cx="60" cy="64" rx="13" ry="10" fill="#f3d6b8"/>' +
-        eyes(50, 12) + cheeks(60, 20) + '<ellipse cx="60" cy="60" rx="4.5" ry="3.2" fill="#3a2e2a"/>' + smile(64);
-    },
-    chick: function () {
-      return '<path d="M56 22 q2 -9 6 -2 q3 -8 6 1" fill="none" stroke="#f2b705" stroke-width="3" stroke-linecap="round"/>' +
-        '<ellipse cx="60" cy="54" rx="30" ry="29" fill="#ffe066" stroke="#f2b705" stroke-width="2"/>' +
-        '<path d="M31 60 q-8 -2 -6 -12 q6 4 9 4" fill="#ffd43b" stroke="#f2b705" stroke-width="1.6"/><path d="M89 60 q8 -2 6 -12 q-6 4 -9 4" fill="#ffd43b" stroke="#f2b705" stroke-width="1.6"/>' +
-        eyes(50, 11) + cheeks(59, 19) + '<path d="M54 57 L66 57 L60 64 Z" fill="#ff9f43" stroke="#e8822a" stroke-width="1.2" stroke-linejoin="round"/>';
-    },
-    dog: function () {
-      return '<ellipse cx="34" cy="44" rx="10" ry="18" fill="#c99267" stroke="#9c6a3e" stroke-width="2" transform="rotate(18 34 44)"/>' +
-        '<ellipse cx="86" cy="44" rx="10" ry="18" fill="#c99267" stroke="#9c6a3e" stroke-width="2" transform="rotate(-18 86 44)"/>' +
-        '<ellipse cx="60" cy="55" rx="27" ry="26" fill="#fff8ee" stroke="#c9a27a" stroke-width="2"/>' +
-        '<ellipse cx="70" cy="47" rx="9" ry="8" fill="#e8c39e" opacity=".8"/>' +
-        eyes(50, 10) + cheeks(60, 17) + '<ellipse cx="60" cy="59" rx="5" ry="3.6" fill="#3a2e2a"/>' +
-        '<path d="M60 62 v3" stroke="#3a2e2a" stroke-width="2"/>' + smile(64) + '<path d="M57 68 q3 6 6 0" fill="#ff8fa3"/>';
-    },
-    star: function () {
-      return '<path d="M60 18 L70.6 40.2 L95 43.4 L77.2 60.2 L81.6 84.4 L60 72.8 L38.4 84.4 L42.8 60.2 L25 43.4 L49.4 40.2 Z" fill="#ffd43b" stroke="#f0a500" stroke-width="2.4" stroke-linejoin="round"/>' +
-        eyes(52, 8) + cheeks(60, 14) + smile(60);
-    },
-    heart: function () {
-      return '<path d="M60 84 C30 64 24 50 24 40 C24 28 34 20 44 20 C51 20 57 24 60 30 C63 24 69 20 76 20 C86 20 96 28 96 40 C96 50 90 64 60 84 Z" fill="#ff8fb1" stroke="#ef5b8a" stroke-width="2.4"/>' +
-        eyes(46, 10) + cheeks(56, 18) + smile(55);
-    },
-    panda: function () {
-      return '<circle cx="36" cy="32" r="11" fill="#2f2f37"/><circle cx="84" cy="32" r="11" fill="#2f2f37"/>' +
-        '<ellipse cx="60" cy="56" rx="30" ry="27" fill="#fff" stroke="#c9ced6" stroke-width="2"/>' +
-        '<ellipse cx="48" cy="52" rx="8" ry="10" fill="#2f2f37" transform="rotate(-25 48 52)"/><ellipse cx="72" cy="52" rx="8" ry="10" fill="#2f2f37" transform="rotate(25 72 52)"/>' +
-        '<circle cx="49" cy="51" r="3.2" fill="#fff"/><circle cx="71" cy="51" r="3.2" fill="#fff"/><circle cx="49.6" cy="50.4" r="1.6" fill="#2f2f37"/><circle cx="70.4" cy="50.4" r="1.6" fill="#2f2f37"/>' +
-        cheeks(63, 20) + '<ellipse cx="60" cy="62" rx="4" ry="3" fill="#2f2f37"/>' + smile(65);
+  // 文字の幅のめやす（em）
+  function emWidth(t) {
+    var w = 0;
+    for (var i = 0; i < t.length; i++) {
+      var ch = t.charAt(i);
+      if (/[　-鿿＀-￯]/.test(ch)) w += 1;
+      else if (/[A-Z0-9%]/.test(ch)) w += 0.7;
+      else if (/[a-z]/.test(ch)) w += 0.58;
+      else if (ch === ' ') w += 0.28;
+      else w += 0.36;
     }
+    return w || 1;
+  }
+  function fit(t, maxW, maxSize, minSize) { return Math.max(minSize || 9, Math.min(maxSize, maxW / emWidth(t))); }
+  // ふちどりつきの太い文字
+  function bigText(t, x, y, size, fill, stroke, sw, extra) {
+    return '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-family="' + FONT + '" font-weight="900" font-size="' + size.toFixed(1) + '" fill="' + fill + '"' +
+      (stroke ? ' stroke="' + stroke + '" stroke-width="' + sw.toFixed(1) + '" stroke-linejoin="round" paint-order="stroke"' : '') + (extra || '') + '>' + esc(t) + '</text>';
+  }
+  function svgOpen(size, label, cls) {
+    var s = size || 96;
+    return '<svg class="stamp-svg' + (cls ? ' ' + cls : '') + '" width="' + s + '" height="' + s + '" viewBox="0 0 120 120" role="img" aria-label="' + esc(label || 'スタンプ') + '">';
+  }
+  function sparkle(x, y, r, col, anim) {
+    var p = 'M' + x + ' ' + (y - r) + ' Q' + x + ' ' + y + ' ' + (x + r) + ' ' + y + ' Q' + x + ' ' + y + ' ' + x + ' ' + (y + r) + ' Q' + x + ' ' + y + ' ' + (x - r) + ' ' + y + ' Q' + x + ' ' + y + ' ' + x + ' ' + (y - r) + 'Z';
+    return '<path d="' + p + '" fill="' + col + '">' + (anim ? '<animate attributeName="opacity" values="1;.15;1" dur="' + anim + 's" repeatCount="indefinite"/>' : '') + '</path>';
+  }
+  function starPath(cx, cy, ro, ri, n, rot) {
+    var d = '', i;
+    n = n || 5; rot = rot || -90;
+    for (i = 0; i < n * 2; i++) {
+      var r = i % 2 ? ri : ro, a = (rot + i * 180 / n) * Math.PI / 180;
+      d += (i ? 'L' : 'M') + (cx + r * Math.cos(a)).toFixed(1) + ' ' + (cy + r * Math.sin(a)).toFixed(1);
+    }
+    return d + 'Z';
+  }
+  function heartPath(cx, cy, s) {
+    return 'M' + cx + ' ' + (cy + 9 * s) + ' C' + (cx - 14 * s) + ' ' + (cy) + ' ' + (cx - 12 * s) + ' ' + (cy - 10 * s) + ' ' + (cx - 5 * s) + ' ' + (cy - 9 * s) +
+      ' C' + (cx - 2 * s) + ' ' + (cy - 9 * s) + ' ' + cx + ' ' + (cy - 6 * s) + ' ' + cx + ' ' + (cy - 4 * s) +
+      ' C' + cx + ' ' + (cy - 6 * s) + ' ' + (cx + 2 * s) + ' ' + (cy - 9 * s) + ' ' + (cx + 5 * s) + ' ' + (cy - 9 * s) +
+      ' C' + (cx + 12 * s) + ' ' + (cy - 10 * s) + ' ' + (cx + 14 * s) + ' ' + cy + ' ' + cx + ' ' + (cy + 9 * s) + 'Z';
+  }
+
+  // =================== ゆるかわキャラクター ===================
+  var SP = {
+    cat: { f: '#ffc078', l: '#c96f1e', in: '#ffc9d6', mz: '#fff4e6', name: 'ねこ' },
+    rabbit: { f: '#ffffff', l: '#d66f98', in: '#ffc9de', mz: '#ffffff', name: 'うさぎ' },
+    bear: { f: '#c08457', l: '#7a4a28', in: '#f5d7b8', mz: '#f5d7b8', name: 'くま' },
+    dog: { f: '#fffaf0', l: '#a8743f', in: '#c8925e', mz: '#ffffff', name: 'いぬ' },
+    panda: { f: '#ffffff', l: '#343a40', in: '#343a40', mz: '#ffffff', name: 'パンダ' },
+    chick: { f: '#ffe066', l: '#d99a00', in: '#ffd43b', mz: '#ffe066', name: 'ひよこ' },
+    penguin: { f: '#4263eb', l: '#1c2f8a', in: '#ffffff', mz: '#ffffff', name: 'ペンギン' },
+    frog: { f: '#8ce99a', l: '#2b8a3e', in: '#ebfbee', mz: '#ebfbee', name: 'かえる' },
+    hamster: { f: '#ffd8a8', l: '#c4782d', in: '#ffc9d6', mz: '#ffffff', name: 'ハムスター' },
+    shiba: { f: '#ffa94d', l: '#c2410c', in: '#ffffff', mz: '#ffffff', name: 'しばいぬ' },
+    star: { f: '#ffd43b', l: '#e67700', in: '#fff3bf', mz: '#ffd43b', name: 'ほし' },
+    heart: { f: '#ff8fab', l: '#d6336c', in: '#ffdeeb', mz: '#ff8fab', name: 'ハート' }
   };
-  // 先生スタンプ（円いハンコの形）
-  // opt.color：枠の色（なければ絵ごとの色）、opt.crown：王冠をのせる
+  var POSES = { banzai: 'ばんざい', wave: '手をふる', heart: 'ハートを持つ', star: 'ほしを持つ' };
+  var EXPRS = { happy: 'にっこり', sparkle: 'キラキラ', wink: 'ウインク' };
+  var DARK = '#3a2e2a';
+  function arm(x1, y1, x2, y2, s) {
+    var d = 'M' + x1 + ' ' + y1 + ' L' + x2 + ' ' + y2;
+    return '<path d="' + d + '" stroke="' + s.l + '" stroke-width="12" stroke-linecap="round" fill="none"/><path d="' + d + '" stroke="' + s.f + '" stroke-width="8" stroke-linecap="round" fill="none"/>';
+  }
+  function eyes(ex, y, white) {
+    var c = white ? '#fff' : DARK, out = '';
+    function happy(x) { return '<path d="M' + (x - 5) + ' ' + (y + 1.5) + ' Q' + x + ' ' + (y - 5.5) + ' ' + (x + 5) + ' ' + (y + 1.5) + '" stroke="' + c + '" stroke-width="3" fill="none" stroke-linecap="round"/>'; }
+    function spark(x) {
+      return '<ellipse cx="' + x + '" cy="' + y + '" rx="4.6" ry="5.6" fill="' + (white ? '#fff' : DARK) + '"/>' + (white ? '<ellipse cx="' + x + '" cy="' + (y + 0.5) + '" rx="2.8" ry="3.6" fill="' + DARK + '"/>' : '') +
+        '<circle cx="' + (x + 1.5) + '" cy="' + (y - 2) + '" r="1.9" fill="#fff"/><circle cx="' + (x - 1.6) + '" cy="' + (y + 2) + '" r=".9" fill="#fff"/>';
+    }
+    if (ex === 'happy') out = happy(48) + happy(72);
+    else if (ex === 'wink') out = spark(48) + '<path d="M67 ' + (y - 3) + ' L75 ' + y + ' L67 ' + (y + 3) + '" stroke="' + c + '" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    else out = spark(48) + spark(72);
+    return out;
+  }
+  function mouth(ex, sp, y) {
+    if (sp === 'chick' || sp === 'penguin') return '<path d="M55 ' + (y - 2) + ' L65 ' + (y - 2) + ' L60 ' + (y + 5) + 'Z" fill="#ff922b" stroke="#e8590c" stroke-width="1.2" stroke-linejoin="round"/>';
+    if (sp === 'frog') return '<path d="M47 ' + (y - 2) + ' Q60 ' + (y + 10) + ' 73 ' + (y - 2) + '" stroke="' + DARK + '" stroke-width="2.8" fill="#ff8787" stroke-linecap="round"/>';
+    if (ex === 'sparkle' && (sp === 'cat' || sp === 'shiba' || sp === 'rabbit' || sp === 'hamster')) {
+      return '<path d="M54 ' + y + ' q3 4 6 0 q3 4 6 0" stroke="' + DARK + '" stroke-width="2.4" fill="none" stroke-linecap="round"/>';
+    }
+    return '<path d="M54.5 ' + (y - 1) + ' Q60 ' + (y + 8) + ' 65.5 ' + (y - 1) + ' Z" fill="#c92a2a" stroke="' + DARK + '" stroke-width="2" stroke-linejoin="round"/><ellipse cx="60" cy="' + (y + 3.6) + '" rx="3" ry="1.8" fill="#ff8fab"/>';
+  }
+  function cheeks(y, gap) { return '<ellipse cx="' + (60 - gap) + '" cy="' + y + '" rx="6" ry="3.8" fill="#ff8fab" opacity=".6"/><ellipse cx="' + (60 + gap) + '" cy="' + y + '" rx="6" ry="3.8" fill="#ff8fab" opacity=".6"/>'; }
+  function prop(po, s) {
+    if (po === 'heart') return '<path d="' + heartPath(60, 95, 1.25) + '" fill="#ff6b8a" stroke="#c2255c" stroke-width="2.2"/><ellipse cx="54" cy="89" rx="3" ry="2" fill="#fff" opacity=".7"/>' +
+      '<circle cx="45" cy="96" r="5.5" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="2.4"/><circle cx="75" cy="96" r="5.5" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="2.4"/>';
+    if (po === 'star') return '<path d="M100 60 L104 34" stroke="#c79100" stroke-width="2.6"/><path d="' + starPath(104, 30, 11, 5) + '" fill="#ffd43b" stroke="#e67700" stroke-width="2" stroke-linejoin="round"/>' +
+      sparkle(114, 16, 4, '#fab005') + sparkle(92, 18, 3, '#fab005');
+    return '';
+  }
+  // キャラクター本体（120×120 の中に描く）
+  function character(sp, po, ex) {
+    var s = SP[sp] || SP.cat; po = POSES[po] ? po : 'banzai'; ex = EXPRS[ex] ? ex : 'sparkle';
+    var back = '', front = '', head = '', face = '', body = '', armsBack = '', armsFront = '';
+    var ey = 56, my = 66;
+    // 腕
+    if (po === 'banzai') armsBack = arm(46, 90, 20, 50, s) + arm(74, 90, 100, 50, s) +
+      '<path d="M10 44 l-5 -4 M12 36 l-6 -1 M110 44 l5 -4 M108 36 l6 -1" stroke="' + s.l + '" stroke-width="2.2" stroke-linecap="round"/>';
+    else if (po === 'wave') { armsBack = arm(74, 90, 101, 52, s) + '<path d="M108 40 q5 5 3 12 M113 34 q7 7 4 17" stroke="' + s.l + '" stroke-width="2.2" fill="none" stroke-linecap="round"/>'; armsFront = arm(46, 92, 37, 104, s); }
+    else if (po === 'star') { armsBack = arm(74, 90, 100, 60, s); armsFront = arm(46, 92, 37, 104, s); }
+    else armsFront = arm(45, 90, 46, 96, s) + arm(75, 90, 74, 96, s);
+    // 耳など（頭の後ろ）
+    if (sp === 'cat' || sp === 'shiba') back += '<path d="M33 46 L36 16 L58 32 Z" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="2.6" stroke-linejoin="round"/><path d="M87 46 L84 16 L62 32 Z" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="2.6" stroke-linejoin="round"/>' +
+      '<path d="M39 36 L40 24 L50 32 Z" fill="' + (sp === 'shiba' ? '#fff' : s.in) + '"/><path d="M81 36 L80 24 L70 32 Z" fill="' + (sp === 'shiba' ? '#fff' : s.in) + '"/>';
+    if (sp === 'rabbit') back += '<ellipse cx="47" cy="20" rx="9" ry="21" fill="#fff" stroke="' + s.l + '" stroke-width="2.6" transform="rotate(-10 47 20)"/><ellipse cx="74" cy="20" rx="9" ry="21" fill="#fff" stroke="' + s.l + '" stroke-width="2.6" transform="rotate(14 74 20)"/>' +
+      '<ellipse cx="47" cy="22" rx="4" ry="14" fill="' + s.in + '" transform="rotate(-10 47 20)"/><ellipse cx="74" cy="22" rx="4" ry="14" fill="' + s.in + '" transform="rotate(14 74 20)"/>';
+    if (sp === 'bear' || sp === 'panda' || sp === 'hamster') {
+      var er = sp === 'hamster' ? 8 : 11, ec = sp === 'panda' ? s.in : s.f;
+      back += '<circle cx="35" cy="32" r="' + er + '" fill="' + ec + '" stroke="' + s.l + '" stroke-width="2.6"/><circle cx="85" cy="32" r="' + er + '" fill="' + ec + '" stroke="' + s.l + '" stroke-width="2.6"/>' +
+        (sp !== 'panda' ? '<circle cx="35" cy="32" r="' + (er * 0.5) + '" fill="' + (sp === 'hamster' ? s.in : s.in) + '"/><circle cx="85" cy="32" r="' + (er * 0.5) + '" fill="' + s.in + '"/>' : '');
+    }
+    if (sp === 'frog') back += '<circle cx="44" cy="30" r="12" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="2.6"/><circle cx="76" cy="30" r="12" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="2.6"/>';
+    if (sp === 'chick') back += '<path d="M54 30 q-2 -12 6 -6 q2 -10 8 -2" fill="none" stroke="' + s.l + '" stroke-width="3" stroke-linecap="round"/>';
+    // 体
+    if (sp !== 'star' && sp !== 'heart') {
+      body = '<ellipse cx="51" cy="110" rx="8" ry="5" fill="' + (sp === 'chick' || sp === 'penguin' ? '#ff922b' : s.f) + '" stroke="' + s.l + '" stroke-width="2.4"/>' +
+        '<ellipse cx="69" cy="110" rx="8" ry="5" fill="' + (sp === 'chick' || sp === 'penguin' ? '#ff922b' : s.f) + '" stroke="' + s.l + '" stroke-width="2.4"/>' +
+        '<ellipse cx="60" cy="94" rx="22" ry="17" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="2.6"/>' +
+        '<ellipse cx="60" cy="97" rx="12" ry="10" fill="' + (sp === 'penguin' ? '#fff' : tint(s.f, 0.5)) + '"/>';
+      head = '<ellipse cx="60" cy="56" rx="' + (sp === 'frog' ? 34 : 32) + '" ry="' + (sp === 'chick' ? 30 : 28) + '" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="2.8"/>';
+    }
+    // 顔のもよう
+    if (sp === 'penguin') face += '<path d="M60 44 C46 36 32 46 34 60 C36 74 50 80 60 80 C70 80 84 74 86 60 C88 46 74 36 60 44Z" fill="#fff"/>';
+    if (sp === 'shiba') face += '<ellipse cx="47" cy="68" rx="13" ry="10" fill="#fff"/><ellipse cx="73" cy="68" rx="13" ry="10" fill="#fff"/><ellipse cx="60" cy="72" rx="12" ry="9" fill="#fff"/>' +
+      '<ellipse cx="46" cy="46" rx="3" ry="2" fill="#fff4e6"/><ellipse cx="74" cy="46" rx="3" ry="2" fill="#fff4e6"/>';
+    if (sp === 'cat') face += '<path d="M54 30 v7 M60 29 v8 M66 30 v7" stroke="' + s.l + '" stroke-width="2.6" stroke-linecap="round"/>' +
+      '<path d="M22 62 h10 M23 69 l9 -3 M98 62 h-10 M97 69 l-9 -3" stroke="' + s.l + '" stroke-width="1.8" stroke-linecap="round"/>';
+    if (sp === 'dog') face += '<ellipse cx="72" cy="52" rx="10" ry="9" fill="#f1c69d" opacity=".8"/>';
+    if (sp === 'bear' || sp === 'dog' || sp === 'hamster') face += '<ellipse cx="60" cy="67" rx="12" ry="8.5" fill="' + s.mz + '"/>';
+    if (sp === 'panda') face += '<ellipse cx="47" cy="56" rx="8" ry="10" fill="' + s.in + '" transform="rotate(25 47 56)"/><ellipse cx="73" cy="56" rx="8" ry="10" fill="' + s.in + '" transform="rotate(-25 73 56)"/>';
+    var white = sp === 'panda';
+    if (sp === 'star') {
+      head = '<path d="' + starPath(60, 62, 56, 30, 5) + '" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="3" stroke-linejoin="round"/>';
+      ey = 60; my = 72; armsBack = ''; armsFront = ''; back = '';
+    }
+    if (sp === 'heart') {
+      head = '<path d="' + heartPath(60, 58, 4.4) + '" fill="' + s.f + '" stroke="' + s.l + '" stroke-width="3"/><ellipse cx="38" cy="30" rx="7" ry="4" fill="#fff" opacity=".6" transform="rotate(-30 38 30)"/>';
+      ey = 52; my = 64; armsBack = ''; armsFront = ''; back = '';
+    }
+    face += sp === 'frog' ? eyes(ex, 30) : eyes(ex, ey, white);
+    if (sp === 'frog') my = 64;
+    face += cheeks(my - 1, 22);
+    if (sp === 'cat' || sp === 'rabbit' || sp === 'hamster') face += '<path d="M57.5 ' + (my - 6) + ' h5 l-2.5 3 z" fill="#f06595"/>';
+    if (sp === 'bear' || sp === 'dog' || sp === 'panda' || sp === 'shiba') face += '<ellipse cx="60" cy="' + (my - 5) + '" rx="4.6" ry="3.2" fill="' + DARK + '"/>';
+    face += mouth(ex, sp, my);
+    if (sp === 'dog') front += '<ellipse cx="30" cy="56" rx="10" ry="17" fill="' + s.in + '" stroke="' + s.l + '" stroke-width="2.6" transform="rotate(18 30 56)"/><ellipse cx="90" cy="56" rx="10" ry="17" fill="' + s.in + '" stroke="' + s.l + '" stroke-width="2.6" transform="rotate(-18 90 56)"/>';
+    var pr = sp === 'star' || sp === 'heart' ? '' : prop(po, s);
+    var deco = sp === 'star' || sp === 'heart' ? sparkle(14, 20, 6, '#fab005') + sparkle(106, 24, 5, '#ff8fab') + sparkle(108, 96, 4, '#74c0fc') : '';
+    return armsBack + back + body + head + face + front + (po === 'heart' ? pr : armsFront + pr) + deco;
+  }
+  // ステッカー（白いふち＋影）
+  function stickerFilter(id) {
+    return '<filter id="' + id + '" x="-15%" y="-15%" width="130%" height="130%"><feMorphology in="SourceAlpha" operator="dilate" radius="3.4" result="d"/>' +
+      '<feFlood flood-color="#fff"/><feComposite in2="d" operator="in" result="w"/>' +
+      '<feGaussianBlur in="d" stdDeviation="2.2" result="b"/><feOffset in="b" dy="2" result="o"/><feFlood flood-color="#000" flood-opacity=".22"/><feComposite in2="o" operator="in" result="sh"/>' +
+      '<feMerge><feMergeNode in="sh"/><feMergeNode in="w"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+  }
+  function sticker(d, size) {
+    var f = nid('sk'), t = String(d.t || ''), col = d.c || '#ff6b6b';
+    var hasT = !!t, fs = fit(t, 112, 27, 11), two = null;
+    // 長い言葉は2行にして、文字を大きくする
+    if (hasT && fs < 17 && t.length > 4) {
+      var cut = t.indexOf(' ', Math.floor(t.length / 3));
+      if (cut < 0 || cut > t.length * 2 / 3) cut = Math.ceil(t.length / 2);
+      two = [t.slice(0, cut).trim(), t.slice(cut).trim()];
+      fs = Math.min(fit(two[0], 112, 22, 10), fit(two[1], 112, 22, 10));
+    }
+    var tr = !hasT ? 'translate(6,7) scale(.9)' : two ? 'translate(16,2) scale(.73)' : 'translate(9,3) scale(.85)';
+    var txt = !hasT ? '' : two ? bigText(two[0], 60, 97, fs, col, '#fff', fs * 0.34) + bigText(two[1], 60, 116, fs, col, '#fff', fs * 0.34) : bigText(t, 60, 114, fs, col, '#fff', fs * 0.34);
+    return svgOpen(size, t, 'st-stamp') + '<defs>' + stickerFilter(f) + '</defs>' +
+      '<g filter="url(#' + f + ')"><g transform="' + tr + '">' + character(d.sp, d.po, d.ex) + '</g></g>' +
+      (hasT ? '<g transform="rotate(-5 60 106)">' + txt + '</g>' : '') + '</svg>';
+  }
+
+  // =================== 先生のハンコ ===================
+  function inkFilter(id, seed) {
+    return '<filter id="' + id + '" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="' + seed + '" result="n"/>' +
+      '<feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.5 1.6" result="m"/>' +
+      '<feComposite in="SourceGraphic" in2="m" operator="in" result="t"/>' +
+      '<feTurbulence type="turbulence" baseFrequency=".06" numOctaves="1" seed="' + (seed + 3) + '" result="w"/><feDisplacementMap in="t" in2="w" scale="2.2"/></filter>';
+  }
+  function lines(t) { return String(t || '').split('/'); }
+  // ハンコの文字（太め・白いふちどり）
+  function inkText(t, x, y, size, ink) {
+    return '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-family="' + FONT + '" font-weight="900" font-size="' + size.toFixed(1) + '" fill="' + ink + '" stroke="' + ink + '" stroke-width="' + (size * 0.07).toFixed(2) + '" stroke-linejoin="round">' + esc(t) + '</text>';
+  }
+  function inkFace(kind, col) {
+    if (kind === 'bear') return '<g fill="none" stroke="' + col + '" stroke-width="2.4" stroke-linecap="round"><circle cx="49" cy="25" r="5"/><circle cx="71" cy="25" r="5"/><ellipse cx="60" cy="34" rx="14" ry="12" fill="#fff"/>' +
+      '<path d="M55 33 v.5 M65 33 v.5" stroke-width="3.4"/><path d="M56 39 q4 3.5 8 0"/></g>';
+    return '<g fill="none" stroke="' + col + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M47 30 L48 18 L55 25 M73 30 L72 18 L65 25"/><ellipse cx="60" cy="33" rx="14" ry="11" fill="#fff"/>' +
+      '<path d="M54 31 q2 -2.5 4 0 M62 31 q2 -2.5 4 0"/><path d="M57 37 q1.5 2 3 0 q1.5 2 3 0"/></g>';
+  }
+  function hanko(d, size) {
+    var f = nid('ink'), ink = d.ink || '#e03131', seed = (d.id || 'x').length * 7 + 3, body = '';
+    var sh = d.sh || 'circle', t = String(d.t || '');
+    if (sh === 'hanamaru') {
+      var pts = [], i, n = 11, cx = 60, cy = 52;
+      for (i = 0; i <= n; i++) {
+        var a1 = (i / n) * 2 * Math.PI - Math.PI / 2, a2 = ((i + 0.5) / n) * 2 * Math.PI - Math.PI / 2;
+        pts.push((i ? ' Q' : 'M') + (i ? (cx + 58 * Math.cos(a2 - Math.PI / n)).toFixed(1) + ' ' + (cy + 46 * Math.sin(a2 - Math.PI / n)).toFixed(1) + ' ' : '') + (cx + 40 * Math.cos(a1)).toFixed(1) + ' ' + (cy + 32 * Math.sin(a1)).toFixed(1));
+      }
+      var sp = '', k;
+      for (k = 0; k <= 140; k++) { var aa = k / 140 * Math.PI * 2 * 3.1, rr = 2 + k / 140 * 25; sp += (k ? 'L' : 'M') + (cx + rr * Math.cos(aa)).toFixed(1) + ' ' + (cy + rr * 0.82 * Math.sin(aa)).toFixed(1); }
+      body = '<path d="' + pts.join('') + '" fill="none" stroke="' + ink + '" stroke-width="4.2" stroke-linejoin="round"/>' +
+        '<path d="' + sp + '" fill="none" stroke="' + ink + '" stroke-width="4.4" stroke-linecap="round"/>' +
+        bigText(t, 60, 113, fit(t, 108, 24, 12), ink, '#fff', 5);
+    } else if (sh === 'sakura') {
+      var pet = '', j;
+      for (j = 0; j < 5; j++) {
+        pet += '<path d="M60 60 C40 52 36 22 50 6 Q55 11 60 15 Q65 11 70 6 C84 22 80 52 60 60Z" transform="rotate(' + (j * 72) + ' 60 60)"/>';
+      }
+      var ls = lines(t);
+      body = '<g fill="#fff" stroke="' + ink + '" stroke-width="3.8" stroke-linejoin="round">' + pet + '</g>' +
+        '<g fill="none" stroke="' + ink + '" stroke-width="1.4" opacity=".6">' + [0, 72, 144, 216, 288].map(function (a) { return '<path d="M60 60 L60 30" transform="rotate(' + a + ' 60 60)"/>'; }).join('') + '</g>' +
+        ls.map(function (x, i2) { var fs = fit(x, 92, 28, 11); return bigText(x, 60, 60 + (i2 - (ls.length - 1) / 2) * fs * 1.05 + fs * 0.36, fs, ink, '#fff', fs * 0.3); }).join('');
+    } else if (sh === 'rect') {
+      var l1 = String(d.t || ''), l2 = String(d.t2 || '');
+      body = '<rect x="12" y="14" width="96" height="92" rx="12" fill="#fff" stroke="' + ink + '" stroke-width="5"/><rect x="19" y="21" width="82" height="78" rx="7" fill="none" stroke="' + ink + '" stroke-width="1.8"/>' +
+        inkText(l1, 60, 68, fit(l1, 76, 32, 12), ink) + (l2 ? inkText(l2, 60, 91, fit(l2, 70, 16, 9), ink) : '') +
+        '<path d="M34 34 h52" stroke="' + ink + '" stroke-width="1.6"/><text x="60" y="31" text-anchor="middle" font-family="' + FONT + '" font-weight="900" font-size="10" fill="' + ink + '">★ ★ ★</text>';
+    } else if (sh === 'double') {
+      var a = String(d.t || ''), b = String(d.t2 || '');
+      body = '<circle cx="60" cy="60" r="54" fill="#fff" stroke="' + ink + '" stroke-width="4.5"/><circle cx="60" cy="60" r="47" fill="none" stroke="' + ink + '" stroke-width="2"/>' +
+        '<g transform="translate(12,2) scale(.8)">' + inkFace('cat', ink) + '</g>' +
+        inkText(a, 60, 60, fit(a, 60, 15, 9), ink) + lines(b).map(function (x, i4) { return inkText(x, 60, 82 + i4 * 21, fit(x, 76, 22, 10), ink); }).join('');
+    } else {
+      var ls2 = lines(t);
+      body = '<circle cx="60" cy="60" r="54" fill="#fff" stroke="' + ink + '" stroke-width="5"/><circle cx="60" cy="60" r="47" fill="none" stroke="' + ink + '" stroke-width="1.6" stroke-dasharray="2 3"/>' +
+        inkFace(d.face || 'cat', ink) +
+        ls2.map(function (x, i3) { return inkText(x, 60, 84 + i3 * 20 - (ls2.length - 1) * 9, fit(x, 84, 27, 10), ink); }).join('');
+    }
+    return svgOpen(size, (t + (d.t2 ? ' ' + d.t2 : '')).replace('/', ''), 'hk-stamp') + '<defs>' + inkFilter(f, seed) + '</defs>' +
+      '<g filter="url(#' + f + ')" opacity=".93" transform="rotate(' + (d.rot || 0) + ' 60 60)">' + body + '</g></svg>';
+  }
+
+  // =================== キラキラ・ポップ ===================
+  function multi(t, cy, maxW, maxS, fill, stroke, sw) {
+    var ls = lines(t), fs = Math.min.apply(null, ls.map(function (x) { return fit(x, maxW, maxS, 10); }));
+    return ls.map(function (x, i) { return bigText(x, 60, cy + (i - (ls.length - 1) / 2) * fs * 1.02 + fs * 0.36, fs, fill, stroke, sw === undefined ? fs * 0.18 : sw); }).join('');
+  }
+  function pop(d, size) {
+    var g = nid('pg'), t = String(d.t || ''), c1 = d.c1 || '#ffe066', c2 = d.c2 || '#f08c00', c3 = d.c3 || tint(c2, -0.35), body = '';
+    var defs = '<radialGradient id="' + g + '" cx="50%" cy="40%" r="65%"><stop offset="0" stop-color="' + c1 + '"/><stop offset="1" stop-color="' + c2 + '"/></radialGradient>';
+    var sw = '<g>' + sparkle(16, 18, 7, '#ffd43b') + sparkle(104, 14, 5, '#ff8fab') + sparkle(108, 100, 6, '#74c0fc') + sparkle(12, 98, 4.5, '#b197fc') + '</g>';
+    if (d.sh === 'burst') {
+      body = '<path d="' + starPath(60, 60, 57, 44, 16, -90) + '" fill="url(#' + g + ')" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>' +
+        '<path d="' + starPath(60, 60, 57, 44, 16, -90) + '" fill="none" stroke="' + c3 + '" stroke-width="1.6" stroke-linejoin="round" opacity=".6"/>' +
+        '<ellipse cx="44" cy="34" rx="16" ry="7" fill="#fff" opacity=".35" transform="rotate(-25 44 34)"/>' +
+        multi(t, 60, 84, 34, '#fff', c3) + sw;
+    } else if (d.sh === 'ribbon') {
+      var arcs = ['#ff6b6b', '#ffa94d', '#ffd43b', '#69db7c', '#4dabf7', '#9775fa'].map(function (c, i) {
+        var r = 50 - i * 6; return '<path d="M' + (60 - r) + ' 62 A' + r + ' ' + r + ' 0 0 1 ' + (60 + r) + ' 62" fill="none" stroke="' + c + '" stroke-width="6"/>';
+      }).join('');
+      body = arcs + '<g fill="#fff" stroke="#d0ebff" stroke-width="2"><circle cx="16" cy="62" r="10"/><circle cx="26" cy="58" r="11"/><circle cx="94" cy="58" r="11"/><circle cx="104" cy="62" r="10"/></g>' +
+        '<path d="M2 80 L14 74 L14 100 L2 94 L8 87 Z M118 80 L106 74 L106 100 L118 94 L112 87 Z" fill="' + c3 + '"/>' +
+        '<rect x="12" y="72" width="96" height="30" rx="6" fill="url(#' + g + ')" stroke="#fff" stroke-width="3"/>' +
+        bigText(t, 60, 94, fit(t, 90, 22, 10), '#fff', c3, 4.5) + sparkle(60, 22, 6, '#ffd43b');
+    } else if (d.sh === 'star') {
+      body = '<path d="' + starPath(60, 54, 54, 26, 5) + '" fill="url(#' + g + ')" stroke="#fff" stroke-width="5" stroke-linejoin="round"/>' +
+        '<path d="' + starPath(60, 54, 54, 26, 5) + '" fill="none" stroke="' + c3 + '" stroke-width="2" stroke-linejoin="round"/>' +
+        '<path d="M48 36 L56 20" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".7"/>' + eyes('happy', 54) + cheeks(60, 14) +
+        '<path d="M6 86 L18 82 L18 106 L6 102 L11 94Z M114 86 L102 82 L102 106 L114 102 L109 94Z" fill="' + c3 + '"/>' +
+        '<rect x="14" y="80" width="92" height="28" rx="14" fill="' + c3 + '" stroke="#fff" stroke-width="3"/>' +
+        bigText(t, 60, 101, fit(t, 84, 22, 10), '#fff') + sparkle(14, 18, 6, '#ffd43b') + sparkle(106, 18, 5, '#ff8fab');
+    } else if (d.sh === 'bubble') {
+      body = '<path d="M20 14 H100 Q112 14 112 26 V74 Q112 86 100 86 H58 L38 106 L42 86 H20 Q8 86 8 74 V26 Q8 14 20 14Z" fill="' + c1 + '" stroke="' + c2 + '" stroke-width="4" stroke-linejoin="round"/>' +
+        '<path d="M18 24 Q18 20 24 20 H40" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/>' +
+        multi(t, 50, 94, 30, c2, '#fff', 4) +
+        '<path d="' + heartPath(92, 104, 0.9) + '" fill="#ff6b8a"/><path d="' + heartPath(106, 96, 0.6) + '" fill="#ffa8c5"/>' + sparkle(80, 104, 4.5, '#ffd43b');
+    } else { // medal
+      body = '<path d="M40 84 L28 116 L42 110 L48 120 L58 88Z M80 84 L92 116 L78 110 L72 120 L62 88Z" fill="' + c2 + '" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>' +
+        '<circle cx="60" cy="54" r="46" fill="url(#' + g + ')" stroke="#fff" stroke-width="4"/><circle cx="60" cy="54" r="38" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="3 4" opacity=".8"/>' +
+        '<path d="' + starPath(60, 26, 8, 3.6, 5) + '" fill="#fff"/>' +
+        multi(t, 56, 70, 30, '#fff', c3) + sparkle(104, 20, 6, '#ffd43b') + sparkle(14, 28, 5, '#fff3bf');
+    }
+    return svgOpen(size, t, 'pp-stamp') + '<defs>' + defs + '</defs>' + body + '</svg>';
+  }
+
+  // =================== ライブ表彰 ===================
+  function laurel(col, col2) {
+    var out = '', i;
+    for (i = 0; i < 8; i++) {
+      var a = 200 - i * 18, r = 50, x = 60 + r * Math.cos(a * Math.PI / 180), y = 62 + r * Math.sin(a * Math.PI / 180) * -1;
+      out += '<ellipse cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" rx="8" ry="3.6" fill="' + (i % 2 ? col : col2) + '" transform="rotate(' + (-a + 60) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')"/>';
+      var x2 = 120 - x;
+      out += '<ellipse cx="' + x2.toFixed(1) + '" cy="' + y.toFixed(1) + '" rx="8" ry="3.6" fill="' + (i % 2 ? col : col2) + '" transform="rotate(' + (a - 60) + ' ' + x2.toFixed(1) + ' ' + y.toFixed(1) + ')"/>';
+    }
+    return out;
+  }
+  function rays(id, c1, c2, n, spin) {
+    var out = '', i;
+    for (i = 0; i < n; i++) {
+      var a1 = i * 360 / n, a2 = a1 + 360 / n / 2;
+      var p = 'M60 60 L' + (60 + 80 * Math.cos(a1 * Math.PI / 180)).toFixed(1) + ' ' + (60 + 80 * Math.sin(a1 * Math.PI / 180)).toFixed(1) +
+        ' L' + (60 + 80 * Math.cos(a2 * Math.PI / 180)).toFixed(1) + ' ' + (60 + 80 * Math.sin(a2 * Math.PI / 180)).toFixed(1) + 'Z';
+      out += '<path d="' + p + '" fill="' + c2 + '"/>';
+    }
+    return '<g clip-path="url(#' + id + ')"><circle cx="60" cy="60" r="58" fill="' + c1 + '"/><g>' + out +
+      (spin ? '<animateTransform attributeName="transform" type="rotate" from="0 60 60" to="360 60 60" dur="' + spin + 's" repeatCount="indefinite"/>' : '') + '</g></g>';
+  }
+  function trophy(gid) {
+    return '<path d="M38 36 C24 36 24 58 42 60" fill="none" stroke="#e0a800" stroke-width="5" stroke-linecap="round"/><path d="M82 36 C96 36 96 58 78 60" fill="none" stroke="#e0a800" stroke-width="5" stroke-linecap="round"/>' +
+      '<path d="M36 30 H84 V44 C84 62 74 70 60 70 C46 70 36 62 36 44Z" fill="url(#' + gid + ')" stroke="#b07d00" stroke-width="2.2"/>' +
+      '<rect x="55" y="69" width="10" height="9" fill="#e0a800" stroke="#b07d00" stroke-width="1.6"/>' +
+      '<path d="M44 86 H76 L72 77 H48Z" fill="url(#' + gid + ')" stroke="#b07d00" stroke-width="2"/>' +
+      '<path d="M42 38 C42 52 46 60 52 64" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" opacity=".75"/>' +
+      bigText('1', 60, 60, 26, '#fff', '#b07d00', 3.5);
+  }
+  function crown(x, y, s) {
+    return '<g transform="translate(' + x + ',' + y + ') scale(' + s + ')"><path d="M-22 10 L-26 -12 L-12 0 L0 -18 L12 0 L26 -12 L22 10Z" fill="#ffd43b" stroke="#c99200" stroke-width="2.2" stroke-linejoin="round"/>' +
+      '<rect x="-22" y="8" width="44" height="7" rx="2" fill="#fab005" stroke="#c99200" stroke-width="2"/>' +
+      '<circle cx="0" cy="-18" r="3.4" fill="#ff6b6b"/><circle cx="-26" cy="-12" r="2.8" fill="#4dabf7"/><circle cx="26" cy="-12" r="2.8" fill="#4dabf7"/><circle cx="0" cy="11.5" r="2.4" fill="#e64980"/></g>';
+  }
+  function liveStamp(d, size) {
+    var clip = nid('lc'), gid = nid('lg'), mid = nid('lm'), rank = d.rank || 10, t = String(d.t || ''), t2 = String(d.t2 || '');
+    var defs = '<clipPath id="' + clip + '"><circle cx="60" cy="60" r="58"/></clipPath>' +
+      '<linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3bf"/><stop offset=".45" stop-color="#ffd43b"/><stop offset="1" stop-color="#e0a800"/></linearGradient>';
+    var body;
+    if (rank === 1) {
+      body = '<path d="' + starPath(60, 60, 60, 52, 24, -90) + '" fill="#ffd43b" stroke="#c99200" stroke-width="2"/>' +
+        rays(clip, '#fff3bf', '#ffe066', 18, 14) + laurel('#5c940d', '#82c91e') +
+        '<g transform="translate(0,4)">' + trophy(gid) + '</g>' + crown(60, 22, 0.78) +
+        '<path d="M2 88 L16 82 L16 110 L2 104 L8 96Z M118 88 L104 82 L104 110 L118 104 L112 96Z" fill="#a61e4d"/>' +
+        '<path d="M12 84 H108 L104 96 L108 108 H12 L16 96Z" fill="#e03131" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>' +
+        bigText(t, 60, 104, fit(t, 84, 24, 12), '#fff', '#a61e4d', 4) +
+        bigText(t2, 60, 13, fit(t2, 80, 12, 8), '#c92a2a', '#fff', 3.5) +
+        sparkle(14, 30, 7, '#fff', 1.4) + sparkle(106, 34, 6, '#fff', 1.9) + sparkle(98, 70, 5, '#fff', 1.1) + sparkle(22, 70, 4.5, '#fff', 1.7);
+      return svgOpen(size, '1位 ' + t, 'lv-stamp lv1') + '<defs>' + defs + '</defs>' + body + '</svg>';
+    }
+    var metal = rank === 2 ? ['#f1f3f5', '#adb5bd', '#868e96', '#495057'] : rank === 3 ? ['#ffe8cc', '#e8a067', '#c27c3a', '#8a4b14'] : ['#d0ebff', '#4dabf7', '#1c7ed6', '#1864ab'];
+    var mg = '<radialGradient id="' + mid + '" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="' + metal[0] + '"/><stop offset=".6" stop-color="' + metal[1] + '"/><stop offset="1" stop-color="' + metal[2] + '"/></radialGradient>';
+    var who = rank === 2 ? { sp: 'rabbit', po: 'banzai', ex: 'sparkle' } : rank === 3 ? { sp: 'cat', po: 'banzai', ex: 'happy' } : { sp: 'chick', po: 'banzai', ex: 'sparkle' };
+    var tails = '<path d="M36 80 L22 118 L38 110 L44 120 L56 86Z M84 80 L98 118 L82 110 L76 120 L64 86Z" fill="' + (rank === 10 ? '#e03131' : metal[3]) + '" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>';
+    var frame = rank === 10 ? '<path d="' + starPath(60, 54, 50, 44, 20, -90) + '" fill="url(#' + mid + ')" stroke="#fff" stroke-width="3"/>'
+      : '<circle cx="60" cy="54" r="48" fill="url(#' + mid + ')" stroke="#fff" stroke-width="3.5"/><circle cx="60" cy="54" r="41" fill="none" stroke="#fff" stroke-width="1.6" stroke-dasharray="3 3" opacity=".9"/>';
+    body = tails + frame +
+      '<g transform="translate(24,10) scale(.6)">' + character(who.sp, who.po, who.ex) + '</g>' +
+      '<rect x="12" y="72" width="96" height="28" rx="14" fill="' + (rank === 10 ? '#e03131' : metal[3]) + '" stroke="#fff" stroke-width="2.5"/>' +
+      bigText(t, 60, 93, fit(t, 88, 22, 10), '#fff') +
+      bigText(t2, 60, 114, fit(t2, 74, 13, 8), metal[3], '#fff', 3.5) +
+      sparkle(14, 20, 6, '#ffd43b', 1.6) + sparkle(106, 22, 5, '#ffd43b', 2.1);
+    return svgOpen(size, t, 'lv-stamp lv' + rank) + '<defs>' + defs + mg + '</defs>' + body + '</svg>';
+  }
+
+  // =================== 入口 ===================
+  function design(idOrDef, size) {
+    var d = typeof idOrDef === 'string' ? (root.StampSet && root.StampSet.byId[idOrDef]) : idOrDef;
+    if (!d) return '';
+    if (d.k === 'hk') return hanko(d, size);
+    if (d.k === 'pp') return pop(d, size);
+    if (d.k === 'lv') return liveStamp(d, size);
+    return sticker(d, size);
+  }
+  // 先生が絵と言葉で作るスタンプ（以前のスタンプもこの形で表示）
+  //  opt.color：言葉の色、opt.crown：王冠、opt.pose：ポーズ、opt.expr：表情
   function stampSVG(animal, text, size, opt) {
-    opt = opt || {}; text = String(text || '');
-    var base = COLORS[animal] || COLORS.cat, face = (FACES[animal] || FACES.cat)();
-    var c = /^#[0-9a-f]{6}$/i.test(opt.color || '') ? { ring: opt.color, bg: tint(opt.color, 0.88) } : base;
-    var fs = text.length > 11 ? 11 : text.length > 8 ? 12.5 : 14;
-    if (/[^\x00-\x7f]/.test(text)) fs = text.length > 7 ? 10 : 12;   // 日本語は少し小さく
-    var t = escText(text);
-    return '<svg class="stamp-svg" width="' + (size || 96) + '" height="' + (size || 96) + '" viewBox="0 0 120 120" role="img" aria-label="' + t + '">' +
-      '<circle cx="60" cy="60" r="56" fill="' + c.bg + '" stroke="' + c.ring + '" stroke-width="5"/>' +
-      '<circle cx="60" cy="60" r="49" fill="none" stroke="' + c.ring + '" stroke-width="1.5" stroke-dasharray="3 4" opacity=".7"/>' +
-      '<g transform="translate(0,' + (opt.crown ? 4 : -4) + ')' + (opt.crown ? ' scale(1)' : '') + '">' + face + '</g>' + (opt.crown ? crownSVG() : '') +
-      (t ? '<rect x="14" y="84" width="92" height="22" rx="11" fill="' + c.ring + '"/>' +
-      '<text x="60" y="99.5" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-weight="700" font-size="' + fs + '" fill="#fff">' + t + '</text>' : '') + '</svg>';
+    opt = opt || {};
+    var sp = SP[animal] ? animal : 'cat';
+    var html = sticker({ sp: sp, po: opt.pose || 'banzai', ex: opt.expr || 'sparkle', t: text, c: /^#[0-9a-f]{6}$/i.test(opt.color || '') ? opt.color : SP[sp].l }, size);
+    if (opt.crown) html = html.replace('</svg>', crown(60, 14, 0.55) + '</svg>');
+    return html;
   }
   // 画像のスタンプ（先生がアップロードした画像を丸く切り抜いて表示）
-  var imgN = 0;
   function imageStamp(src, text, size) {
-    var id = 'stc' + (++imgN), t = escText(text), s = size || 96;
-    return '<svg class="stamp-svg" width="' + s + '" height="' + s + '" viewBox="0 0 120 120" role="img" aria-label="' + (t || 'スタンプ') + '">' +
-      '<defs><clipPath id="' + id + '"><circle cx="60" cy="60" r="53"/></clipPath></defs>' +
-      '<circle cx="60" cy="60" r="56" fill="#fff"/>' +
-      (src ? '<image href="' + escText(src) + '" x="7" y="7" width="106" height="106" preserveAspectRatio="xMidYMid slice" clip-path="url(#' + id + ')"/>' : '') +
-      '<circle cx="60" cy="60" r="55" fill="none" stroke="#f28bb3" stroke-width="4"/>' +
-      (t ? '<rect x="14" y="88" width="92" height="20" rx="10" fill="#f28bb3"/><text x="60" y="102" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-weight="700" font-size="' + (t.length > 10 ? 10.5 : 13) + '" fill="#fff">' + t + '</text>' : '') + '</svg>';
+    var id = nid('ic'), f = nid('sk'), t = String(text || ''), fs = fit(t, 108, 24, 10);
+    return svgOpen(size, t || 'スタンプ', 'img-stamp') + '<defs><clipPath id="' + id + '"><circle cx="60" cy="56" r="50"/></clipPath>' + stickerFilter(f) + '</defs>' +
+      '<g filter="url(#' + f + ')"><circle cx="60" cy="56" r="51" fill="#fff"/>' +
+      (src ? '<image href="' + esc(src) + '" x="10" y="6" width="100" height="100" preserveAspectRatio="xMidYMid slice" clip-path="url(#' + id + ')"/>' : '<circle cx="60" cy="56" r="50" fill="#f1f3f5"/>') + '</g>' +
+      (t ? '<g transform="rotate(-5 60 108)">' + bigText(t, 60, 113, fs, '#e64980', '#fff', fs * 0.34) + '</g>' : '') + '</svg>';
   }
   // スタンプカードのマーク（肉球）
   function pawSVG(color, size) {
@@ -3143,7 +3558,9 @@ window.SAMPLE_ASSIGNMENTS = [
       '<ellipse cx="11" cy="17" rx="3.4" ry="4.2" fill="' + color + '"/><ellipse cx="17" cy="12" rx="3.4" ry="4.4" fill="' + color + '"/>' +
       '<ellipse cx="23" cy="12" rx="3.4" ry="4.4" fill="' + color + '"/><ellipse cx="29" cy="17" rx="3.4" ry="4.2" fill="' + color + '"/></svg>';
   }
-  root.Art = { stampSVG: stampSVG, imageStamp: imageStamp, pawSVG: pawSVG, ANIMALS: Object.keys(FACES) };
+  var ANIMALS = Object.keys(SP);
+  root.Art = { design: design, stampSVG: stampSVG, imageStamp: imageStamp, pawSVG: pawSVG, ANIMALS: ANIMALS,
+    SPECIES: SP, POSES: POSES, EXPRS: EXPRS, character: character };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 </script>
@@ -3752,8 +4169,14 @@ window.SAMPLE_ASSIGNMENTS = [
   function stampHTML(x, size) {
     if (!x) return '';
     if (!window.Art) return esc(x.t);
+    if (x.g && Art.design) { var dg = Art.design(x.g, size || 96); if (dg) return dg; }
     if (x.c) return Art.imageStamp(STAMP_IMGS[x.c] || '', x.t, size || 96);
-    return Art.stampSVG(x.a, x.t, size || 96, { color: x.col, crown: x.cr });
+    return Art.stampSVG(x.a, x.t, size || 96, { color: x.col, crown: x.cr, pose: x.po, expr: x.ex });
+  }
+  // 自動スタンプの条件ごとの絵（見本として数個）
+  function poolSamples(rule, k, size) {
+    var list = (window.StampSet && StampSet.pool(rule)) || [];
+    return list.slice(0, k).map(function (d) { return Art.design(d, size); }).join('');
   }
   // スタンプの説明（自動スタンプの条件・先生から・ライブ）
   function stampNote(x) {
@@ -3771,6 +4194,18 @@ window.SAMPLE_ASSIGNMENTS = [
     el.className = 'reward-overlay';
     el.setAttribute('role', 'dialog');
     var html = '<div class="reward-box">';
+    var champ = stamps.filter(function (x) { return x.g === 'lv1'; })[0];
+    if (champ) {
+      el.classList.add('legend');
+      html = '<div class="reward-box legend-box"><div class="legend-rays"></div><div class="legend-crown">👑</div>' +
+        '<h2 class="legend-title">ライブで1位！！</h2><div class="legend-sub">みんなの中で、いちばん！<br>本当に本当に、すごい！！ おめでとう！🎉</div>' +
+        '<div class="legend-stamp">' + stampHTML(champ, 230) + '</div>' +
+        (champ.by ? '<div class="muted" style="font-size:.85rem">' + esc(stampNote(champ)) + '</div>' : '');
+      stamps = stamps.filter(function (x) { return x !== champ; });
+      if (stamps.length) html += '<div class="reward-stamps">' + stamps.slice(-4).map(function (x) { return '<div class="pop-in">' + stampHTML(x, 90) + '</div>'; }).join('') + '</div>';
+      stamps = [];
+      for (var ci = 0; ci < 70; ci++) html += '<i class="conf" style="left:' + (Math.random() * 100).toFixed(1) + '%;background:' + ['#ff6b6b', '#ffd43b', '#51cf66', '#339af0', '#f783ac', '#845ef7'][ci % 6] + ';animation-delay:' + (Math.random() * 2).toFixed(2) + 's;animation-duration:' + (2.4 + Math.random() * 2).toFixed(2) + 's"></i>';
+    }
     if (stamps.length) {
       var isLive = stamps.some(function (x) { return x.r === 'live'; });
       html += '<h2>' + (isLive ? '🏆 ライブの表彰スタンプが届きました！' : '💌 先生からスタンプが届きました！') + '</h2><div class="reward-stamps">' +
@@ -4906,7 +5341,7 @@ window.SAMPLE_ASSIGNMENTS = [
       } else if (tab === 'stamps') {
         var st = (rw.stamps || []).slice().reverse();
         html += '<div class="card">' + (st.length ? '<div class="stamp-grid">' + st.map(function (x) {
-          return '<div class="stamp-item">' + stampHTML(x, 92) + '<div class="muted">' + fmtDay(x.d) + '</div><div class="ds">' + esc(stampNote(x)) + '</div></div>';
+          return '<div class="stamp-item' + (x.g === 'lv1' ? ' champ' : '') + '">' + stampHTML(x, x.g === 'lv1' ? 140 : 112) + '<div class="muted">' + fmtDay(x.d) + '</div><div class="ds">' + esc(stampNote(x)) + '</div></div>';
         }).join('') + '</div>' : '<div class="empty">まだスタンプはありません。音読を続けると、先生からスタンプが届きます！</div>') + '</div>';
       } else {
         var lvIdx = rw.levelIndex || 0, LV = (window.Core && Core.LEVELS) || [];
@@ -5648,7 +6083,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var rw = r.rewards || {};
       html += '<div class="kpi-inline" style="margin-top:6px"><span>バッジ <b>' + Object.keys(rw.badges || {}).length + '</b></span><span>ボーナス <b>' + n(rw.points) + 'pt</b></span>' +
         '<span>スタンプカード <b>' + (rw.days || 0) + '日</b></span><span>今週 <b>' + (rw.weekDays || 0) + '日</b></span><span>ライブラリ <b>' + (rw.read || []).length + '本</b></span></div>' +
-        ((rw.stamps || []).length ? '<div class="mini-stamps">' + rw.stamps.slice(-8).reverse().map(function (x) { return '<span title="' + esc(x.d) + '">' + stampHTML(x, 46) + '</span>'; }).join('') + '</div>' : '') + '</div>';
+        ((rw.stamps || []).length ? '<div class="mini-stamps">' + rw.stamps.slice(-8).reverse().map(function (x) { return '<span title="' + esc(x.d) + '">' + stampHTML(x, 58) + '</span>'; }).join('') + '</div>' : '') + '</div>';
       html += '<div class="card"><h2>音読のきろく（最新200件）</h2>';
       html += r.records.length ? '<div class="table-wrap"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th class="num">正確さ</th><th class="num">単語</th><th>音声</th></tr></thead><tbody>' +
         r.records.map(function (x, i) {
@@ -5747,7 +6182,7 @@ window.SAMPLE_ASSIGNMENTS = [
           '<h3 style="margin-top:16px">💌 先生スタンプ（自動）</h3><p class="muted" style="font-size:.85rem">条件を満たした生徒に、先生からのスタンプが自動で届きます。押さない条件はチェックを外してください。スタンプの絵は「<a href="#/t/stamps">🐾 スタンプ</a>」画面で、先生が作ったスタンプに変えられます。</p>' +
           '<div class="auto-stamps">' + ((window.Core && Core.STAMP_RULES) || []).map(function (r) {
             return '<label class="auto-stamp"><input type="checkbox" class="sStamp" value="' + r.id + '"' + ((st.autoStamps || []).indexOf(r.id) >= 0 ? ' checked' : '') + '>' +
-              stampHTML(r, 64) + '<span>' + esc(r.name) + '</span></label>';
+              '<span class="pool-mini">' + poolSamples(r.id, 3, 46) + '</span><span>' + esc(r.name) + '</span></label>';
           }).join('') + '</div>' +
           '<div style="margin-top:14px"><button class="btn-primary" id="sSave">保存する</button></div></div>';
       } else {
@@ -5966,9 +6401,8 @@ window.SAMPLE_ASSIGNMENTS = [
 
   // ================= ルーター =================
   // ================= 先生：スタンプ =================
-  var STAMP_COLORS = ['#f28bb3', '#ef5b5b', '#f4a259', '#f2c230', '#56b38a', '#3bb0a0', '#5aa9e6', '#7c6fe0', '#b07b4f', '#6b7280'];
-  var ANIMAL_NAME = { cat: 'ねこ', rabbit: 'うさぎ', bear: 'くま', chick: 'ひよこ', dog: 'いぬ', panda: 'パンダ', star: 'ほし', heart: 'ハート' };
-  function customEntry(x) { return x.kind === 'image' ? { c: x.id, t: x.text } : { a: x.animal, t: x.text, col: x.color }; }
+  var STAMP_COLORS = ['#e64980', '#e03131', '#f76707', '#f08c00', '#2b8a3e', '#0c8599', '#1971c2', '#7048e8', '#9c36b5', '#495057'];
+  function customEntry(x) { return x.kind === 'image' ? { c: x.id, t: x.text } : { a: x.animal, t: x.text, col: x.color, po: x.pose, ex: x.expr }; }
   // 画像を小さく整える（スプレッドシートに入る大きさにする）
   function shrinkImage(file) {
     return new Promise(function (resolve, reject) {
@@ -5996,15 +6430,20 @@ window.SAMPLE_ASSIGNMENTS = [
       var both = await Promise.all([cached('t_stamps'), loadOverview()]), S = both[0], o = both[1];
       noteImgs(S);
       if (mode === 'new' || mode === 'edit') return stampEditor(S, mode === 'edit' ? S.custom.filter(function (x) { return x.id === arg; })[0] : null);
-      var choices = S.custom.map(function (x) { return { key: 'c:' + x.id, e: customEntry(x), label: '先生スタンプ' }; })
-        .concat(S.rules.map(function (r) { return { key: 'r:' + r.id, e: { a: r.a, t: r.t }, label: '標準' }; }))
-        .concat(Object.keys(S.live).map(function (k) { var x = S.live[k]; return { key: 'l:' + k, e: { a: x.a, t: x.t, col: x.col, cr: x.cr }, label: 'ライブ' }; }));
+      var SL = (window.StampSet && StampSet.list) || [], KN = (window.StampSet && StampSet.KINDS) || {};
+      var groups = [{ name: '🎲 おまかせ', items: [{ key: 'rand:', html: '<span class="dice">🎲</span>', label: 'どれかが届く' }] }];
+      if (S.custom.length) groups.push({ name: '✏ 先生が作ったスタンプ', items: S.custom.map(function (x) { return { key: 'c:' + x.id, e: customEntry(x) }; }) });
+      ['st', 'hk', 'pp', 'lv'].forEach(function (k) {
+        groups.push({ name: KN[k] || k, items: SL.filter(function (d) { return d.k === k; }).map(function (d) { return { key: 'g:' + d.id, e: { g: d.id } }; }) });
+      });
       var preSid = mode === 'give' ? arg : '', preStu = preSid ? o.students.filter(function (x) { return x.id === preSid; })[0] : null;
       var classes = uniq(o.students.map(function (x) { return x.cls; }));
       var html = teacherTabs('stamps');
       html += '<div class="card"><h2>🐾 スタンプを押す</h2><p class="muted" style="font-size:.88rem">スタンプを1つ選び、押したい生徒にチェックを入れてください。生徒が次にアプリを開いたときに届きます。</p>' +
-        '<h3>① スタンプを選ぶ</h3><div class="stamp-pick" id="gPick">' + choices.map(function (c, i) {
-          return '<label class="pick"><input type="radio" name="gStamp" value="' + esc(c.key) + '"' + (i === 0 ? ' checked' : '') + '>' + stampHTML(c.e, 72) + '<small>' + esc(c.label) + '</small></label>';
+        '<h3>① スタンプを選ぶ</h3><div id="gPick">' + groups.map(function (g, gi) {
+          return '<div class="pick-group"><div class="pick-title">' + esc(g.name) + '</div><div class="stamp-pick">' + g.items.map(function (c, i) {
+            return '<label class="pick"><input type="radio" name="gStamp" value="' + esc(c.key) + '"' + (gi === 0 && i === 0 ? ' checked' : '') + '>' + (c.html || stampHTML(c.e, 84)) + (c.label ? '<small>' + esc(c.label) + '</small>' : '') + '</label>';
+          }).join('') + '</div></div>';
         }).join('') + '</div>' +
         '<h3 style="margin-top:12px">② 生徒を選ぶ</h3><div class="toolbar"><select id="gCls" style="width:auto">' + classes.map(function (c) {
           return '<option' + (preStu && preStu.cls === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>' +
@@ -6014,16 +6453,16 @@ window.SAMPLE_ASSIGNMENTS = [
       html += '<div class="card"><div class="card-title"><h2>✏ 先生が作ったスタンプ</h2><a class="btn btn-primary" href="#/t/stamps/new">＋ 新しく作る</a></div>' +
         (S.custom.length ? '<div class="stamp-grid">' + S.custom.map(function (x) {
           var mine = S.admin || x.owner === S.me;
-          return '<div class="stamp-item">' + stampHTML(customEntry(x), 88) + '<div class="ds">' + (x.kind === 'image' ? '画像' : esc(ANIMAL_NAME[x.animal] || '')) + '</div>' +
+          return '<div class="stamp-item">' + stampHTML(customEntry(x), 88) + '<div class="ds">' + (x.kind === 'image' ? '画像' : esc((Art.SPECIES[x.animal] || {}).name || '')) + '</div>' +
             (mine ? '<div class="btn-row" style="justify-content:center"><a class="btn btn-small" href="#/t/stamps/edit/' + encodeURIComponent(x.id) + '">編集</a><button class="btn-small btn-danger" data-del="' + esc(x.id) + '">削除</button></div>' : '') + '</div>';
         }).join('') + '</div>' : '<div class="empty">まだありません。「＋ 新しく作る」から、絵と言葉を選んで作るか、画像を使って作れます。</div>') + '</div>';
       if (S.admin) {
         html += '<div class="card"><h2>💌 自動スタンプの絵</h2><p class="muted" style="font-size:.88rem">条件を満たしたときに自動で押すスタンプを、先生が作ったスタンプに変えられます。（押す・押さないは「設定」画面で選べます）</p>' +
           '<div class="auto-art">' + S.rules.map(function (r) {
             var cur = S.autoArt[r.id] || '';
-            return '<div class="auto-art-row"><span class="aa-prev" data-rule="' + r.id + '">' + stampHTML(cur ? customEntry(S.custom.filter(function (x) { return x.id === cur; })[0] || {}) : r, 56) + '</span>' +
+            return '<div class="auto-art-row"><span class="aa-prev" data-rule="' + r.id + '">' + (cur ? stampHTML(customEntry(S.custom.filter(function (x) { return x.id === cur; })[0] || {}), 56) : poolSamples(r.id, 3, 48)) + '</span>' +
               '<span class="aa-name">' + esc(r.name) + (S.on.indexOf(r.id) < 0 ? ' <span class="pill gray">押さない</span>' : '') + '</span>' +
-              '<select class="aa-sel" data-rule="' + r.id + '"><option value="">標準（' + esc(r.t) + '）</option>' + S.custom.map(function (x) {
+              '<select class="aa-sel" data-rule="' + r.id + '"><option value="">標準（' + ((window.StampSet && StampSet.pool(r.id).length) || 1) + '種類からランダム）</option>' + S.custom.map(function (x) {
                 return '<option value="' + esc(x.id) + '"' + (cur === x.id ? ' selected' : '') + '>先生スタンプ：' + esc(x.text || '（画像）') + '</option>'; }).join('') + '</select></div>';
           }).join('') + '</div><div style="margin-top:10px"><button class="btn-primary" id="aaSave">保存する</button></div></div>';
       }
@@ -6060,7 +6499,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $all('.aa-sel').forEach(function (sel) {
         sel.onchange = function () {
           var x = S.custom.filter(function (y) { return y.id === sel.value; })[0], r = S.rules.filter(function (y) { return y.id === sel.dataset.rule; })[0];
-          $('.aa-prev[data-rule="' + sel.dataset.rule + '"]').innerHTML = stampHTML(x ? customEntry(x) : r, 56);
+          $('.aa-prev[data-rule="' + sel.dataset.rule + '"]').innerHTML = x ? stampHTML(customEntry(x), 56) : poolSamples(r.id, 3, 48);
         };
       });
       if ($('#aaSave')) $('#aaSave').onclick = async function () {
@@ -6070,19 +6509,21 @@ window.SAMPLE_ASSIGNMENTS = [
     } catch (e) { $app.innerHTML = teacherTabs('stamps') + '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
   function stampEditor(S, cur) {
-    var d = cur ? { id: cur.id, kind: cur.kind, animal: cur.animal, text: cur.text, color: cur.color, image: cur.image }
-      : { id: '', kind: 'art', animal: 'cat', text: '', color: '', image: '' };
-    var animals = S.animals || ['cat', 'rabbit', 'bear', 'chick', 'dog', 'panda', 'star', 'heart'];
+    var d = cur ? { id: cur.id, kind: cur.kind, animal: cur.animal, pose: cur.pose || 'banzai', expr: cur.expr || 'sparkle', text: cur.text, color: cur.color, image: cur.image }
+      : { id: '', kind: 'art', animal: 'cat', pose: 'banzai', expr: 'sparkle', text: '', color: '', image: '' };
+    var animals = S.animals || Art.ANIMALS;
     var html = teacherTabs('stamps') + '<a class="back" href="#/t/stamps">← スタンプ</a><div class="card"><h2>' + (d.id ? 'スタンプを編集' : 'スタンプを作る') + '</h2>' +
       '<div class="seg" id="seKind"><button data-k="art">🎨 絵と言葉で作る</button><button data-k="image">🖼 画像で作る</button></div>' +
       '<div class="stamp-editor"><div class="se-prev" id="sePrev"></div><div class="se-form">' +
-      '<div id="seArt"><label>絵</label><div class="se-animals">' + animals.map(function (a) {
-        return '<button type="button" class="se-animal" data-a="' + a + '" title="' + esc(ANIMAL_NAME[a] || a) + '">' + Art.stampSVG(a, '', 48) + '</button>'; }).join('') + '</div>' +
-      '<label>色</label><div class="se-colors">' + STAMP_COLORS.map(function (c) { return '<button type="button" class="se-color" data-c="' + c + '" style="background:' + c + '" title="' + c + '"></button>'; }).join('') +
-      '<input type="color" id="seColor" title="好きな色"><button type="button" class="btn-small" id="seNoColor">絵の色にもどす</button></div></div>' +
+      '<div id="seArt"><label>キャラクター</label><div class="se-animals">' + animals.map(function (a) {
+        return '<button type="button" class="se-animal" data-a="' + a + '" title="' + esc((Art.SPECIES[a] || {}).name || a) + '">' + Art.stampSVG(a, '', 56) + '<small>' + esc((Art.SPECIES[a] || {}).name || '') + '</small></button>'; }).join('') + '</div>' +
+      '<div class="form-row"><div><label>ポーズ</label><div class="seg" id="sePose">' + Object.keys(Art.POSES).map(function (k) { return '<button type="button" data-v="' + k + '">' + esc(Art.POSES[k]) + '</button>'; }).join('') + '</div></div>' +
+      '<div><label>表情</label><div class="seg" id="seExpr">' + Object.keys(Art.EXPRS).map(function (k) { return '<button type="button" data-v="' + k + '">' + esc(Art.EXPRS[k]) + '</button>'; }).join('') + '</div></div></div>' +
+      '<label>言葉の色</label><div class="se-colors">' + STAMP_COLORS.map(function (c) { return '<button type="button" class="se-color" data-c="' + c + '" style="background:' + c + '" title="' + c + '"></button>'; }).join('') +
+      '<input type="color" id="seColor" title="好きな色"><button type="button" class="btn-small" id="seNoColor">キャラクターの色</button></div></div>' +
       '<div id="seImg"><label for="seFile">画像（写真や手書きのイラストなど。丸く切り抜かれます）</label><input type="file" id="seFile" accept="image/*">' +
       '<p class="muted" style="font-size:.82rem">著作権のあるキャラクターなどの画像は使わないでください。自動で小さくして保存します。</p></div>' +
-      '<label for="seText">スタンプの言葉（14文字まで。画像のときは空欄でもOK）</label><input type="text" id="seText" maxlength="14" placeholder="例：Nice reading!" value="' + esc(d.text) + '">' +
+      '<label for="seText">スタンプの言葉（14文字まで。短いほど大きく表示されます。画像のときは空欄でもOK）</label><input type="text" id="seText" maxlength="14" placeholder="例：Nice reading!" value="' + esc(d.text) + '">' +
       '<div class="btn-row" style="margin-top:14px"><button class="btn-primary" id="seSave">保存する</button><a class="btn" href="#/t/stamps">キャンセル</a></div><div class="error" id="seErr"></div>' +
       '</div></div></div>';
     $app.innerHTML = html;
@@ -6091,12 +6532,16 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#seArt').hidden = d.kind !== 'art'; $('#seImg').hidden = d.kind !== 'image';
       $all('.se-animal').forEach(function (b) { b.classList.toggle('active', b.dataset.a === d.animal); });
       $all('.se-color').forEach(function (b) { b.classList.toggle('active', b.dataset.c === d.color); });
-      $('#sePrev').innerHTML = (d.kind === 'image' ? Art.imageStamp(d.image, d.text, 160) : Art.stampSVG(d.animal, d.text, 160, { color: d.color })) +
+      $all('#sePose button').forEach(function (b) { b.classList.toggle('active', b.dataset.v === d.pose); });
+      $all('#seExpr button').forEach(function (b) { b.classList.toggle('active', b.dataset.v === d.expr); });
+      $('#sePrev').innerHTML = (d.kind === 'image' ? Art.imageStamp(d.image, d.text, 180) : Art.stampSVG(d.animal, d.text, 180, { color: d.color, pose: d.pose, expr: d.expr })) +
         (d.kind === 'image' && !d.image ? '<div class="muted">画像を選んでください</div>' : '');
     }
     $all('#seKind button').forEach(function (b) { b.onclick = function () { d.kind = b.dataset.k; draw(); }; });
     $all('.se-animal').forEach(function (b) { b.onclick = function () { d.animal = b.dataset.a; draw(); }; });
     $all('.se-color').forEach(function (b) { b.onclick = function () { d.color = b.dataset.c; draw(); }; });
+    $all('#sePose button').forEach(function (b) { b.onclick = function () { d.pose = b.dataset.v; draw(); }; });
+    $all('#seExpr button').forEach(function (b) { b.onclick = function () { d.expr = b.dataset.v; draw(); }; });
     $('#seColor').oninput = function () { d.color = this.value; draw(); };
     $('#seNoColor').onclick = function () { d.color = ''; draw(); };
     $('#seText').oninput = function () { d.text = this.value; draw(); };
@@ -6117,7 +6562,7 @@ window.SAMPLE_ASSIGNMENTS = [
   function liveEntry(S, key, rank) {
     if (key && key.indexOf('c:') === 0) { var x = (S.custom || []).filter(function (y) { return y.id === key.slice(2); })[0]; if (x) return customEntry(x); }
     var L = S.live || {}, k = rank <= 3 ? 'rank' + rank : 'top10', v = L[k] || {};
-    return { a: v.a, t: v.t, col: v.col, cr: v.cr };
+    return { g: v.g, t: v.t };
   }
   async function viewLives() {
     bottomNav(); $app.classList.add('wide'); loading();
