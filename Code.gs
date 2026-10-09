@@ -423,6 +423,15 @@
     { id: 'perfect', a: 'panda', t: 'Wonderful!', name: '正確さ100%を出したとき（週1回まで）' },
     { id: 'comeback', a: 'dog', t: 'Welcome back!', name: '1週間以上あいてから、また読んだとき' }
   ];
+  // ライブの表彰スタンプ（最初から入っているもの。col：色、cr：王冠）
+  var LIVE_STAMPS = {
+    rank1: { a: 'bear', t: 'No.1!', col: '#e0a800', cr: 1, name: 'ライブ1位' },
+    rank2: { a: 'rabbit', t: 'No.2!', col: '#8f9bab', cr: 1, name: 'ライブ2位' },
+    rank3: { a: 'cat', t: 'No.3!', col: '#c27c3a', cr: 1, name: 'ライブ3位' },
+    top10: { a: 'chick', t: 'Top 10!', col: '#3b9be0', name: 'ライブ10位以内' }
+  };
+  var STAMP_ANIMALS = ['cat', 'rabbit', 'bear', 'chick', 'dog', 'panda', 'star', 'heart'];
+  var MAX_STAMP_IMAGE = 45000;   // 画像スタンプのデータの上限（文字数）
   // 着せ替え（級・段で解放）lv：LEVELSの番号
   var THEMES = [
     { id: 'blue', name: 'ブルー', lv: 0 }, { id: 'sakura', name: 'さくら', lv: 2 }, { id: 'mint', name: 'ミント', lv: 4 },
@@ -464,18 +473,71 @@
     o.p = num(o.p); o.d = num(o.d);
     return o;
   }
-  function rewardsPublic(ach, s, today) {
+  function rewardsPublic(ach, s, today, store) {
     var lv = levelOf(num(s.totalWords));
     return { points: ach.p, badges: ach.b, days: ach.d, stampedToday: ach.ld === today, theme: ach.th || 'blue', icon: ach.ic || '',
       weekDays: ach.wk === weekStart(today) ? num(ach.wd) : 0, read: ach.lib, counts: ach.c,
       stamps: ach.st.slice(-40), newStamps: ach.st.filter(function (x) { return x.n; }).length,
-      icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index };
+      icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index, stampImgs: stampImgs(store, ach.st.slice(-40)) };
   }
   function stampRulesOn(store) {
     var v = str(store.getSetting('自動スタンプ'));
     if (!v) return STAMP_RULES.map(function (r) { return r.id; });
     if (v === 'なし') return [];
     return v.split(/[,、\s]+/).filter(Boolean);
+  }
+  // ---- 先生が作ったスタンプ ----
+  function customStamps(store) { return store.getStamps ? store.getStamps().filter(function (x) { return str(x.id); }) : []; }
+  function stampPublic(d) {
+    return { id: str(d.id), kind: str(d.kind) === 'image' ? 'image' : 'art', animal: str(d.animal) || 'cat', text: str(d.text),
+      color: str(d.color), image: str(d.image), owner: str(d.owner), created: str(d.created) };
+  }
+  // 生徒の記録に入れるスタンプの形（a：絵、t：言葉、col：色、cr：王冠、c：画像スタンプのID）
+  function stampEntry(def) {
+    if (!def) return null;
+    if (str(def.kind) === 'image') return { c: str(def.id), t: str(def.text) };
+    var o = { a: str(def.animal || def.a) || 'cat', t: str(def.text || def.t) };
+    var col = str(def.color || def.col); if (col) o.col = col;
+    if (def.cr) o.cr = 1;
+    return o;
+  }
+  // key：'c:<先生スタンプのID>' / 'r:<自動スタンプの種類>' / 'l:<ライブの表彰>'
+  function findStampDef(store, key) {
+    key = str(key);
+    if (key.indexOf('c:') === 0) {
+      var id = key.slice(2);
+      return customStamps(store).filter(function (x) { return str(x.id) === id; })[0] || null;
+    }
+    if (key.indexOf('r:') === 0) return STAMP_RULES.filter(function (x) { return x.id === key.slice(2); })[0] || null;
+    if (key.indexOf('l:') === 0) return LIVE_STAMPS[key.slice(2)] || null;
+    return null;
+  }
+  // 画像スタンプの絵（表示に使われる分だけ送る）
+  function stampImgs(store, list) {
+    var need = {}, out = {};
+    (list || []).forEach(function (x) { if (x && x.c) need[x.c] = 1; });
+    if (!store || !Object.keys(need).length) return out;
+    customStamps(store).forEach(function (d) { if (need[str(d.id)] && str(d.image)) out[str(d.id)] = str(d.image); });
+    return out;
+  }
+  function autoStampArt(store) {
+    try { var o = JSON.parse(str(store.getSetting('自動スタンプの絵')) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+  }
+  // スタンプを生徒に押す（ach を書き換えて JSON を返す）
+  function pushStamp(s, entry, rule, today, by) {
+    var ach = achOf(s), e = {};
+    for (var k in entry) e[k] = entry[k];
+    e.r = rule; e.d = today; e.n = 1; if (by) e.by = str(by).slice(0, 20);
+    ach.st.push(e);
+    if (!ach.b.teacher) ach.b.teacher = today;
+    if (ach.st.length > 60) ach.st = ach.st.slice(-60);
+    return JSON.stringify(ach);
+  }
+  // 何人分もまとめて書き込む
+  function updateStudents(store, ups) {
+    if (!ups.length) return;
+    if (store.updateStudents) store.updateStudents(ups);
+    else ups.forEach(function (u) { store.updateStudent(u.id, u.f); });
   }
 
   // 現在の日時（日本時間 'YYYY-MM-DDTHH:MM'）。処理のたびに handle() で設定
@@ -726,7 +788,7 @@
     var pub = studentPublic(s);
     if (pub.todayDate !== today) pub.todayWords = 0;
     if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
-    return { student: pub, assignments: list, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today) };
+    return { student: pub, assignments: list, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today, store), live: liveForStudent(store, s, ctx.now()) };
   };
 
   handlers.getAssignment = function (p, store, ctx) {
@@ -895,13 +957,17 @@
     award('alltypes', !!(after2 && after2.types.length === 5 && after2.types.every(function (t) { return after2.passes[t] >= 1; })));
     award('shodan', after.index >= 10);
     // 先生スタンプ（条件を満たすと自動で押す。同じ条件では1回だけ）
-    var on = stampRulesOn(store);
+    var on = stampRulesOn(store), art = autoStampArt(store);
     function stamp(ruleId, key, cond) {
       if (!cond || on.indexOf(ruleId) < 0 || ach.sk[key]) return;
       var rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0];
       ach.sk[key] = 1;
-      ach.st.push({ a: rule.a, t: rule.t, r: ruleId, d: today, n: 1 });
-      newStamps.push({ a: rule.a, t: rule.t, r: ruleId });
+      // 先生が作ったスタンプが選ばれていれば、そちらを押す
+      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || { a: rule.a, t: rule.t };
+      e.r = ruleId;
+      var rec = {}; for (var k in e) rec[k] = e[k];
+      rec.d = today; rec.n = 1;
+      ach.st.push(rec); newStamps.push(e);
     }
     stamp('first', 'first', firstEver && r.correct > 0);
     stamp('week3', 'w3:' + ws, newDay && ach.wd === 3);
@@ -918,12 +984,26 @@
     upd.ach = JSON.stringify(ach); s.ach = upd.ach;
     store.updateStudent(s.id, upd);
 
+    // ---- ライブ（開催中のライブの課題なら、ポイントを加える） ----
+    var liveResult = null;
+    if (a && r.correct > 0) {
+      var liveNow = liveRunning(store, s, now, a.id);
+      if (liveNow) {
+        var sc = jsonObj(liveNow.scores), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
+        le.p = num(le.p) + gained; le.c = num(le.c) + 1; le.b = Math.max(num(le.b), r.accuracy); le.t = now.toISOString();
+        sc[s.id] = le;
+        store.updateLive(str(liveNow.id), { scores: JSON.stringify(sc) });
+        var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
+        liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
+      }
+    }
+
     return {
       progress: after2, masterNew: masterNew, achievedNew: achievedNew,
       passed: a ? r.accuracy >= passLine(a) : null,
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
-      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today)
+      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store), live: liveResult
     };
   };
 
@@ -1268,7 +1348,7 @@
         flag: str(r.flag), audio: str(r.audio), reviewed: str(r.reviewed), rid: rid(r) };
     });
     var pub = studentPublic(s); pub.name = str(s.name);
-    return { student: pub, records: recs, rewards: rewardsPublic(achOf(s), s, jstDate(ctx.now())) };
+    return { student: pub, records: recs, rewards: rewardsPublic(achOf(s), s, jstDate(ctx.now()), store) };
   };
 
   handlers.t_export = function (p, store, ctx) {
@@ -1323,6 +1403,181 @@
     return { rows: store.getStudents().filter(function (s) { return canTeach(me, s.cls); }).map(function (s) { return { id: s.id, cls: s.cls, no: s.no, name: str(s.name), pass: str(s.pass) }; }) };
   };
 
+  // ================= 先生スタンプ（作成・手動で押す） =================
+  handlers.t_stamps = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    return { custom: customStamps(store).map(stampPublic), rules: STAMP_RULES, live: LIVE_STAMPS, animals: STAMP_ANIMALS,
+      autoArt: autoStampArt(store), on: stampRulesOn(store), me: me.id, admin: me.admin };
+  };
+  handlers.t_saveStamp = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), it = p.stamp || {};
+    var kind = it.kind === 'image' ? 'image' : 'art', text = str(it.text).slice(0, 14);
+    if (kind === 'art' && !text) throw err('スタンプの言葉を入力してください。');
+    var data = { kind: kind, text: text, animal: STAMP_ANIMALS.indexOf(str(it.animal)) >= 0 ? str(it.animal) : 'cat',
+      color: /^#[0-9a-fA-F]{6}$/.test(str(it.color)) ? str(it.color) : '', image: '' };
+    if (kind === 'image') {
+      var img = str(it.image);
+      if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(img)) throw err('画像を選んでください。');
+      if (img.length > MAX_STAMP_IMAGE) throw err('画像が大きすぎます。別の画像にしてください。');
+      data.image = img;
+    }
+    if (it.id) {
+      var cur = customStamps(store).filter(function (x) { return str(x.id) === str(it.id); })[0];
+      if (!cur) throw err('スタンプが見つかりません。');
+      if (!me.admin && str(cur.owner) !== me.id) throw err('ほかの先生が作ったスタンプは変更できません。');
+      store.updateStamp(str(it.id), data);
+      return { id: str(it.id) };
+    }
+    if (customStamps(store).length >= 100) throw err('スタンプは100個までです。使わないスタンプを削除してください。');
+    data.id = 's' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    data.owner = me.id; data.created = ctx.now().toISOString();
+    store.addStamp(data);
+    return { id: data.id };
+  };
+  handlers.t_deleteStamp = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), id = str(p.id);
+    var cur = customStamps(store).filter(function (x) { return str(x.id) === id; })[0];
+    if (!cur) throw err('スタンプが見つかりません。');
+    if (!me.admin && str(cur.owner) !== me.id) throw err('ほかの先生が作ったスタンプは削除できません。');
+    store.deleteStamp(id);
+    var art = autoStampArt(store), ch = false;
+    Object.keys(art).forEach(function (k) { if (art[k] === id) { delete art[k]; ch = true; } });
+    if (ch) store.setSetting('自動スタンプの絵', JSON.stringify(art));
+    return {};
+  };
+  handlers.t_giveStamp = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var def = findStampDef(store, p.stamp), entry = stampEntry(def);
+    if (!entry) throw err('スタンプを選んでください。');
+    var today = jstDate(ctx.now()), ups = [], seen = {};
+    [].concat(p.sids || []).slice(0, 300).forEach(function (sid) {
+      sid = str(sid); if (seen[sid]) return; seen[sid] = 1;
+      var s = store.getStudent(sid);
+      if (!s || !canTeach(me, s.cls)) return;
+      s.ach = pushStamp(s, entry, 'manual', today, me.name);
+      ups.push({ id: s.id, f: { ach: s.ach } });
+    });
+    if (!ups.length) throw err('スタンプを押す生徒を選んでください。');
+    updateStudents(store, ups);
+    return { count: ups.length };
+  };
+
+  // ================= ライブ =================
+  function jsonObj(v) { try { var o = JSON.parse(str(v) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+  function liveClasses(store, l) {
+    var cl = splitClasses(l.classes);
+    if (cl.length) return cl;
+    var a = store.getAssignment(str(l.aid));
+    return a ? splitClasses(a.classes).filter(function (c) { return c !== '全員'; }) : [];
+  }
+  function liveOpen(l, now) { return str(l.status) === 'running' && (!str(l.ends) || now.toISOString() < str(l.ends)); }
+  function liveRunning(store, s, now, aid) {
+    if (!store.getLives) return null;
+    var list = store.getLives().filter(function (l) {
+      if (!liveOpen(l, now) || (aid && str(l.aid) !== aid)) return false;
+      var cl = liveClasses(store, l);
+      return !cl.length || cl.indexOf(s.cls) >= 0;
+    });
+    return list[0] || null;
+  }
+  function liveForStudent(store, s, now) {
+    var l = liveRunning(store, s, now, '');
+    return l ? { id: str(l.id), title: str(l.title), aid: str(l.aid), ends: str(l.ends) } : null;
+  }
+  // ポイントの高い順（同じなら先にそのポイントに達した人が上）
+  function liveOrder(sc) {
+    return Object.keys(sc).filter(function (k) { return num(sc[k].p) > 0; }).sort(function (x, y) {
+      return num(sc[y].p) - num(sc[x].p) || (str(sc[x].t) < str(sc[y].t) ? -1 : str(sc[x].t) > str(sc[y].t) ? 1 : 0);
+    });
+  }
+  function liveRows(store, l) {
+    var sc = jsonObj(l.scores);
+    return liveOrder(sc).map(function (sid, i) {
+      var s = store.getStudent(sid), e = sc[sid];
+      return { rank: i + 1, sid: sid, name: s ? (str(s.nick) || s.cls + ' ' + s.no + '番') : sid, cls: s ? s.cls : '',
+        points: num(e.p), count: num(e.c), best: Math.round(num(e.b) * 10) / 10 };
+    });
+  }
+  function livePublic(store, l) {
+    var a = store.getAssignment(str(l.aid));
+    return { id: str(l.id), title: str(l.title), aid: str(l.aid), assignment: a ? a.title : '（削除された課題）', classes: liveClasses(store, l),
+      status: str(l.status), created: str(l.created), started: str(l.started), ends: str(l.ends), ended: str(l.ended),
+      minutes: num(l.minutes), owner: str(l.owner), awards: jsonObj(l.awards), results: str(l.results) ? JSON.parse(l.results) : null };
+  }
+  function liveVisible(me, store, l) {
+    if (me.admin || str(l.owner) === me.id) return true;
+    return liveClasses(store, l).some(function (c) { return me.classes.indexOf(c) >= 0; });
+  }
+  function getLiveFor(me, store, id) {
+    var l = store.getLives().filter(function (x) { return str(x.id) === str(id); })[0];
+    if (!l || !liveVisible(me, store, l)) throw err('ライブが見つかりません。');
+    return l;
+  }
+  handlers.t_lives = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var list = store.getLives().filter(function (l) { return liveVisible(me, store, l); })
+      .sort(function (x, y) { return str(y.created).localeCompare(str(x.created)); }).slice(0, 40)
+      .map(function (l) { var o = livePublic(store, l); o.count = Object.keys(jsonObj(l.scores)).length; return o; });
+    return { lives: list, custom: customStamps(store).map(stampPublic), live: LIVE_STAMPS };
+  };
+  handlers.t_createLive = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var a = store.getAssignment(str(p.aid));
+    if (!a) throw err('課題を選んでください。');
+    var cl = splitClasses([].concat(p.classes || []).join(',')).filter(function (c) { return canTeach(me, c); });
+    if (!cl.length && !me.admin) {
+      cl = splitClasses(a.classes).filter(function (c) { return canTeach(me, c); });
+      if (!cl.length) throw err('ライブを行うクラスを選んでください。');
+    }
+    var minutes = Math.max(0, Math.min(120, Math.round(num(p.minutes))));
+    var aw = p.awards || {}, awards = {};
+    ['top3', 'top10'].forEach(function (k) { if (str(aw[k]) && findStampDef(store, aw[k])) awards[k] = str(aw[k]); });
+    var l = { id: 'L' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36), title: str(p.title).slice(0, 60) || a.title,
+      aid: a.id, classes: cl.join(','), status: 'ready', created: ctx.now().toISOString(), started: '', ends: '', ended: '',
+      minutes: minutes, owner: me.id, scores: '{}', results: '', awards: JSON.stringify(awards) };
+    store.addLive(l);
+    return { id: l.id };
+  };
+  handlers.t_startLive = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), l = getLiveFor(me, store, p.id);
+    if (str(l.status) !== 'ready') throw err('このライブは、すでに始まっているか終わっています。');
+    var now = ctx.now(), mins = num(l.minutes);
+    store.updateLive(str(l.id), { status: 'running', started: now.toISOString(), ends: mins ? new Date(now.getTime() + mins * 60000).toISOString() : '', scores: '{}' });
+    return { board: liveBoard(store, getLiveFor(me, store, p.id), now) };
+  };
+  function liveBoard(store, l, now) {
+    var rows = liveRows(store, l), pub = livePublic(store, l);
+    return { live: pub, rows: rows.slice(0, 60), total: rows.length, now: now.toISOString(),
+      stampImgs: stampImgs(store, (pub.results || []).map(function (x) { return x.stamp; })) };
+  }
+  handlers.t_liveBoard = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    return liveBoard(store, getLiveFor(me, store, p.id), ctx.now());
+  };
+  handlers.t_endLive = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), l = getLiveFor(me, store, p.id), now = ctx.now();
+    if (str(l.status) === 'ended') return { board: liveBoard(store, l, now) };
+    var rows = liveRows(store, l), aw = jsonObj(l.awards), today = jstDate(now), ups = [];
+    rows.slice(0, 10).forEach(function (row) {
+      var key = row.rank <= 3 ? (aw.top3 || 'l:rank' + row.rank) : (aw.top10 || 'l:top10');
+      var entry = stampEntry(findStampDef(store, key)) || stampEntry(LIVE_STAMPS[row.rank <= 3 ? 'rank' + row.rank : 'top10']);
+      var s = store.getStudent(row.sid); if (!s) return;
+      s.ach = pushStamp(s, entry, 'live', today, str(l.title));
+      ups.push({ id: s.id, f: { ach: s.ach } });
+      row.stamp = entry;
+    });
+    updateStudents(store, ups);
+    var results = rows.slice(0, 10).map(function (x) { return { rank: x.rank, name: x.name, cls: x.cls, points: x.points, count: x.count, best: x.best, stamp: x.stamp }; });
+    store.updateLive(str(l.id), { status: 'ended', ended: now.toISOString(), results: JSON.stringify(results) });
+    return { board: liveBoard(store, getLiveFor(me, store, p.id), now), awarded: ups.length };
+  };
+  handlers.t_deleteLive = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), l = getLiveFor(me, store, p.id);
+    if (!me.admin && str(l.owner) !== me.id) throw err('ほかの先生のライブは削除できません。');
+    store.deleteLive(str(l.id));
+    return {};
+  };
+
   handlers.t_saveSettings = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
     adminOnly(me);
@@ -1335,6 +1590,15 @@
     if ('autoStamps' in st) {
       var ids = [].concat(st.autoStamps || []).filter(function (x) { return STAMP_RULES.some(function (r) { return r.id === x; }); });
       store.setSetting('自動スタンプ', ids.length ? ids.join(',') : 'なし');
+    }
+    if ('autoArt' in st) {
+      var art = {}, have = {};
+      customStamps(store).forEach(function (x) { have[str(x.id)] = 1; });
+      Object.keys(st.autoArt || {}).forEach(function (k) {
+        var v = str(st.autoArt[k]);
+        if (v && have[v] && STAMP_RULES.some(function (r) { return r.id === k; })) art[k] = v;
+      });
+      store.setSetting('自動スタンプの絵', JSON.stringify(art));
     }
     return {};
   };
@@ -1535,7 +1799,8 @@
 
   var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
-    t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1 };
+    t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
+    t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
 
   function handle(action, payload, store, ctx) {
     var fn = handlers[action];
@@ -1552,7 +1817,7 @@
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
     weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit,
-    BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES };
+    BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
@@ -1586,7 +1851,12 @@ var SHEETS = {
     ['classes', '担当クラス', '@'], ['active', '有効', 'check'], ['created', '作成日時', '@']] },
   classes: { name: 'クラス', cols: [['name', 'クラス', '@'], ['count', '人数', '0']] },
   library: { name: 'ライブラリ', cols: [['id', 'ID', '@'], ['level', 'レベル（1中1・2中2・3中3・4高校）', '0'], ['title', 'タイトル', '@'],
-    ['text', '英文', '@'], ['ja', '和訳', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] }
+    ['text', '英文', '@'], ['ja', '和訳', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] },
+  stamps: { name: '先生スタンプ', cols: [['id', 'ID', '@'], ['kind', '種類（art：絵／image：画像）', '@'], ['animal', '絵', '@'], ['text', '言葉', '@'],
+    ['color', '色', '@'], ['image', '画像データ（自動）', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] },
+  lives: { name: 'ライブ', cols: [['id', 'ID', '@'], ['title', 'タイトル', '@'], ['aid', '課題ID', '@'], ['classes', 'クラス', '@'],
+    ['status', '状態', '@'], ['created', '作成日時', '@'], ['started', '開始日時', '@'], ['ends', '終了予定', '@'], ['ended', '終了日時', '@'],
+    ['minutes', '制限時間（分）', '0'], ['owner', '作成した先生', '@'], ['scores', 'ポイント（自動）', '@'], ['results', '結果（自動）', '@'], ['awards', '表彰スタンプ', '@']] }
 };
 
 var DEFAULT_SETTINGS = [
@@ -1598,7 +1868,8 @@ var DEFAULT_SETTINGS = [
   ['音声を保存', 'TRUE', 'TRUE：音読の音声をGoogleドライブに保存し、先生画面で再生できる'],
   ['音声の保存日数', '60', 'メニュー「古い音声を削除」で、この日数より古い音声をゴミ箱へ移す'],
   ['自動スタンプ', '', '条件を満たした生徒に自動で押す先生スタンプ（空欄：すべて / なし：押さない）'],
-  ['ライブラリ非表示', '', '生徒に表示しない、最初から入っているライブラリ英文のID']
+  ['ライブラリ非表示', '', '生徒に表示しない、最初から入っているライブラリ英文のID'],
+  ['自動スタンプの絵', '', '自動スタンプで押す、先生が作ったスタンプ（アプリの「スタンプ」画面で設定）']
 ];
 
 function ss_() {
@@ -1619,7 +1890,7 @@ function fmtCell_(v, key) {
  * ・書き込む処理（ロック中）は必ずシートから読み、書いたあとの最新データをキャッシュに入れ直します。
  * ・キャッシュは「世代番号」つきで保存し、書き込みのたびに世代を新しくします（古いデータは使われません）。
  * ・スプレッドシートを手で編集したときは onEdit で世代を新しくします。行の削除などは最長10分で反映されます。 */
-var CACHED_SHEETS_ = ['students', 'settings', 'assignments', 'classes', 'teachers', 'library', 'bests'];
+var CACHED_SHEETS_ = ['students', 'settings', 'assignments', 'classes', 'teachers', 'library', 'bests', 'stamps', 'lives'];
 var CACHE_TTL_ = 600, CACHE_CHUNK_ = 30000;
 function sc_() { try { return CacheService.getScriptCache(); } catch (e) { return null; } }
 function newGen_() { return Date.now().toString(36) + Math.floor(Math.random() * 1e8).toString(36); }
@@ -1700,9 +1971,10 @@ SheetStore.prototype.publishCache_ = function () {
 
 SheetStore.prototype.sheet = function (k) {
   var sh = this.book_().getSheetByName(SHEETS[k].name);
-  if (!sh && k === 'library') {
+  if (!sh && (k === 'library' || k === 'stamps' || k === 'lives')) {
     // あとから追加したシートは、なければ自動で作る
-    sh = this.book_().insertSheet(SHEETS[k].name);
+    try { sh = this.book_().insertSheet(SHEETS[k].name); }
+    catch (e) { sh = this.book_().getSheetByName(SHEETS[k].name); if (!sh) throw e; return sh; } // 同時に作られたとき
     sh.getRange(1, 1, 1, SHEETS[k].cols.length).setValues([SHEETS[k].cols.map(function (c) { return c[1]; })]).setFontWeight('bold').setBackground('#e3f1f6');
     sh.setFrozenRows(1);
   }
@@ -1788,6 +2060,52 @@ SheetStore.prototype.updateLibrary = function (id, f) {
 SheetStore.prototype.deleteLibrary = function (id) {
   var l = this.getLibrary();
   for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('library', l[i]._row); return; }
+};
+
+// 何行かまとめて書き込む（つながっている行は1回で書く）
+SheetStore.prototype.writeRows_ = function (k, objs) {
+  var cols = SHEETS[k].cols, sh = this.sheet(k), self = this;
+  var list = objs.filter(function (o) { return o._row; }).sort(function (x, y) { return x._row - y._row; });
+  objs.filter(function (o) { return !o._row; }).forEach(function (o) { self.writeRow(k, o); });
+  var fmts = cols.map(function (c) { return c[2] === 'check' ? 'General' : c[2]; });
+  function rowOf(obj) { return cols.map(function (c) { var v = obj[c[0]]; v = v === undefined || v === null ? '' : v; return c[2] === '@' && v !== '' ? String(v) : v; }); }
+  var i = 0;
+  while (i < list.length) {
+    var j = i; while (j + 1 < list.length && list[j + 1]._row === list[j]._row + 1) j++;
+    var group = list.slice(i, j + 1), rng = sh.getRange(group[0]._row, 1, group.length, cols.length);
+    rng.setNumberFormats(group.map(function () { return fmts; }));
+    rng.setValues(group.map(rowOf));
+    i = j + 1;
+  }
+  this.touch_(k);
+};
+SheetStore.prototype.updateStudents = function (ups) {
+  var self = this, objs = [];
+  ups.forEach(function (u) { var s = self.getStudent(u.id); if (!s) return; for (var k in u.f) s[k] = u.f[k]; objs.push(s); });
+  if (objs.length) this.writeRows_('students', objs);
+};
+
+// 先生が作ったスタンプ
+SheetStore.prototype.getStamps = function () { return this.load('stamps').filter(function (x) { return x.id; }); };
+SheetStore.prototype.addStamp = function (x) { this.writeRow('stamps', x); this.load('stamps').push(x); };
+SheetStore.prototype.updateStamp = function (id, f) {
+  var l = this.getStamps();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('stamps', l[i]); }
+};
+SheetStore.prototype.deleteStamp = function (id) {
+  var l = this.getStamps();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('stamps', l[i]._row); return; }
+};
+// ライブ
+SheetStore.prototype.getLives = function () { return this.load('lives').filter(function (x) { return x.id; }); };
+SheetStore.prototype.addLive = function (x) { this.writeRow('lives', x); this.load('lives').push(x); };
+SheetStore.prototype.updateLive = function (id, f) {
+  var l = this.getLives();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('lives', l[i]); }
+};
+SheetStore.prototype.deleteLive = function (id) {
+  var l = this.getLives();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('lives', l[i]._row); return; }
 };
 
 // 課題
@@ -2005,8 +2323,8 @@ function doPost(e) {
     if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
   }
   try {
-    // 書き込む処理は、書き換える可能性のあるシートを必ずシートから読む（生徒の操作は「生徒」「課題別ベスト」だけ）
-    var fresh = !write ? null : (/^t_/.test(action) || action === 'teacherLogin') ? true : { students: 1, bests: 1 };
+    // 書き込む処理は、書き換える可能性のあるシートを必ずシートから読む（生徒の操作は「生徒」「課題別ベスト」「ライブ」だけ）
+    var fresh = !write ? null : (/^t_/.test(action) || action === 'teacherLogin') ? true : { students: 1, bests: 1, lives: 1 };
     var store = new SheetStore({ fresh: fresh, request: true });
     var res = Core.handle(action, payload, store, GAS_CTX);
     if (lock) { SpreadsheetApp.flush(); store.publishCache_(); }

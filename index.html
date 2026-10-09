@@ -482,6 +482,92 @@ html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primar
 .passage.blur .w.speaker { filter: none; }
 .passage .chip-group + .w.speaker, .passage .w.speaker + .chip-group { margin-left: 4px; }
 
+/* ===== 先生スタンプ（作成・手動で押す） ===== */
+.stamp-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.stamp-pick .pick { display: flex; flex-direction: column; align-items: center; gap: 2px; border: 2px solid var(--line); border-radius: 14px; padding: 6px 6px 4px; cursor: pointer; background: var(--card); }
+.stamp-pick .pick input { position: absolute; opacity: 0; pointer-events: none; }
+.stamp-pick .pick small { font-size: .7rem; }
+.stamp-pick .pick:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 3px rgba(31, 111, 139, .15); }
+.give-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 8px; }
+.give-item { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; cursor: pointer; font-size: .9rem; }
+.give-item span { color: var(--muted); min-width: 1.6em; text-align: right; }
+.give-item:has(input:checked) { background: var(--primary-soft); border-color: var(--primary); }
+.stamp-editor { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; margin-top: 12px; }
+@media (max-width: 640px) { .stamp-editor { grid-template-columns: 1fr; } }
+.se-prev { text-align: center; padding: 12px; border: 1px dashed var(--line); border-radius: 16px; background: var(--bg); }
+.se-animals, .se-colors { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.se-animal { padding: 2px; border: 2px solid transparent; border-radius: 50%; background: none; cursor: pointer; line-height: 0; }
+.se-animal.active { border-color: var(--primary); }
+.se-color { width: 30px; height: 30px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+.se-color.active { box-shadow: 0 0 0 3px var(--primary); }
+#seColor { width: 40px; height: 32px; padding: 0; border: none; background: none; }
+.auto-art { display: grid; gap: 8px; }
+.auto-art-row { display: grid; grid-template-columns: 60px 1fr minmax(160px, 260px); gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 4px 10px; }
+@media (max-width: 560px) { .auto-art-row { grid-template-columns: 60px 1fr; } .auto-art-row select { grid-column: 1 / -1; } }
+.check-row { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
+/* ===== ライブ ===== */
+.live-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #ff3b3b; box-shadow: 0 0 0 0 rgba(255, 59, 59, .6); animation: livePulse 1.4s infinite; vertical-align: middle; margin-right: 6px; }
+.live-dot.off { background: #b8bfcc; animation: none; }
+@keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 59, .6); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 59, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 59, 0); } }
+.live-banner { display: block; background: linear-gradient(90deg, #ff4d4d, #ff8a3d); color: #fff; padding: 12px 16px; border-radius: var(--radius); margin-bottom: 12px; text-decoration: none; font-size: 1rem; box-shadow: var(--shadow); }
+.live-banner .live-dot { background: #fff; }
+.celebrate.live-line { background: #fff0f0; color: #b42318; }
+.live-prev { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; text-align: center; }
+
+.live-board { position: relative; overflow: hidden; }
+.lb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; background: var(--card); border-radius: var(--radius); padding: 12px 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
+.lb-head .back { margin: 0; }
+.lb-title { font-size: 1.6rem; font-weight: 800; flex: 1 1 260px; }
+.lb-meta { display: flex; gap: 16px; font-size: 1.15rem; align-items: center; flex-wrap: wrap; }
+.lb-meta b { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.lb-meta b.hurry { color: #e03131; }
+.lb-ready { text-align: center; padding: 50px 16px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); }
+.lb-ready .big { font-size: 2rem; font-weight: 800; margin-bottom: 10px; }
+.lb-list { display: flex; flex-direction: column; gap: 8px; }
+.lb-empty { text-align: center; padding: 30px; font-size: 1.2rem; }
+.lb-row { display: grid; grid-template-columns: 70px 1fr auto auto; gap: 14px; align-items: center; background: var(--card); border-radius: 14px; padding: 10px 18px; box-shadow: var(--shadow); font-size: 1.5rem; will-change: transform; }
+.lb-row .lb-rank { font-size: 1.8rem; font-weight: 800; text-align: center; color: var(--muted); }
+.lb-row .lb-name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-row .lb-sub { font-size: .9rem; color: var(--muted); }
+.lb-row .lb-pts { font-size: 2rem; font-weight: 900; color: var(--primary); font-variant-numeric: tabular-nums; min-width: 4.5em; text-align: right; }
+.lb-pts small { font-size: .5em; margin-left: 2px; color: var(--muted); }
+.lb-row.top1 { background: linear-gradient(90deg, #fff6d6, #fff); border: 2px solid #f2c230; font-size: 1.8rem; }
+.lb-row.top2 { background: linear-gradient(90deg, #eef1f5, #fff); border: 2px solid #b8c1cc; font-size: 1.65rem; }
+.lb-row.top3 { background: linear-gradient(90deg, #fbeee2, #fff); border: 2px solid #d9a066; font-size: 1.6rem; }
+.lb-row.tten { border-left: 6px solid var(--primary); }
+.lb-row.enter { animation: lbIn .6s ease; }
+.lb-row.bump .lb-pts { animation: lbBump .9s ease; }
+@keyframes lbIn { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: none; } }
+@keyframes lbBump { 0% { transform: scale(1); } 30% { transform: scale(1.3); color: #e8590c; } 100% { transform: scale(1); } }
+@media (max-width: 640px) { .lb-row { grid-template-columns: 44px 1fr auto; font-size: 1.1rem; } .lb-row .lb-sub { display: none; } .lb-row .lb-pts { font-size: 1.4rem; min-width: 0; } .lb-title { font-size: 1.2rem; } }
+
+.ceremony { text-align: center; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 12px 24px; }
+.cer-title { font-size: 2.2rem; animation: lbIn .8s ease both; }
+.podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; max-width: 820px; margin: 10px auto 18px; }
+.pod { opacity: 0; animation: podUp .9s cubic-bezier(.2, .9, .3, 1.2) forwards; }
+.pod-stamp { line-height: 0; }
+.pod-name { font-size: 1.5rem; font-weight: 800; margin-top: 6px; overflow-wrap: anywhere; }
+.pod-pts { font-size: 1.3rem; font-weight: 800; color: var(--primary); }
+.pod-base { margin-top: 8px; border-radius: 12px 12px 0 0; color: #fff; font-weight: 900; font-size: 1.4rem; display: flex; align-items: center; justify-content: center; }
+.pod1 .pod-base { background: linear-gradient(#f7c948, #e0a800); height: 150px; }
+.pod2 .pod-base { background: linear-gradient(#c3ccd6, #8f9bab); height: 110px; }
+.pod3 .pod-base { background: linear-gradient(#e2a97a, #c27c3a); height: 80px; }
+.pod1 .pod-stamp svg { width: 150px; height: 150px; }
+@keyframes podUp { from { opacity: 0; transform: translateY(60px) scale(.8); } to { opacity: 1; transform: none; } }
+.cer-sub { font-size: 1.4rem; margin-top: 8px; }
+.top10 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; max-width: 980px; margin: 0 auto; text-align: left; }
+.t10 { display: grid; grid-template-columns: 36px 56px 1fr auto; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; opacity: 0; animation: lbIn .6s ease forwards; font-size: 1.15rem; }
+.t10 .lb-rank { font-weight: 800; color: var(--muted); text-align: center; }
+.t10 .lb-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t10 .lb-pts { font-weight: 800; color: var(--primary); }
+.cer-note { margin-top: 12px; }
+.confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.confetti i { position: absolute; top: -20px; width: 10px; height: 16px; border-radius: 2px; opacity: 0; animation-name: confFall; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes confFall { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: .9; transform: translateY(110vh) rotate(720deg); } }
+:fullscreen .topbar, :fullscreen .bottom-nav { display: none; }
+@media (prefers-reduced-motion: reduce) { .pod, .t10, .lb-row.enter, .cer-title { animation: none; opacity: 1; } .confetti { display: none; } }
+
 </style>
 </head>
 <body>
@@ -1110,6 +1196,15 @@ window.APP_CONFIG = {
     { id: 'perfect', a: 'panda', t: 'Wonderful!', name: '正確さ100%を出したとき（週1回まで）' },
     { id: 'comeback', a: 'dog', t: 'Welcome back!', name: '1週間以上あいてから、また読んだとき' }
   ];
+  // ライブの表彰スタンプ（最初から入っているもの。col：色、cr：王冠）
+  var LIVE_STAMPS = {
+    rank1: { a: 'bear', t: 'No.1!', col: '#e0a800', cr: 1, name: 'ライブ1位' },
+    rank2: { a: 'rabbit', t: 'No.2!', col: '#8f9bab', cr: 1, name: 'ライブ2位' },
+    rank3: { a: 'cat', t: 'No.3!', col: '#c27c3a', cr: 1, name: 'ライブ3位' },
+    top10: { a: 'chick', t: 'Top 10!', col: '#3b9be0', name: 'ライブ10位以内' }
+  };
+  var STAMP_ANIMALS = ['cat', 'rabbit', 'bear', 'chick', 'dog', 'panda', 'star', 'heart'];
+  var MAX_STAMP_IMAGE = 45000;   // 画像スタンプのデータの上限（文字数）
   // 着せ替え（級・段で解放）lv：LEVELSの番号
   var THEMES = [
     { id: 'blue', name: 'ブルー', lv: 0 }, { id: 'sakura', name: 'さくら', lv: 2 }, { id: 'mint', name: 'ミント', lv: 4 },
@@ -1151,18 +1246,71 @@ window.APP_CONFIG = {
     o.p = num(o.p); o.d = num(o.d);
     return o;
   }
-  function rewardsPublic(ach, s, today) {
+  function rewardsPublic(ach, s, today, store) {
     var lv = levelOf(num(s.totalWords));
     return { points: ach.p, badges: ach.b, days: ach.d, stampedToday: ach.ld === today, theme: ach.th || 'blue', icon: ach.ic || '',
       weekDays: ach.wk === weekStart(today) ? num(ach.wd) : 0, read: ach.lib, counts: ach.c,
       stamps: ach.st.slice(-40), newStamps: ach.st.filter(function (x) { return x.n; }).length,
-      icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index };
+      icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index, stampImgs: stampImgs(store, ach.st.slice(-40)) };
   }
   function stampRulesOn(store) {
     var v = str(store.getSetting('自動スタンプ'));
     if (!v) return STAMP_RULES.map(function (r) { return r.id; });
     if (v === 'なし') return [];
     return v.split(/[,、\s]+/).filter(Boolean);
+  }
+  // ---- 先生が作ったスタンプ ----
+  function customStamps(store) { return store.getStamps ? store.getStamps().filter(function (x) { return str(x.id); }) : []; }
+  function stampPublic(d) {
+    return { id: str(d.id), kind: str(d.kind) === 'image' ? 'image' : 'art', animal: str(d.animal) || 'cat', text: str(d.text),
+      color: str(d.color), image: str(d.image), owner: str(d.owner), created: str(d.created) };
+  }
+  // 生徒の記録に入れるスタンプの形（a：絵、t：言葉、col：色、cr：王冠、c：画像スタンプのID）
+  function stampEntry(def) {
+    if (!def) return null;
+    if (str(def.kind) === 'image') return { c: str(def.id), t: str(def.text) };
+    var o = { a: str(def.animal || def.a) || 'cat', t: str(def.text || def.t) };
+    var col = str(def.color || def.col); if (col) o.col = col;
+    if (def.cr) o.cr = 1;
+    return o;
+  }
+  // key：'c:<先生スタンプのID>' / 'r:<自動スタンプの種類>' / 'l:<ライブの表彰>'
+  function findStampDef(store, key) {
+    key = str(key);
+    if (key.indexOf('c:') === 0) {
+      var id = key.slice(2);
+      return customStamps(store).filter(function (x) { return str(x.id) === id; })[0] || null;
+    }
+    if (key.indexOf('r:') === 0) return STAMP_RULES.filter(function (x) { return x.id === key.slice(2); })[0] || null;
+    if (key.indexOf('l:') === 0) return LIVE_STAMPS[key.slice(2)] || null;
+    return null;
+  }
+  // 画像スタンプの絵（表示に使われる分だけ送る）
+  function stampImgs(store, list) {
+    var need = {}, out = {};
+    (list || []).forEach(function (x) { if (x && x.c) need[x.c] = 1; });
+    if (!store || !Object.keys(need).length) return out;
+    customStamps(store).forEach(function (d) { if (need[str(d.id)] && str(d.image)) out[str(d.id)] = str(d.image); });
+    return out;
+  }
+  function autoStampArt(store) {
+    try { var o = JSON.parse(str(store.getSetting('自動スタンプの絵')) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+  }
+  // スタンプを生徒に押す（ach を書き換えて JSON を返す）
+  function pushStamp(s, entry, rule, today, by) {
+    var ach = achOf(s), e = {};
+    for (var k in entry) e[k] = entry[k];
+    e.r = rule; e.d = today; e.n = 1; if (by) e.by = str(by).slice(0, 20);
+    ach.st.push(e);
+    if (!ach.b.teacher) ach.b.teacher = today;
+    if (ach.st.length > 60) ach.st = ach.st.slice(-60);
+    return JSON.stringify(ach);
+  }
+  // 何人分もまとめて書き込む
+  function updateStudents(store, ups) {
+    if (!ups.length) return;
+    if (store.updateStudents) store.updateStudents(ups);
+    else ups.forEach(function (u) { store.updateStudent(u.id, u.f); });
   }
 
   // 現在の日時（日本時間 'YYYY-MM-DDTHH:MM'）。処理のたびに handle() で設定
@@ -1413,7 +1561,7 @@ window.APP_CONFIG = {
     var pub = studentPublic(s);
     if (pub.todayDate !== today) pub.todayWords = 0;
     if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
-    return { student: pub, assignments: list, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today) };
+    return { student: pub, assignments: list, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today, store), live: liveForStudent(store, s, ctx.now()) };
   };
 
   handlers.getAssignment = function (p, store, ctx) {
@@ -1582,13 +1730,17 @@ window.APP_CONFIG = {
     award('alltypes', !!(after2 && after2.types.length === 5 && after2.types.every(function (t) { return after2.passes[t] >= 1; })));
     award('shodan', after.index >= 10);
     // 先生スタンプ（条件を満たすと自動で押す。同じ条件では1回だけ）
-    var on = stampRulesOn(store);
+    var on = stampRulesOn(store), art = autoStampArt(store);
     function stamp(ruleId, key, cond) {
       if (!cond || on.indexOf(ruleId) < 0 || ach.sk[key]) return;
       var rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0];
       ach.sk[key] = 1;
-      ach.st.push({ a: rule.a, t: rule.t, r: ruleId, d: today, n: 1 });
-      newStamps.push({ a: rule.a, t: rule.t, r: ruleId });
+      // 先生が作ったスタンプが選ばれていれば、そちらを押す
+      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || { a: rule.a, t: rule.t };
+      e.r = ruleId;
+      var rec = {}; for (var k in e) rec[k] = e[k];
+      rec.d = today; rec.n = 1;
+      ach.st.push(rec); newStamps.push(e);
     }
     stamp('first', 'first', firstEver && r.correct > 0);
     stamp('week3', 'w3:' + ws, newDay && ach.wd === 3);
@@ -1605,12 +1757,26 @@ window.APP_CONFIG = {
     upd.ach = JSON.stringify(ach); s.ach = upd.ach;
     store.updateStudent(s.id, upd);
 
+    // ---- ライブ（開催中のライブの課題なら、ポイントを加える） ----
+    var liveResult = null;
+    if (a && r.correct > 0) {
+      var liveNow = liveRunning(store, s, now, a.id);
+      if (liveNow) {
+        var sc = jsonObj(liveNow.scores), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
+        le.p = num(le.p) + gained; le.c = num(le.c) + 1; le.b = Math.max(num(le.b), r.accuracy); le.t = now.toISOString();
+        sc[s.id] = le;
+        store.updateLive(str(liveNow.id), { scores: JSON.stringify(sc) });
+        var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
+        liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
+      }
+    }
+
     return {
       progress: after2, masterNew: masterNew, achievedNew: achievedNew,
       passed: a ? r.accuracy >= passLine(a) : null,
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
-      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today)
+      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store), live: liveResult
     };
   };
 
@@ -1955,7 +2121,7 @@ window.APP_CONFIG = {
         flag: str(r.flag), audio: str(r.audio), reviewed: str(r.reviewed), rid: rid(r) };
     });
     var pub = studentPublic(s); pub.name = str(s.name);
-    return { student: pub, records: recs, rewards: rewardsPublic(achOf(s), s, jstDate(ctx.now())) };
+    return { student: pub, records: recs, rewards: rewardsPublic(achOf(s), s, jstDate(ctx.now()), store) };
   };
 
   handlers.t_export = function (p, store, ctx) {
@@ -2010,6 +2176,181 @@ window.APP_CONFIG = {
     return { rows: store.getStudents().filter(function (s) { return canTeach(me, s.cls); }).map(function (s) { return { id: s.id, cls: s.cls, no: s.no, name: str(s.name), pass: str(s.pass) }; }) };
   };
 
+  // ================= 先生スタンプ（作成・手動で押す） =================
+  handlers.t_stamps = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    return { custom: customStamps(store).map(stampPublic), rules: STAMP_RULES, live: LIVE_STAMPS, animals: STAMP_ANIMALS,
+      autoArt: autoStampArt(store), on: stampRulesOn(store), me: me.id, admin: me.admin };
+  };
+  handlers.t_saveStamp = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), it = p.stamp || {};
+    var kind = it.kind === 'image' ? 'image' : 'art', text = str(it.text).slice(0, 14);
+    if (kind === 'art' && !text) throw err('スタンプの言葉を入力してください。');
+    var data = { kind: kind, text: text, animal: STAMP_ANIMALS.indexOf(str(it.animal)) >= 0 ? str(it.animal) : 'cat',
+      color: /^#[0-9a-fA-F]{6}$/.test(str(it.color)) ? str(it.color) : '', image: '' };
+    if (kind === 'image') {
+      var img = str(it.image);
+      if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(img)) throw err('画像を選んでください。');
+      if (img.length > MAX_STAMP_IMAGE) throw err('画像が大きすぎます。別の画像にしてください。');
+      data.image = img;
+    }
+    if (it.id) {
+      var cur = customStamps(store).filter(function (x) { return str(x.id) === str(it.id); })[0];
+      if (!cur) throw err('スタンプが見つかりません。');
+      if (!me.admin && str(cur.owner) !== me.id) throw err('ほかの先生が作ったスタンプは変更できません。');
+      store.updateStamp(str(it.id), data);
+      return { id: str(it.id) };
+    }
+    if (customStamps(store).length >= 100) throw err('スタンプは100個までです。使わないスタンプを削除してください。');
+    data.id = 's' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    data.owner = me.id; data.created = ctx.now().toISOString();
+    store.addStamp(data);
+    return { id: data.id };
+  };
+  handlers.t_deleteStamp = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), id = str(p.id);
+    var cur = customStamps(store).filter(function (x) { return str(x.id) === id; })[0];
+    if (!cur) throw err('スタンプが見つかりません。');
+    if (!me.admin && str(cur.owner) !== me.id) throw err('ほかの先生が作ったスタンプは削除できません。');
+    store.deleteStamp(id);
+    var art = autoStampArt(store), ch = false;
+    Object.keys(art).forEach(function (k) { if (art[k] === id) { delete art[k]; ch = true; } });
+    if (ch) store.setSetting('自動スタンプの絵', JSON.stringify(art));
+    return {};
+  };
+  handlers.t_giveStamp = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var def = findStampDef(store, p.stamp), entry = stampEntry(def);
+    if (!entry) throw err('スタンプを選んでください。');
+    var today = jstDate(ctx.now()), ups = [], seen = {};
+    [].concat(p.sids || []).slice(0, 300).forEach(function (sid) {
+      sid = str(sid); if (seen[sid]) return; seen[sid] = 1;
+      var s = store.getStudent(sid);
+      if (!s || !canTeach(me, s.cls)) return;
+      s.ach = pushStamp(s, entry, 'manual', today, me.name);
+      ups.push({ id: s.id, f: { ach: s.ach } });
+    });
+    if (!ups.length) throw err('スタンプを押す生徒を選んでください。');
+    updateStudents(store, ups);
+    return { count: ups.length };
+  };
+
+  // ================= ライブ =================
+  function jsonObj(v) { try { var o = JSON.parse(str(v) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+  function liveClasses(store, l) {
+    var cl = splitClasses(l.classes);
+    if (cl.length) return cl;
+    var a = store.getAssignment(str(l.aid));
+    return a ? splitClasses(a.classes).filter(function (c) { return c !== '全員'; }) : [];
+  }
+  function liveOpen(l, now) { return str(l.status) === 'running' && (!str(l.ends) || now.toISOString() < str(l.ends)); }
+  function liveRunning(store, s, now, aid) {
+    if (!store.getLives) return null;
+    var list = store.getLives().filter(function (l) {
+      if (!liveOpen(l, now) || (aid && str(l.aid) !== aid)) return false;
+      var cl = liveClasses(store, l);
+      return !cl.length || cl.indexOf(s.cls) >= 0;
+    });
+    return list[0] || null;
+  }
+  function liveForStudent(store, s, now) {
+    var l = liveRunning(store, s, now, '');
+    return l ? { id: str(l.id), title: str(l.title), aid: str(l.aid), ends: str(l.ends) } : null;
+  }
+  // ポイントの高い順（同じなら先にそのポイントに達した人が上）
+  function liveOrder(sc) {
+    return Object.keys(sc).filter(function (k) { return num(sc[k].p) > 0; }).sort(function (x, y) {
+      return num(sc[y].p) - num(sc[x].p) || (str(sc[x].t) < str(sc[y].t) ? -1 : str(sc[x].t) > str(sc[y].t) ? 1 : 0);
+    });
+  }
+  function liveRows(store, l) {
+    var sc = jsonObj(l.scores);
+    return liveOrder(sc).map(function (sid, i) {
+      var s = store.getStudent(sid), e = sc[sid];
+      return { rank: i + 1, sid: sid, name: s ? (str(s.nick) || s.cls + ' ' + s.no + '番') : sid, cls: s ? s.cls : '',
+        points: num(e.p), count: num(e.c), best: Math.round(num(e.b) * 10) / 10 };
+    });
+  }
+  function livePublic(store, l) {
+    var a = store.getAssignment(str(l.aid));
+    return { id: str(l.id), title: str(l.title), aid: str(l.aid), assignment: a ? a.title : '（削除された課題）', classes: liveClasses(store, l),
+      status: str(l.status), created: str(l.created), started: str(l.started), ends: str(l.ends), ended: str(l.ended),
+      minutes: num(l.minutes), owner: str(l.owner), awards: jsonObj(l.awards), results: str(l.results) ? JSON.parse(l.results) : null };
+  }
+  function liveVisible(me, store, l) {
+    if (me.admin || str(l.owner) === me.id) return true;
+    return liveClasses(store, l).some(function (c) { return me.classes.indexOf(c) >= 0; });
+  }
+  function getLiveFor(me, store, id) {
+    var l = store.getLives().filter(function (x) { return str(x.id) === str(id); })[0];
+    if (!l || !liveVisible(me, store, l)) throw err('ライブが見つかりません。');
+    return l;
+  }
+  handlers.t_lives = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var list = store.getLives().filter(function (l) { return liveVisible(me, store, l); })
+      .sort(function (x, y) { return str(y.created).localeCompare(str(x.created)); }).slice(0, 40)
+      .map(function (l) { var o = livePublic(store, l); o.count = Object.keys(jsonObj(l.scores)).length; return o; });
+    return { lives: list, custom: customStamps(store).map(stampPublic), live: LIVE_STAMPS };
+  };
+  handlers.t_createLive = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var a = store.getAssignment(str(p.aid));
+    if (!a) throw err('課題を選んでください。');
+    var cl = splitClasses([].concat(p.classes || []).join(',')).filter(function (c) { return canTeach(me, c); });
+    if (!cl.length && !me.admin) {
+      cl = splitClasses(a.classes).filter(function (c) { return canTeach(me, c); });
+      if (!cl.length) throw err('ライブを行うクラスを選んでください。');
+    }
+    var minutes = Math.max(0, Math.min(120, Math.round(num(p.minutes))));
+    var aw = p.awards || {}, awards = {};
+    ['top3', 'top10'].forEach(function (k) { if (str(aw[k]) && findStampDef(store, aw[k])) awards[k] = str(aw[k]); });
+    var l = { id: 'L' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36), title: str(p.title).slice(0, 60) || a.title,
+      aid: a.id, classes: cl.join(','), status: 'ready', created: ctx.now().toISOString(), started: '', ends: '', ended: '',
+      minutes: minutes, owner: me.id, scores: '{}', results: '', awards: JSON.stringify(awards) };
+    store.addLive(l);
+    return { id: l.id };
+  };
+  handlers.t_startLive = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), l = getLiveFor(me, store, p.id);
+    if (str(l.status) !== 'ready') throw err('このライブは、すでに始まっているか終わっています。');
+    var now = ctx.now(), mins = num(l.minutes);
+    store.updateLive(str(l.id), { status: 'running', started: now.toISOString(), ends: mins ? new Date(now.getTime() + mins * 60000).toISOString() : '', scores: '{}' });
+    return { board: liveBoard(store, getLiveFor(me, store, p.id), now) };
+  };
+  function liveBoard(store, l, now) {
+    var rows = liveRows(store, l), pub = livePublic(store, l);
+    return { live: pub, rows: rows.slice(0, 60), total: rows.length, now: now.toISOString(),
+      stampImgs: stampImgs(store, (pub.results || []).map(function (x) { return x.stamp; })) };
+  }
+  handlers.t_liveBoard = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    return liveBoard(store, getLiveFor(me, store, p.id), ctx.now());
+  };
+  handlers.t_endLive = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), l = getLiveFor(me, store, p.id), now = ctx.now();
+    if (str(l.status) === 'ended') return { board: liveBoard(store, l, now) };
+    var rows = liveRows(store, l), aw = jsonObj(l.awards), today = jstDate(now), ups = [];
+    rows.slice(0, 10).forEach(function (row) {
+      var key = row.rank <= 3 ? (aw.top3 || 'l:rank' + row.rank) : (aw.top10 || 'l:top10');
+      var entry = stampEntry(findStampDef(store, key)) || stampEntry(LIVE_STAMPS[row.rank <= 3 ? 'rank' + row.rank : 'top10']);
+      var s = store.getStudent(row.sid); if (!s) return;
+      s.ach = pushStamp(s, entry, 'live', today, str(l.title));
+      ups.push({ id: s.id, f: { ach: s.ach } });
+      row.stamp = entry;
+    });
+    updateStudents(store, ups);
+    var results = rows.slice(0, 10).map(function (x) { return { rank: x.rank, name: x.name, cls: x.cls, points: x.points, count: x.count, best: x.best, stamp: x.stamp }; });
+    store.updateLive(str(l.id), { status: 'ended', ended: now.toISOString(), results: JSON.stringify(results) });
+    return { board: liveBoard(store, getLiveFor(me, store, p.id), now), awarded: ups.length };
+  };
+  handlers.t_deleteLive = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), l = getLiveFor(me, store, p.id);
+    if (!me.admin && str(l.owner) !== me.id) throw err('ほかの先生のライブは削除できません。');
+    store.deleteLive(str(l.id));
+    return {};
+  };
+
   handlers.t_saveSettings = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
     adminOnly(me);
@@ -2022,6 +2363,15 @@ window.APP_CONFIG = {
     if ('autoStamps' in st) {
       var ids = [].concat(st.autoStamps || []).filter(function (x) { return STAMP_RULES.some(function (r) { return r.id === x; }); });
       store.setSetting('自動スタンプ', ids.length ? ids.join(',') : 'なし');
+    }
+    if ('autoArt' in st) {
+      var art = {}, have = {};
+      customStamps(store).forEach(function (x) { have[str(x.id)] = 1; });
+      Object.keys(st.autoArt || {}).forEach(function (k) {
+        var v = str(st.autoArt[k]);
+        if (v && have[v] && STAMP_RULES.some(function (r) { return r.id === k; })) art[k] = v;
+      });
+      store.setSetting('自動スタンプの絵', JSON.stringify(art));
     }
     return {};
   };
@@ -2222,7 +2572,8 @@ window.APP_CONFIG = {
 
   var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
-    t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1 };
+    t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
+    t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
 
   function handle(action, payload, store, ctx) {
     var fn = handlers[action];
@@ -2239,7 +2590,7 @@ window.APP_CONFIG = {
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
     weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit,
-    BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES };
+    BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
@@ -2380,6 +2731,21 @@ window.APP_CONFIG = {
     this._changed();
   };
   P.deleteLibrary = function (id) { this.d.library = (this.d.library || []).filter(function (x) { return x.id !== id; }); this._changed(); };
+  // 先生が作ったスタンプ
+  P.getStamps = function () { return (this.d.stamps || []).slice(); };
+  P.addStamp = function (x) { (this.d.stamps = this.d.stamps || []).push(x); this._changed(); };
+  P.updateStamp = function (id, f) { (this.d.stamps || []).forEach(function (x) { if (x.id === id) for (var k in f) x[k] = f[k]; }); this._changed(); };
+  P.deleteStamp = function (id) { this.d.stamps = (this.d.stamps || []).filter(function (x) { return x.id !== id; }); this._changed(); };
+  // ライブ
+  P.getLives = function () { return (this.d.lives || []).slice(); };
+  P.addLive = function (x) { (this.d.lives = this.d.lives || []).push(x); this._changed(); };
+  P.updateLive = function (id, f) { (this.d.lives || []).forEach(function (x) { if (x.id === id) for (var k in f) x[k] = f[k]; }); this._changed(); };
+  P.deleteLive = function (id) { this.d.lives = (this.d.lives || []).filter(function (x) { return x.id !== id; }); this._changed(); };
+  P.updateStudents = function (ups) {
+    var self = this;
+    ups.forEach(function (u) { var s = self.getStudent(u.id); if (s) for (var k in u.f) s[k] = u.f[k]; });
+    this._changed();
+  };
   P.getSetting = function (k) { return this.d.settings[k]; };
   P.setSetting = function (k, v) { this.d.settings[k] = v; this._changed(); };
 
@@ -2667,8 +3033,20 @@ window.SAMPLE_ASSIGNMENTS = [
   var COLORS = {
     cat: { ring: '#f4a259', bg: '#fff4e6' }, rabbit: { ring: '#f28bb3', bg: '#fff0f6' },
     bear: { ring: '#b07b4f', bg: '#fbf1e6' }, chick: { ring: '#f2c230', bg: '#fffbe3' },
-    dog: { ring: '#5aa9e6', bg: '#eef7ff' }, panda: { ring: '#56b38a', bg: '#ecf9f2' }
+    dog: { ring: '#5aa9e6', bg: '#eef7ff' }, panda: { ring: '#56b38a', bg: '#ecf9f2' },
+    star: { ring: '#f0a500', bg: '#fff8e1' }, heart: { ring: '#ef5b8a', bg: '#fff0f5' }
   };
+  // 好きな色から、うすい背景色を作る
+  function tint(hex, amt) {
+    var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || ''); if (!m) return '#fff';
+    return '#' + [1, 2, 3].map(function (i) { var v = parseInt(m[i], 16); v = Math.round(v + (255 - v) * amt); return ('0' + v.toString(16)).slice(-2); }).join('');
+  }
+  function escText(t) { return String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  // 王冠（ライブの表彰スタンプ）
+  function crownSVG() {
+    return '<g transform="translate(0,-2)"><path d="M38 14 L46 26 L60 8 L74 26 L82 14 L80 32 L40 32 Z" fill="#ffd43b" stroke="#e0a800" stroke-width="2" stroke-linejoin="round"/>' +
+      '<circle cx="60" cy="8" r="3" fill="#ff6b6b"/><circle cx="38" cy="14" r="2.6" fill="#4dabf7"/><circle cx="82" cy="14" r="2.6" fill="#4dabf7"/></g>';
+  }
   function eyes(y, gap) {
     return '<ellipse cx="' + (60 - gap) + '" cy="' + y + '" rx="4" ry="5" fill="#3a2e2a"/><ellipse cx="' + (60 + gap) + '" cy="' + y + '" rx="4" ry="5" fill="#3a2e2a"/>' +
       '<circle cx="' + (61 - gap) + '" cy="' + (y - 2) + '" r="1.4" fill="#fff"/><circle cx="' + (61 + gap) + '" cy="' + (y - 2) + '" r="1.4" fill="#fff"/>';
@@ -2713,6 +3091,14 @@ window.SAMPLE_ASSIGNMENTS = [
         eyes(50, 10) + cheeks(60, 17) + '<ellipse cx="60" cy="59" rx="5" ry="3.6" fill="#3a2e2a"/>' +
         '<path d="M60 62 v3" stroke="#3a2e2a" stroke-width="2"/>' + smile(64) + '<path d="M57 68 q3 6 6 0" fill="#ff8fa3"/>';
     },
+    star: function () {
+      return '<path d="M60 18 L70.6 40.2 L95 43.4 L77.2 60.2 L81.6 84.4 L60 72.8 L38.4 84.4 L42.8 60.2 L25 43.4 L49.4 40.2 Z" fill="#ffd43b" stroke="#f0a500" stroke-width="2.4" stroke-linejoin="round"/>' +
+        eyes(52, 8) + cheeks(60, 14) + smile(60);
+    },
+    heart: function () {
+      return '<path d="M60 84 C30 64 24 50 24 40 C24 28 34 20 44 20 C51 20 57 24 60 30 C63 24 69 20 76 20 C86 20 96 28 96 40 C96 50 90 64 60 84 Z" fill="#ff8fb1" stroke="#ef5b8a" stroke-width="2.4"/>' +
+        eyes(46, 10) + cheeks(56, 18) + smile(55);
+    },
     panda: function () {
       return '<circle cx="36" cy="32" r="11" fill="#2f2f37"/><circle cx="84" cy="32" r="11" fill="#2f2f37"/>' +
         '<ellipse cx="60" cy="56" rx="30" ry="27" fill="#fff" stroke="#c9ced6" stroke-width="2"/>' +
@@ -2722,15 +3108,31 @@ window.SAMPLE_ASSIGNMENTS = [
     }
   };
   // 先生スタンプ（円いハンコの形）
-  function stampSVG(animal, text, size) {
-    var c = COLORS[animal] || COLORS.cat, face = (FACES[animal] || FACES.cat)();
+  // opt.color：枠の色（なければ絵ごとの色）、opt.crown：王冠をのせる
+  function stampSVG(animal, text, size, opt) {
+    opt = opt || {}; text = String(text || '');
+    var base = COLORS[animal] || COLORS.cat, face = (FACES[animal] || FACES.cat)();
+    var c = /^#[0-9a-f]{6}$/i.test(opt.color || '') ? { ring: opt.color, bg: tint(opt.color, 0.88) } : base;
     var fs = text.length > 11 ? 11 : text.length > 8 ? 12.5 : 14;
-    return '<svg class="stamp-svg" width="' + (size || 96) + '" height="' + (size || 96) + '" viewBox="0 0 120 120" role="img" aria-label="' + text + '">' +
+    if (/[^\x00-\x7f]/.test(text)) fs = text.length > 7 ? 10 : 12;   // 日本語は少し小さく
+    var t = escText(text);
+    return '<svg class="stamp-svg" width="' + (size || 96) + '" height="' + (size || 96) + '" viewBox="0 0 120 120" role="img" aria-label="' + t + '">' +
       '<circle cx="60" cy="60" r="56" fill="' + c.bg + '" stroke="' + c.ring + '" stroke-width="5"/>' +
       '<circle cx="60" cy="60" r="49" fill="none" stroke="' + c.ring + '" stroke-width="1.5" stroke-dasharray="3 4" opacity=".7"/>' +
-      '<g transform="translate(0,-4)">' + face + '</g>' +
-      '<rect x="14" y="84" width="92" height="22" rx="11" fill="' + c.ring + '"/>' +
-      '<text x="60" y="99.5" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-weight="700" font-size="' + fs + '" fill="#fff">' + text + '</text></svg>';
+      '<g transform="translate(0,' + (opt.crown ? 4 : -4) + ')' + (opt.crown ? ' scale(1)' : '') + '">' + face + '</g>' + (opt.crown ? crownSVG() : '') +
+      (t ? '<rect x="14" y="84" width="92" height="22" rx="11" fill="' + c.ring + '"/>' +
+      '<text x="60" y="99.5" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-weight="700" font-size="' + fs + '" fill="#fff">' + t + '</text>' : '') + '</svg>';
+  }
+  // 画像のスタンプ（先生がアップロードした画像を丸く切り抜いて表示）
+  var imgN = 0;
+  function imageStamp(src, text, size) {
+    var id = 'stc' + (++imgN), t = escText(text), s = size || 96;
+    return '<svg class="stamp-svg" width="' + s + '" height="' + s + '" viewBox="0 0 120 120" role="img" aria-label="' + (t || 'スタンプ') + '">' +
+      '<defs><clipPath id="' + id + '"><circle cx="60" cy="60" r="53"/></clipPath></defs>' +
+      '<circle cx="60" cy="60" r="56" fill="#fff"/>' +
+      (src ? '<image href="' + escText(src) + '" x="7" y="7" width="106" height="106" preserveAspectRatio="xMidYMid slice" clip-path="url(#' + id + ')"/>' : '') +
+      '<circle cx="60" cy="60" r="55" fill="none" stroke="#f28bb3" stroke-width="4"/>' +
+      (t ? '<rect x="14" y="88" width="92" height="20" rx="10" fill="#f28bb3"/><text x="60" y="102" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-weight="700" font-size="' + (t.length > 10 ? 10.5 : 13) + '" fill="#fff">' + t + '</text>' : '') + '</svg>';
   }
   // スタンプカードのマーク（肉球）
   function pawSVG(color, size) {
@@ -2741,7 +3143,7 @@ window.SAMPLE_ASSIGNMENTS = [
       '<ellipse cx="11" cy="17" rx="3.4" ry="4.2" fill="' + color + '"/><ellipse cx="17" cy="12" rx="3.4" ry="4.4" fill="' + color + '"/>' +
       '<ellipse cx="23" cy="12" rx="3.4" ry="4.4" fill="' + color + '"/><ellipse cx="29" cy="17" rx="3.4" ry="4.2" fill="' + color + '"/></svg>';
   }
-  root.Art = { stampSVG: stampSVG, pawSVG: pawSVG, ANIMALS: Object.keys(FACES) };
+  root.Art = { stampSVG: stampSVG, imageStamp: imageStamp, pawSVG: pawSVG, ANIMALS: Object.keys(FACES) };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 </script>
@@ -3198,6 +3600,7 @@ window.SAMPLE_ASSIGNMENTS = [
       throw new Error(msg);
     }
     delete res._ms; delete res._sheet; // サーバーの処理時間（確認用）は画面では使わない
+    noteImgs(res);
     // データを変える操作のあとは、保存しておいた前回のデータを捨てる（古い内容を見せないため）
     if (window.Core && Core.WRITE_ACTIONS[action] && action !== 'teacherLogin' && state.session) {
       cclear(whoKey() + ':');
@@ -3263,6 +3666,7 @@ window.SAMPLE_ASSIGNMENTS = [
     payload = payload || {};
     var key = ckey(action, payload), hit = cget(key);
     if (!hit) return fetchFresh(action, payload);
+    noteImgs(hit);
     if (freshUntil[key] > Date.now()) return Promise.resolve(hit);
     var seq = state.renderSeq, before = JSON.stringify(hit);
     fetchFresh(action, payload).then(function (res) {
@@ -3336,7 +3740,28 @@ window.SAMPLE_ASSIGNMENTS = [
     document.documentElement.setAttribute('data-theme', th);
     setPref('theme', th);
   }
-  function stampHTML(x, size) { return window.Art ? Art.stampSVG(x.a, x.t, size || 96) : esc(x.t); }
+  // 画像スタンプの絵（サーバーから届いた分をためておく）
+  var STAMP_IMGS = {};
+  function noteImgs(res) {
+    if (!res || typeof res !== 'object') return;
+    [res.stampImgs, res.rewards && res.rewards.stampImgs, res.board && res.board.stampImgs].forEach(function (m) {
+      if (m) for (var k in m) STAMP_IMGS[k] = m[k];
+    });
+    (res.custom || []).forEach(function (x) { if (x.kind === 'image' && x.image) STAMP_IMGS[x.id] = x.image; });
+  }
+  function stampHTML(x, size) {
+    if (!x) return '';
+    if (!window.Art) return esc(x.t);
+    if (x.c) return Art.imageStamp(STAMP_IMGS[x.c] || '', x.t, size || 96);
+    return Art.stampSVG(x.a, x.t, size || 96, { color: x.col, crown: x.cr });
+  }
+  // スタンプの説明（自動スタンプの条件・先生から・ライブ）
+  function stampNote(x) {
+    if (x.r === 'manual') return '先生から' + (x.by ? '（' + x.by + '）' : '');
+    if (x.r === 'live') return '🔴 ライブ表彰' + (x.by ? '：' + x.by : '');
+    var r = ((window.Core && Core.STAMP_RULES) || []).filter(function (y) { return y.id === x.r; })[0];
+    return r ? r.name : '';
+  }
   // 先生スタンプ・バッジが届いたときのお知らせ
   function showRewardPopup(stamps, badges, onClose) {
     stamps = stamps || []; badges = badges || [];
@@ -3347,8 +3772,9 @@ window.SAMPLE_ASSIGNMENTS = [
     el.setAttribute('role', 'dialog');
     var html = '<div class="reward-box">';
     if (stamps.length) {
-      html += '<h2>💌 先生からスタンプが届きました！</h2><div class="reward-stamps">' +
-        stamps.slice(-6).map(function (x) { return '<div class="pop-in">' + stampHTML(x, 110) + '</div>'; }).join('') + '</div>';
+      var isLive = stamps.some(function (x) { return x.r === 'live'; });
+      html += '<h2>' + (isLive ? '🏆 ライブの表彰スタンプが届きました！' : '💌 先生からスタンプが届きました！') + '</h2><div class="reward-stamps">' +
+        stamps.slice(-6).map(function (x) { var nt = stampNote(x); return '<div class="pop-in">' + stampHTML(x, 110) + (x.r === 'live' || x.r === 'manual' ? '<div class="muted" style="font-size:.8rem">' + esc(nt) + '</div>' : '') + '</div>'; }).join('') + '</div>';
     }
     if (badges.length) {
       html += '<h2>🏅 バッジをゲット！</h2><div class="reward-badges">' + badges.map(function (id) {
@@ -3501,6 +3927,7 @@ window.SAMPLE_ASSIGNMENTS = [
     applyLook(rw);
     var todo = h.assignments.filter(function (a) { return a.best === null; });
     var html = '';
+    if (h.live) html += '<a class="live-banner" href="#/a/' + encodeURIComponent(h.live.aid) + '"><span class="live-dot"></span><b>ライブ開催中！</b> 「' + esc(h.live.title) + '」を読んでポイントをためよう →</a>';
     html += '<div class="card level-card">' +
       '<div class="level-badge"><small>いまの級</small>' + esc(lv.name) + '</div>' +
       '<div class="level-info"><div>' + (rw.icon ? '<span class="avatar">' + esc(rw.icon) + '</span> ' : '') + '<b>' + esc(s.name || s.nick || s.cls + ' ' + s.no + '番') + '</b> さん' +
@@ -4125,6 +4552,7 @@ window.SAMPLE_ASSIGNMENTS = [
       if (server && server.newBest && opt.aid && opt.best !== null && opt.best !== undefined) html += '<div class="celebrate">⭐ 自己ベスト更新！（前回まで ' + opt.best + '%）</div>';
       if (server && opt.aid && (opt.best === null || opt.best === undefined)) html += '<div class="celebrate">🎉 はじめての記録です！</div>';
       if (server && opt.resultExtra) html += opt.resultExtra(server, r);
+      if (server && server.live) html += '<div class="celebrate live-line"><span class="live-dot"></span> ライブ +' + server.live.gained + 'pt！ 合計 <b>' + n(server.live.points) + 'pt</b>（' + server.live.count + '回）・いま <b>' + server.live.rank + '位</b> / ' + server.live.total + '人</div>';
       if (server && server.bonus) html += '<div class="celebrate bonus">🧠 ' + (type === 5 ? '日本語→英語' : '暗唱') + 'ボーナス +' + server.bonus + 'ポイント！（合計 ' + n(server.rewards ? server.rewards.points : 0) + 'pt）</div>';
       html += '<div class="muted" id="saveState">' + (pending ? '記録を保存中…' : '✅ 記録しました（+' + r.correct + '語）') + '</div>';
       html += '<div class="btn-row" style="justify-content:center;margin-top:12px">' +
@@ -4477,9 +4905,8 @@ window.SAMPLE_ASSIGNMENTS = [
         }).join('') + '</div></div>';
       } else if (tab === 'stamps') {
         var st = (rw.stamps || []).slice().reverse();
-        var names = {}; ((window.Core && Core.STAMP_RULES) || []).forEach(function (r) { names[r.id] = r.name; });
         html += '<div class="card">' + (st.length ? '<div class="stamp-grid">' + st.map(function (x) {
-          return '<div class="stamp-item">' + stampHTML(x, 92) + '<div class="muted">' + fmtDay(x.d) + '</div><div class="ds">' + esc(names[x.r] || '') + '</div></div>';
+          return '<div class="stamp-item">' + stampHTML(x, 92) + '<div class="muted">' + fmtDay(x.d) + '</div><div class="ds">' + esc(stampNote(x)) + '</div></div>';
         }).join('') + '</div>' : '<div class="empty">まだスタンプはありません。音読を続けると、先生からスタンプが届きます！</div>') + '</div>';
       } else {
         var lvIdx = rw.levelIndex || 0, LV = (window.Core && Core.LEVELS) || [];
@@ -4787,7 +5214,7 @@ window.SAMPLE_ASSIGNMENTS = [
     return '<span class="badge' + (state.flagCount ? '' : ' hidden') + '" data-flagbadge>' + (state.flagCount || 0) + '</span>';
   }
   function teacherTabs(active) {
-    var tabs = [['assign', '課題', '#/t'], ['students', '生徒', '#/t/students'], ['library', '📚 ライブラリ', '#/t/library'], ['flags', '⚠ 要確認' + flagBadge(), '#/t/flags']];
+    var tabs = [['assign', '課題', '#/t'], ['live', '🔴 ライブ', '#/t/live'], ['students', '生徒', '#/t/students'], ['stamps', '🐾 スタンプ', '#/t/stamps'], ['library', '📚 ライブラリ', '#/t/library'], ['flags', '⚠ 要確認' + flagBadge(), '#/t/flags']];
     if (isAdmin()) tabs.push(['admin', '👥 先生・クラス', '#/t/admin']);
     tabs.push(['settings', '設定', '#/t/settings']);
     return '<div class="tabs no-print">' + tabs.map(function (t) {
@@ -5215,7 +5642,8 @@ window.SAMPLE_ASSIGNMENTS = [
       var r = await cached('t_studentDetail', { sid: sid });
       var s = r.student;
       var html = '<a class="back" href="#/t/students">← 生徒一覧</a>';
-      html += '<div class="card"><h2>' + esc(s.cls) + ' ' + esc(s.no) + '番 ' + esc(s.name) + (s.nick ? ' <small class="muted">(' + esc(s.nick) + ')</small>' : '') + '</h2>' +
+      html += '<div class="card"><div class="card-title"><h2>' + esc(s.cls) + ' ' + esc(s.no) + '番 ' + esc(s.name) + (s.nick ? ' <small class="muted">(' + esc(s.nick) + ')</small>' : '') + '</h2>' +
+        '<a class="btn btn-small btn-primary" href="#/t/stamps/give/' + encodeURIComponent(s.id) + '">🐾 スタンプを押す</a></div>' +
         '<div class="kpi-inline"><span>級・段 <b>' + esc(s.level.name) + '</b></span><span>累計 <b>' + n(s.totalWords) + '</b> 語</span><span>連続 <b>' + s.streak + '</b> 日</span><span>最長連続 <b>' + s.bestStreak + '</b> 日</span><span>最終 <b>' + (s.lastDate ? fmtDay(s.lastDate) : '—') + '</b></span></div>';
       var rw = r.rewards || {};
       html += '<div class="kpi-inline" style="margin-top:6px"><span>バッジ <b>' + Object.keys(rw.badges || {}).length + '</b></span><span>ボーナス <b>' + n(rw.points) + 'pt</b></span>' +
@@ -5316,7 +5744,7 @@ window.SAMPLE_ASSIGNMENTS = [
           '<label class="check"><input type="checkbox" id="sPhrase"' + (st.phraseCheck ? ' checked' : '') + '>🔑 合言葉チェック（音読の途中に毎回変わる合言葉を読ませる。確認できないと記録しない）</label>' +
           '<label class="check"><input type="checkbox" id="sAudio"' + (st.saveAudio ? ' checked' : '') + '>🎙 音読の音声を保存し、先生画面で再生できるようにする</label>' +
           '<p class="muted" style="font-size:.85rem">お手本音声の検知（判定中にお手本が流れたら記録しない）は常に有効です。音声を保存する場合は、生徒と保護者に事前にお知らせください。</p>' +
-          '<h3 style="margin-top:16px">💌 先生スタンプ（自動）</h3><p class="muted" style="font-size:.85rem">条件を満たした生徒に、先生からのスタンプが自動で届きます。押さない条件はチェックを外してください。</p>' +
+          '<h3 style="margin-top:16px">💌 先生スタンプ（自動）</h3><p class="muted" style="font-size:.85rem">条件を満たした生徒に、先生からのスタンプが自動で届きます。押さない条件はチェックを外してください。スタンプの絵は「<a href="#/t/stamps">🐾 スタンプ</a>」画面で、先生が作ったスタンプに変えられます。</p>' +
           '<div class="auto-stamps">' + ((window.Core && Core.STAMP_RULES) || []).map(function (r) {
             return '<label class="auto-stamp"><input type="checkbox" class="sStamp" value="' + r.id + '"' + ((st.autoStamps || []).indexOf(r.id) >= 0 ? ' checked' : '') + '>' +
               stampHTML(r, 64) + '<span>' + esc(r.name) + '</span></label>';
@@ -5537,6 +5965,346 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
   // ================= ルーター =================
+  // ================= 先生：スタンプ =================
+  var STAMP_COLORS = ['#f28bb3', '#ef5b5b', '#f4a259', '#f2c230', '#56b38a', '#3bb0a0', '#5aa9e6', '#7c6fe0', '#b07b4f', '#6b7280'];
+  var ANIMAL_NAME = { cat: 'ねこ', rabbit: 'うさぎ', bear: 'くま', chick: 'ひよこ', dog: 'いぬ', panda: 'パンダ', star: 'ほし', heart: 'ハート' };
+  function customEntry(x) { return x.kind === 'image' ? { c: x.id, t: x.text } : { a: x.animal, t: x.text, col: x.color }; }
+  // 画像を小さく整える（スプレッドシートに入る大きさにする）
+  function shrinkImage(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var tries = [[200, 0.85, 'image/webp'], [160, 0.8, 'image/webp'], [128, 0.75, 'image/webp'], [128, 0.7, 'image/jpeg'], [96, 0.7, 'image/jpeg']];
+        for (var i = 0; i < tries.length; i++) {
+          var sz = tries[i][0], cv = document.createElement('canvas'); cv.width = sz; cv.height = sz;
+          var cx = cv.getContext('2d'), w = img.naturalWidth, h = img.naturalHeight, m = Math.min(w, h);
+          if (tries[i][2] === 'image/jpeg') { cx.fillStyle = '#fff'; cx.fillRect(0, 0, sz, sz); }
+          cx.drawImage(img, (w - m) / 2, (h - m) / 2, m, m, 0, 0, sz, sz);
+          var data = cv.toDataURL(tries[i][2], tries[i][1]);
+          if (data.indexOf('data:' + tries[i][2]) !== 0) data = cv.toDataURL('image/png');
+          if (data.length <= 44000) { URL.revokeObjectURL(url); return resolve(data); }
+        }
+        URL.revokeObjectURL(url); reject(new Error('画像が大きすぎます。別の画像にしてください。'));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('画像を読み込めませんでした。')); };
+      img.src = url;
+    });
+  }
+  async function viewStamps(mode, arg) {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var both = await Promise.all([cached('t_stamps'), loadOverview()]), S = both[0], o = both[1];
+      noteImgs(S);
+      if (mode === 'new' || mode === 'edit') return stampEditor(S, mode === 'edit' ? S.custom.filter(function (x) { return x.id === arg; })[0] : null);
+      var choices = S.custom.map(function (x) { return { key: 'c:' + x.id, e: customEntry(x), label: '先生スタンプ' }; })
+        .concat(S.rules.map(function (r) { return { key: 'r:' + r.id, e: { a: r.a, t: r.t }, label: '標準' }; }))
+        .concat(Object.keys(S.live).map(function (k) { var x = S.live[k]; return { key: 'l:' + k, e: { a: x.a, t: x.t, col: x.col, cr: x.cr }, label: 'ライブ' }; }));
+      var preSid = mode === 'give' ? arg : '', preStu = preSid ? o.students.filter(function (x) { return x.id === preSid; })[0] : null;
+      var classes = uniq(o.students.map(function (x) { return x.cls; }));
+      var html = teacherTabs('stamps');
+      html += '<div class="card"><h2>🐾 スタンプを押す</h2><p class="muted" style="font-size:.88rem">スタンプを1つ選び、押したい生徒にチェックを入れてください。生徒が次にアプリを開いたときに届きます。</p>' +
+        '<h3>① スタンプを選ぶ</h3><div class="stamp-pick" id="gPick">' + choices.map(function (c, i) {
+          return '<label class="pick"><input type="radio" name="gStamp" value="' + esc(c.key) + '"' + (i === 0 ? ' checked' : '') + '>' + stampHTML(c.e, 72) + '<small>' + esc(c.label) + '</small></label>';
+        }).join('') + '</div>' +
+        '<h3 style="margin-top:12px">② 生徒を選ぶ</h3><div class="toolbar"><select id="gCls" style="width:auto">' + classes.map(function (c) {
+          return '<option' + (preStu && preStu.cls === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select>' +
+        '<button class="btn-small" id="gAll">全員を選ぶ</button><button class="btn-small" id="gNone">選択を外す</button></div>' +
+        '<div class="give-list" id="gList"></div>' +
+        '<div class="btn-row" style="margin-top:12px"><button class="btn-primary" id="gSend">選んだ生徒に押す</button><span class="muted" id="gCount"></span></div><div class="error" id="gErr"></div></div>';
+      html += '<div class="card"><div class="card-title"><h2>✏ 先生が作ったスタンプ</h2><a class="btn btn-primary" href="#/t/stamps/new">＋ 新しく作る</a></div>' +
+        (S.custom.length ? '<div class="stamp-grid">' + S.custom.map(function (x) {
+          var mine = S.admin || x.owner === S.me;
+          return '<div class="stamp-item">' + stampHTML(customEntry(x), 88) + '<div class="ds">' + (x.kind === 'image' ? '画像' : esc(ANIMAL_NAME[x.animal] || '')) + '</div>' +
+            (mine ? '<div class="btn-row" style="justify-content:center"><a class="btn btn-small" href="#/t/stamps/edit/' + encodeURIComponent(x.id) + '">編集</a><button class="btn-small btn-danger" data-del="' + esc(x.id) + '">削除</button></div>' : '') + '</div>';
+        }).join('') + '</div>' : '<div class="empty">まだありません。「＋ 新しく作る」から、絵と言葉を選んで作るか、画像を使って作れます。</div>') + '</div>';
+      if (S.admin) {
+        html += '<div class="card"><h2>💌 自動スタンプの絵</h2><p class="muted" style="font-size:.88rem">条件を満たしたときに自動で押すスタンプを、先生が作ったスタンプに変えられます。（押す・押さないは「設定」画面で選べます）</p>' +
+          '<div class="auto-art">' + S.rules.map(function (r) {
+            var cur = S.autoArt[r.id] || '';
+            return '<div class="auto-art-row"><span class="aa-prev" data-rule="' + r.id + '">' + stampHTML(cur ? customEntry(S.custom.filter(function (x) { return x.id === cur; })[0] || {}) : r, 56) + '</span>' +
+              '<span class="aa-name">' + esc(r.name) + (S.on.indexOf(r.id) < 0 ? ' <span class="pill gray">押さない</span>' : '') + '</span>' +
+              '<select class="aa-sel" data-rule="' + r.id + '"><option value="">標準（' + esc(r.t) + '）</option>' + S.custom.map(function (x) {
+                return '<option value="' + esc(x.id) + '"' + (cur === x.id ? ' selected' : '') + '>先生スタンプ：' + esc(x.text || '（画像）') + '</option>'; }).join('') + '</select></div>';
+          }).join('') + '</div><div style="margin-top:10px"><button class="btn-primary" id="aaSave">保存する</button></div></div>';
+      }
+      $app.innerHTML = html;
+      // 生徒の一覧
+      var picked = {}; if (preSid) picked[preSid] = 1;
+      function drawList() {
+        var cls = $('#gCls').value;
+        $('#gList').innerHTML = o.students.filter(function (x) { return x.cls === cls; }).sort(function (a, b) { return (+a.no) - (+b.no); }).map(function (x) {
+          return '<label class="give-item"><input type="checkbox" class="gStu" value="' + esc(x.id) + '"' + (picked[x.id] ? ' checked' : '') + '><span>' + esc(x.no) + '</span> ' + esc(x.name || x.nick || '') + '</label>';
+        }).join('') || '<div class="muted">このクラスには生徒がいません。</div>';
+        $all('.gStu').forEach(function (c) { c.onchange = function () { if (c.checked) picked[c.value] = 1; else delete picked[c.value]; count(); }; });
+        count();
+      }
+      function count() { var k = Object.keys(picked).length; $('#gCount').textContent = k ? k + '人を選んでいます' : ''; }
+      if ($('#gCls')) { $('#gCls').onchange = drawList; drawList(); }
+      $('#gAll').onclick = function () { $all('.gStu').forEach(function (c) { c.checked = true; picked[c.value] = 1; }); count(); };
+      $('#gNone').onclick = function () { picked = {}; drawList(); };
+      $('#gSend').onclick = async function () {
+        var key = ($('input[name=gStamp]:checked') || {}).value, sids = Object.keys(picked), btn = this;
+        $('#gErr').textContent = '';
+        if (!sids.length) { $('#gErr').textContent = '生徒を選んでください。'; return; }
+        btn.disabled = true;
+        try { var r = await call('t_giveStamp', { stamp: key, sids: sids }); toast(r.count + '人にスタンプを押しました'); picked = {}; drawList(); }
+        catch (e) { $('#gErr').textContent = e.message; }
+        btn.disabled = false;
+      };
+      $all('button[data-del]').forEach(function (b) {
+        b.onclick = async function () {
+          if (!confirm('このスタンプを削除しますか？（すでに押したスタンプは、生徒の画面から消えることがあります）')) return;
+          try { await call('t_deleteStamp', { id: b.dataset.del }); toast('削除しました'); viewStamps(); } catch (e) { showError(e); }
+        };
+      });
+      $all('.aa-sel').forEach(function (sel) {
+        sel.onchange = function () {
+          var x = S.custom.filter(function (y) { return y.id === sel.value; })[0], r = S.rules.filter(function (y) { return y.id === sel.dataset.rule; })[0];
+          $('.aa-prev[data-rule="' + sel.dataset.rule + '"]').innerHTML = stampHTML(x ? customEntry(x) : r, 56);
+        };
+      });
+      if ($('#aaSave')) $('#aaSave').onclick = async function () {
+        var art = {}; $all('.aa-sel').forEach(function (sel) { if (sel.value) art[sel.dataset.rule] = sel.value; });
+        try { await call('t_saveSettings', { settings: { autoArt: art } }); toast('保存しました'); } catch (e) { showError(e); }
+      };
+    } catch (e) { $app.innerHTML = teacherTabs('stamps') + '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+  function stampEditor(S, cur) {
+    var d = cur ? { id: cur.id, kind: cur.kind, animal: cur.animal, text: cur.text, color: cur.color, image: cur.image }
+      : { id: '', kind: 'art', animal: 'cat', text: '', color: '', image: '' };
+    var animals = S.animals || ['cat', 'rabbit', 'bear', 'chick', 'dog', 'panda', 'star', 'heart'];
+    var html = teacherTabs('stamps') + '<a class="back" href="#/t/stamps">← スタンプ</a><div class="card"><h2>' + (d.id ? 'スタンプを編集' : 'スタンプを作る') + '</h2>' +
+      '<div class="seg" id="seKind"><button data-k="art">🎨 絵と言葉で作る</button><button data-k="image">🖼 画像で作る</button></div>' +
+      '<div class="stamp-editor"><div class="se-prev" id="sePrev"></div><div class="se-form">' +
+      '<div id="seArt"><label>絵</label><div class="se-animals">' + animals.map(function (a) {
+        return '<button type="button" class="se-animal" data-a="' + a + '" title="' + esc(ANIMAL_NAME[a] || a) + '">' + Art.stampSVG(a, '', 48) + '</button>'; }).join('') + '</div>' +
+      '<label>色</label><div class="se-colors">' + STAMP_COLORS.map(function (c) { return '<button type="button" class="se-color" data-c="' + c + '" style="background:' + c + '" title="' + c + '"></button>'; }).join('') +
+      '<input type="color" id="seColor" title="好きな色"><button type="button" class="btn-small" id="seNoColor">絵の色にもどす</button></div></div>' +
+      '<div id="seImg"><label for="seFile">画像（写真や手書きのイラストなど。丸く切り抜かれます）</label><input type="file" id="seFile" accept="image/*">' +
+      '<p class="muted" style="font-size:.82rem">著作権のあるキャラクターなどの画像は使わないでください。自動で小さくして保存します。</p></div>' +
+      '<label for="seText">スタンプの言葉（14文字まで。画像のときは空欄でもOK）</label><input type="text" id="seText" maxlength="14" placeholder="例：Nice reading!" value="' + esc(d.text) + '">' +
+      '<div class="btn-row" style="margin-top:14px"><button class="btn-primary" id="seSave">保存する</button><a class="btn" href="#/t/stamps">キャンセル</a></div><div class="error" id="seErr"></div>' +
+      '</div></div></div>';
+    $app.innerHTML = html;
+    function draw() {
+      $all('#seKind button').forEach(function (b) { b.classList.toggle('active', b.dataset.k === d.kind); });
+      $('#seArt').hidden = d.kind !== 'art'; $('#seImg').hidden = d.kind !== 'image';
+      $all('.se-animal').forEach(function (b) { b.classList.toggle('active', b.dataset.a === d.animal); });
+      $all('.se-color').forEach(function (b) { b.classList.toggle('active', b.dataset.c === d.color); });
+      $('#sePrev').innerHTML = (d.kind === 'image' ? Art.imageStamp(d.image, d.text, 160) : Art.stampSVG(d.animal, d.text, 160, { color: d.color })) +
+        (d.kind === 'image' && !d.image ? '<div class="muted">画像を選んでください</div>' : '');
+    }
+    $all('#seKind button').forEach(function (b) { b.onclick = function () { d.kind = b.dataset.k; draw(); }; });
+    $all('.se-animal').forEach(function (b) { b.onclick = function () { d.animal = b.dataset.a; draw(); }; });
+    $all('.se-color').forEach(function (b) { b.onclick = function () { d.color = b.dataset.c; draw(); }; });
+    $('#seColor').oninput = function () { d.color = this.value; draw(); };
+    $('#seNoColor').onclick = function () { d.color = ''; draw(); };
+    $('#seText').oninput = function () { d.text = this.value; draw(); };
+    $('#seFile').onchange = async function () {
+      var f = this.files && this.files[0]; if (!f) return;
+      $('#seErr').textContent = '';
+      try { d.image = await shrinkImage(f); draw(); } catch (e) { $('#seErr').textContent = e.message; }
+    };
+    $('#seSave').onclick = async function () {
+      var btn = this; btn.disabled = true; $('#seErr').textContent = '';
+      try { await call('t_saveStamp', { stamp: d }); toast('保存しました'); go('#/t/stamps'); }
+      catch (e) { $('#seErr').textContent = e.message; btn.disabled = false; }
+    };
+    draw();
+  }
+
+  // ================= 先生：ライブ =================
+  function liveEntry(S, key, rank) {
+    if (key && key.indexOf('c:') === 0) { var x = (S.custom || []).filter(function (y) { return y.id === key.slice(2); })[0]; if (x) return customEntry(x); }
+    var L = S.live || {}, k = rank <= 3 ? 'rank' + rank : 'top10', v = L[k] || {};
+    return { a: v.a, t: v.t, col: v.col, cr: v.cr };
+  }
+  async function viewLives() {
+    bottomNav(); $app.classList.add('wide'); loading();
+    try {
+      var both = await Promise.all([call('t_lives'), loadOverview()]), L = both[0], o = both[1], m = me();
+      var classes = o.classes.filter(function (c) { return m.admin || (m.classes || []).indexOf(c) >= 0; });
+      var html = teacherTabs('live');
+      html += '<div class="card"><h2>🔴 ライブをはじめる</h2>' +
+        '<p class="muted" style="font-size:.88rem">ライブ中に生徒が課題を読むと、1回ごとに<b>正確さ（%）の数字がポイント</b>になり、合計ポイントで順位が決まります（同じなら先に達した人が上）。' +
+        '順位表を教室の大きな画面に映して使ってください。終了すると、上位3名と10位までの生徒を表彰し、特別スタンプを自動で送ります。</p>' +
+        '<label for="lvA">読む課題</label><select id="lvA"><option value="">選んでください</option>' + o.assignments.filter(function (a) { return a.published; }).map(function (a) {
+          return '<option value="' + esc(a.id) + '" data-cls="' + esc(a.classes) + '">' + esc(a.title) + (a.classes ? '（' + esc(a.classes) + '）' : '') + '</option>'; }).join('') + '</select>' +
+        '<label>参加するクラス</label><div class="check-row" id="lvC">' + classes.map(function (c) { return '<label class="check"><input type="checkbox" value="' + esc(c) + '">' + esc(c) + '</label>'; }).join('') + '</div>' +
+        '<div class="form-row"><div><label for="lvM">制限時間</label><select id="lvM"><option value="0">なし（終了ボタンで終わる）</option>' +
+          [3, 5, 10, 15, 20, 30, 45].map(function (x) { return '<option value="' + x + '">' + x + '分</option>'; }).join('') + '</select></div>' +
+        '<div><label for="lvT">タイトル（空欄なら課題名）</label><input type="text" id="lvT" maxlength="60"></div></div>' +
+        '<h3 style="margin-top:12px">🏆 表彰スタンプ</h3><div class="form-row"><div><label for="lvS3">1〜3位</label><select id="lvS3"><option value="">標準（1位・2位・3位で別の王冠スタンプ）</option>' +
+          L.custom.map(function (x) { return '<option value="c:' + esc(x.id) + '">先生スタンプ：' + esc(x.text || '（画像）') + '</option>'; }).join('') + '</select></div>' +
+        '<div><label for="lvS10">4〜10位</label><select id="lvS10"><option value="">標準（Top 10!）</option>' +
+          L.custom.map(function (x) { return '<option value="c:' + esc(x.id) + '">先生スタンプ：' + esc(x.text || '（画像）') + '</option>'; }).join('') + '</select></div></div>' +
+        '<div class="live-prev" id="lvPrev"></div>' +
+        '<div style="margin-top:14px"><button class="btn-primary btn-big" id="lvGo">ライブを準備する</button></div><div class="error" id="lvErr"></div></div>';
+      html += '<div class="card"><h2>これまでのライブ</h2>' + (L.lives.length ? '<ul class="list">' + L.lives.map(function (l) {
+        var st = l.status === 'running' ? '<span class="pill todo">🔴 開催中</span>' : l.status === 'ready' ? '<span class="pill gray">準備中</span>' : '<span class="pill done">終了</span>';
+        return '<li><a class="item" href="#/t/live/' + encodeURIComponent(l.id) + '"><div class="main"><div class="title">' + esc(l.title) + '</div>' +
+          '<div class="sub">' + fmtDate(l.started || l.created) + '・' + esc(l.classes.join('、') || '全員') + '・参加 ' + l.count + '人</div></div>' + st + '</a></li>';
+      }).join('') + '</ul>' : '<div class="empty">まだライブはありません。</div>') + '</div>';
+      $app.innerHTML = html;
+      function prev() {
+        $('#lvPrev').innerHTML = [1, 2, 3].map(function (rk) { return '<div><div class="muted">' + rk + '位</div>' + stampHTML(liveEntry(L, $('#lvS3').value, rk), 70) + '</div>'; }).join('') +
+          '<div><div class="muted">4〜10位</div>' + stampHTML(liveEntry(L, $('#lvS10').value, 4), 70) + '</div>';
+      }
+      $('#lvS3').onchange = prev; $('#lvS10').onchange = prev; prev();
+      $('#lvA').onchange = function () {
+        var opt = this.selectedOptions[0], cl = String((opt && opt.dataset.cls) || '').split(/[,、\s]+/).filter(Boolean);
+        $all('#lvC input').forEach(function (c) { c.checked = cl.indexOf(c.value) >= 0; });
+      };
+      $('#lvGo').onclick = async function () {
+        var btn = this; $('#lvErr').textContent = '';
+        if (!$('#lvA').value) { $('#lvErr').textContent = '読む課題を選んでください。'; return; }
+        btn.disabled = true;
+        try {
+          var r = await call('t_createLive', { aid: $('#lvA').value, classes: $all('#lvC input').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }),
+            minutes: +$('#lvM').value, title: $('#lvT').value, awards: { top3: $('#lvS3').value, top10: $('#lvS10').value } });
+          go('#/t/live/' + encodeURIComponent(r.id));
+        } catch (e) { $('#lvErr').textContent = e.message; btn.disabled = false; }
+      };
+    } catch (e) { $app.innerHTML = teacherTabs('live') + '<div class="card empty">' + esc(e.message) + '</div>'; }
+  }
+
+  // ライブの順位表（大きな画面に映す）
+  async function viewLiveBoard(id) {
+    bottomNav(); $app.classList.add('wide'); loading('ライブを読み込み中…');
+    var seq = state.renderSeq, B, offset = 0, ending = false, timer = null;
+    function alive() { return seq === state.renderSeq; }
+    function nowMs() { return Date.now() + offset; }
+    function mmss(ms) { ms = Math.max(0, ms); var t = Math.floor(ms / 1000); return Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2); }
+    async function load() { var b = await call('t_liveBoard', { id: id }); offset = Date.parse(b.now) - Date.now(); B = b; return b; }
+    try { await load(); } catch (e) { $app.innerHTML = '<a class="back" href="#/t/live">← ライブ</a><div class="card empty">' + esc(e.message) + '</div>'; return; }
+    function frame() {
+      var l = B.live;
+      $app.innerHTML = '<div class="live-board' + (l.status === 'ended' ? ' ended' : '') + '"><div class="lb-head no-print">' +
+        '<a class="back" href="#/t/live">← ライブ</a><div class="lb-title"><span class="live-dot' + (l.status === 'running' ? '' : ' off') + '"></span>' + esc(l.title) + '</div>' +
+        '<div class="lb-meta"><span id="lbTime"></span><span>参加 <b id="lbN">' + B.total + '</b>人</span><span class="muted">' + esc(l.classes.join('、') || '全員') + '</span></div>' +
+        '<div class="btn-row">' + (l.status === 'ready' ? '<button class="btn-primary btn-big" id="lbStart">▶ スタート</button>' : '') +
+        (l.status === 'running' ? '<button class="btn-danger btn-big" id="lbEnd">■ 終了して表彰</button>' : '') +
+        '<button class="btn-small" id="lbFull">⛶ 全画面</button>' + (l.status !== 'running' ? '<button class="btn-small btn-danger" id="lbDel">削除</button>' : '') + '</div></div>' +
+        '<div id="lbBody"></div></div>';
+      if ($('#lbStart')) $('#lbStart').onclick = async function () {
+        this.disabled = true;
+        try { var r = await call('t_startLive', { id: id }); B = r.board; offset = Date.parse(B.now) - Date.now(); frame(); poll(); } catch (e) { showError(e); this.disabled = false; }
+      };
+      if ($('#lbEnd')) $('#lbEnd').onclick = function () { if (confirm('ライブを終了して、表彰しますか？')) endLive(); };
+      $('#lbFull').onclick = function () { var el = document.documentElement; if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen(); };
+      if ($('#lbDel')) $('#lbDel').onclick = async function () {
+        if (!confirm('このライブの記録を削除しますか？（生徒に送ったスタンプは消えません）')) return;
+        try { await call('t_deleteLive', { id: id }); toast('削除しました'); go('#/t/live'); } catch (e) { showError(e); }
+      };
+      if (l.status === 'ended') ceremony(); else body();
+      tick();
+    }
+    function body() {
+      var l = B.live;
+      if (l.status === 'ready') {
+        $('#lbBody').innerHTML = '<div class="lb-ready"><div class="big">📣 準備ができました</div><p>生徒に課題「' + esc(l.assignment) + '」を開いてもらい、<b>▶ スタート</b>を押してください。<br>' +
+          (l.minutes ? '制限時間は <b>' + l.minutes + '分</b> です。' : '終わるときは <b>■ 終了して表彰</b> を押します。') + '</p></div>';
+        return;
+      }
+      if (!$('#lbList')) $('#lbBody').innerHTML = '<div class="lb-list" id="lbList"></div><div class="lb-empty muted" id="lbEmpty">まだ記録がありません。読み終わった生徒から順に表示されます。</div>';
+      rows(B.rows);
+    }
+    function rowHTML(r) {
+      var medal = ['', '🥇', '🥈', '🥉'][r.rank] || '';
+      return '<span class="lb-rank">' + (medal || r.rank) + '</span><span class="lb-name">' + esc(r.name) + '</span>' +
+        '<span class="lb-sub">' + r.count + '回・最高 ' + r.best + '%</span><span class="lb-pts">' + n(r.points) + '<small>pt</small></span>';
+    }
+    // 順位が入れ替わるときに、行がすべるように動く
+    function rows(list) {
+      var box = $('#lbList'); if (!box) return;
+      $('#lbEmpty').hidden = !!list.length;
+      var first = {}, old = {};
+      $all('.lb-row', box).forEach(function (el) { first[el.dataset.sid] = el.getBoundingClientRect().top; old[el.dataset.sid] = el; });
+      list.forEach(function (r) {
+        var el = old[r.sid] || document.createElement('div');
+        var prevP = el.dataset.p;
+        el.className = 'lb-row' + (r.rank <= 3 ? ' top' + r.rank : r.rank <= 10 ? ' tten' : '');
+        el.dataset.sid = r.sid; el.dataset.p = r.points; el.innerHTML = rowHTML(r);
+        if (prevP !== undefined && +prevP !== r.points) { el.classList.add('bump'); setTimeout(function () { el.classList.remove('bump'); }, 900); }
+        box.appendChild(el); delete old[r.sid];
+      });
+      Object.keys(old).forEach(function (k) { old[k].remove(); });
+      $all('.lb-row', box).forEach(function (el) {
+        var f = first[el.dataset.sid];
+        if (f === undefined) { el.classList.add('enter'); return; }
+        var dy = f - el.getBoundingClientRect().top;
+        if (dy) {
+          el.style.transition = 'none'; el.style.transform = 'translateY(' + dy + 'px)';
+          requestAnimationFrame(function () { requestAnimationFrame(function () { el.style.transition = 'transform .7s cubic-bezier(.2,.8,.2,1)'; el.style.transform = ''; }); });
+        }
+      });
+      if ($('#lbN')) $('#lbN').textContent = B.total;
+    }
+    function tick() {
+      if (!alive()) return;
+      var l = B.live, t = $('#lbTime');
+      if (t) {
+        if (l.status === 'running' && l.ends) {
+          var left = Date.parse(l.ends) - nowMs();
+          t.innerHTML = '⏱ のこり <b class="' + (left < 60000 ? 'hurry' : '') + '">' + mmss(left) + '</b>';
+          if (left <= 0 && !ending) endLive();
+        } else if (l.status === 'running') t.innerHTML = '⏱ <b>' + mmss(nowMs() - Date.parse(l.started)) + '</b>';
+        else if (l.status === 'ended') t.innerHTML = '終了 ' + fmtDate(l.ended);
+        else t.textContent = '';
+      }
+      clearTimeout(timer); timer = setTimeout(tick, 500);
+    }
+    async function poll() {
+      if (!alive() || B.live.status !== 'running' || ending) return;
+      try { await load(); if (!alive()) return; if (B.live.status === 'running') rows(B.rows); else { frame(); return; } } catch (e) { /* 次の回にまた読む */ }
+      setTimeout(poll, 2500);
+    }
+    async function endLive() {
+      if (ending) return; ending = true;
+      try { var r = await call('t_endLive', { id: id }); B = r.board; if (alive()) frame(); }
+      catch (e) { ending = false; showError(e); }
+    }
+    // 表彰式
+    function ceremony() {
+      var res = B.live.results || [];
+      var top = [2, 1, 3].map(function (rk) { return res.filter(function (x) { return x.rank === rk; })[0]; });
+      var rest = res.filter(function (x) { return x.rank > 3; });
+      var html = '<div class="ceremony"><h2 class="cer-title">🎉 結果発表 🎉</h2>';
+      if (!res.length) html += '<div class="empty">参加した生徒がいませんでした。</div>';
+      html += '<div class="podium">' + top.map(function (x, i) {
+        if (!x) return '<div class="pod empty-pod"></div>';
+        var delay = [1.6, 2.4, 0.8][i];
+        return '<div class="pod pod' + x.rank + '" style="animation-delay:' + delay + 's"><div class="pod-stamp">' + stampHTML(x.stamp, 120) + '</div>' +
+          '<div class="pod-name">' + esc(x.name) + '</div><div class="pod-pts">' + n(x.points) + '<small>pt</small></div>' +
+          '<div class="pod-base">' + ['', '🥇 1位', '🥈 2位', '🥉 3位'][x.rank] + '</div></div>';
+      }).join('') + '</div>';
+      if (rest.length) html += '<h3 class="cer-sub">🌟 Top 10</h3><div class="top10">' + rest.map(function (x, i) {
+        return '<div class="t10" style="animation-delay:' + (3.2 + i * 0.15) + 's"><span class="lb-rank">' + x.rank + '</span>' + stampHTML(x.stamp, 54) +
+          '<span class="lb-name">' + esc(x.name) + '</span><span class="lb-pts">' + n(x.points) + '<small>pt</small></span></div>';
+      }).join('') + '</div>';
+      if (res.length) html += '<p class="muted cer-note">表彰された生徒には、特別スタンプを送りました。</p>';
+      html += '<div class="btn-row" style="justify-content:center"><button class="btn" id="cerAgain">もう一度見る</button><a class="btn" href="#/t/live">ライブ一覧へ</a></div></div>';
+      $('#lbBody').innerHTML = html;
+      confetti();
+      $('#cerAgain').onclick = function () { ceremony(); };
+    }
+    function confetti() {
+      var box = document.createElement('div'); box.className = 'confetti';
+      var cols = ['#ff6b6b', '#ffd43b', '#51cf66', '#339af0', '#f783ac', '#845ef7', '#ff922b'];
+      for (var i = 0; i < 90; i++) {
+        var p = document.createElement('i');
+        p.style.left = Math.random() * 100 + '%'; p.style.background = cols[i % cols.length];
+        p.style.animationDelay = (Math.random() * 2.5 + 0.5) + 's'; p.style.animationDuration = (2.5 + Math.random() * 2.5) + 's';
+        p.style.transform = 'rotate(' + Math.floor(Math.random() * 360) + 'deg)';
+        box.appendChild(p);
+      }
+      var lb = $('.live-board'); if (lb) lb.appendChild(box);
+      setTimeout(function () { box.remove(); }, 8000);
+    }
+    frame();
+    if (B.live.status === 'running') setTimeout(poll, 2500);
+  }
+
   function render() {
     if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; }
     Speaker.stop();
@@ -5584,6 +6352,8 @@ window.SAMPLE_ASSIGNMENTS = [
         case 'flags': return viewFlags(false);
         case 'admin': return viewAdmin(parts[2]);
         case 'library': return viewTeacherLibrary(parts[2]);
+        case 'stamps': return viewStamps(parts[2], parts[3]);
+        case 'live': return parts[2] ? viewLiveBoard(parts[2]) : viewLives();
         default: return viewTeacher();
       }
     }
