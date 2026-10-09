@@ -431,22 +431,27 @@
     { id: 'dog', k: 'b', name: 'いぬ', un: 'start' },
     { id: 'rabbit', k: 'b', name: 'うさぎ', un: 'start' },
     { id: 'panda', k: 'b', name: 'パンダ', un: 'start' },
+    { id: 'hamster', k: 'b', name: 'ハムスター', un: 'start' },
+    { id: 'shiba', k: 'b', name: 'しばいぬ', un: 'start' },
+    { id: 'chick', k: 'b', name: 'ひよこ', un: 'start' },
     { id: 'penguin', k: 'b', name: 'ペンギン', un: 'start' },
     { id: 'boy', k: 'b', name: '男の子', un: 'start', human: 1 },
     { id: 'girl', k: 'b', name: '女の子', un: 'start', human: 1 },
-    { id: 'robot', k: 'b', name: 'ロボット', un: 'start' },
-    { id: 'ghost', k: 'b', name: 'おばけ', un: 'start' },
-    { id: 'dragon', k: 'b', name: 'ドラゴン', un: 'start' },
     // ---- キャラクター（ごほうびで増える） ----
     { id: 'kid2', k: 'b', name: 'くるくる髪の子', un: 'lv:1', human: 1 },
     { id: 'bear', k: 'b', name: 'くま', un: 'lv:2' },
     { id: 'kid3', k: 'b', name: 'おだんご髪の子', un: 'lv:3', human: 1 },
-    { id: 'chick', k: 'b', name: 'ひよこ', un: 'card:10' },
+    { id: 'robot', k: 'b', name: 'ロボット', un: 'lv:4' },
+    { id: 'ghost', k: 'b', name: 'おばけ', un: 'lv:5' },
     { id: 'alien', k: 'b', name: 'うちゅうじん', un: 'lv:6' },
-    { id: 'frog', k: 'b', name: 'かえる', un: 'badge:streak7' },
-    { id: 'hamster', k: 'b', name: 'ハムスター', un: 'badge:perfect' },
-    { id: 'shiba', k: 'b', name: 'しばいぬ', un: 'shop:150' },
+    { id: 'dragon', k: 'b', name: 'ドラゴン', un: 'lv:7' },
     { id: 'unicorn', k: 'b', name: 'ユニコーン', un: 'lv:8' },
+    { id: 'koala', k: 'b', name: 'コアラ', un: 'card:10' },
+    { id: 'sheep', k: 'b', name: 'ひつじ', un: 'card:20' },
+    { id: 'frog', k: 'b', name: 'かえる', un: 'badge:streak7' },
+    { id: 'fox', k: 'b', name: 'きつね', un: 'badge:perfect' },
+    { id: 'seal', k: 'b', name: 'アザラシ', un: 'shop:100' },
+    { id: 'redpanda', k: 'b', name: 'レッサーパンダ', un: 'shop:150' },
     // ---- 帽子・頭のかざり ----
     { id: 'h_ribbon', k: 'h', name: 'リボン', un: 'start' },
     { id: 'h_cap', k: 'h', name: 'キャップ', un: 'start' },
@@ -666,7 +671,7 @@
   function AV() { return root.AvatarSet || { list: [], byId: {}, SKINS: [] }; }
   function itemUnlocked(it, ach, s) {
     var un = str(it.un), n = num(un.split(':')[1]);
-    if (un === 'start') return true;
+    if (un === 'start' || ach.own.indexOf(it.id) >= 0) return true;
     if (un.indexOf('lv:') === 0) return levelOf(num(s.totalWords)).index >= n;
     if (un.indexOf('card:') === 0) return num(ach.d) >= n;
     if (un.indexOf('badge:') === 0) return !!ach.b[un.slice(6)];
@@ -1341,6 +1346,9 @@
   handlers.setAvatar = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx), ach = achOf(s), v = p.av || {}, A = AV();
     var first = !(ach.av && ach.av.b), out = {};
+    // 前は最初から使えたキャラクター（ロボットなど）を使っていた人は、そのまま持ち続けられる
+    var curB = ach.av ? (ach.av.b === 'pic' ? ach.av.fb && ach.av.fb.b : ach.av.b) : '';
+    if (curB && A.byId[curB] && A.byId[curB].k === 'b' && !itemUnlocked(A.byId[curB], ach, s)) ach.own.push(curB);
     function pick(kind, id, required) {
       id = str(id);
       if (!id) { if (required) throw err('キャラクターを選んでください。'); return; }
