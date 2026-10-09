@@ -412,6 +412,93 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 /*
+ * アバターと着せ替えアイテムの一覧（このアプリ用のオリジナルデザイン）
+ *  k：種類 b＝キャラクター / h＝帽子・頭 / f＝顔 / w＝服・持ち物 / bg＝背景
+ *  un：もらえる条件
+ *    'start'         … 最初から使える
+ *    'lv:N'          … 級・段が LEVELS の N 番目以上（1＝9級、2＝8級 … 10＝初段）
+ *    'card:N'        … スタンプカードのスタンプが N 個以上
+ *    'badge:ID'      … バッジ ID を持っている
+ *    'shop:P'        … お店で P ポイントと交換
+ *    'live:N'        … ライブで N 位以内に入る
+ *  絵は js/art.js の Art.avatar() で描きます。サーバー（Apps Script）にも同じ一覧が入ります。
+ */
+(function (root) {
+  'use strict';
+  var L = [
+    // ---- キャラクター（最初の10種類） ----
+    { id: 'cat', k: 'b', name: 'ねこ', un: 'start' },
+    { id: 'dog', k: 'b', name: 'いぬ', un: 'start' },
+    { id: 'rabbit', k: 'b', name: 'うさぎ', un: 'start' },
+    { id: 'panda', k: 'b', name: 'パンダ', un: 'start' },
+    { id: 'penguin', k: 'b', name: 'ペンギン', un: 'start' },
+    { id: 'boy', k: 'b', name: '男の子', un: 'start', human: 1 },
+    { id: 'girl', k: 'b', name: '女の子', un: 'start', human: 1 },
+    { id: 'robot', k: 'b', name: 'ロボット', un: 'start' },
+    { id: 'ghost', k: 'b', name: 'おばけ', un: 'start' },
+    { id: 'dragon', k: 'b', name: 'ドラゴン', un: 'start' },
+    // ---- キャラクター（ごほうびで増える） ----
+    { id: 'kid2', k: 'b', name: 'くるくる髪の子', un: 'lv:1', human: 1 },
+    { id: 'bear', k: 'b', name: 'くま', un: 'lv:2' },
+    { id: 'kid3', k: 'b', name: 'おだんご髪の子', un: 'lv:3', human: 1 },
+    { id: 'chick', k: 'b', name: 'ひよこ', un: 'card:10' },
+    { id: 'alien', k: 'b', name: 'うちゅうじん', un: 'lv:6' },
+    { id: 'frog', k: 'b', name: 'かえる', un: 'badge:streak7' },
+    { id: 'hamster', k: 'b', name: 'ハムスター', un: 'badge:perfect' },
+    { id: 'shiba', k: 'b', name: 'しばいぬ', un: 'shop:150' },
+    { id: 'unicorn', k: 'b', name: 'ユニコーン', un: 'lv:8' },
+    // ---- 帽子・頭のかざり ----
+    { id: 'h_ribbon', k: 'h', name: 'リボン', un: 'start' },
+    { id: 'h_cap', k: 'h', name: 'キャップ', un: 'start' },
+    { id: 'h_flower', k: 'h', name: '花かんむり', un: 'badge:first' },
+    { id: 'h_star', k: 'h', name: '星のヘアピン', un: 'lv:3' },
+    { id: 'h_party', k: 'h', name: 'パーティー帽子', un: 'card:10' },
+    { id: 'h_phones', k: 'h', name: 'ヘッドホン', un: 'shop:80' },
+    { id: 'h_beret', k: 'h', name: 'ベレー帽', un: 'shop:100' },
+    { id: 'h_chef', k: 'h', name: 'コック帽', un: 'shop:120' },
+    { id: 'h_wizard', k: 'h', name: '魔法使いの帽子', un: 'lv:5' },
+    { id: 'h_grad', k: 'h', name: '卒業帽子', un: 'badge:master' },
+    { id: 'h_halo', k: 'h', name: '天使のわっか', un: 'badge:perfect10' },
+    { id: 'h_crown', k: 'h', name: 'ライブ王者の王冠', un: 'live:1' },
+    // ---- 顔 ----
+    { id: 'f_glasses', k: 'f', name: 'まるメガネ', un: 'start' },
+    { id: 'f_hearts', k: 'f', name: 'ハートのほっぺ', un: 'badge:streak3' },
+    { id: 'f_star', k: 'f', name: '星のメガネ', un: 'lv:4' },
+    { id: 'f_sun', k: 'f', name: 'サングラス', un: 'shop:60' },
+    { id: 'f_mustache', k: 'f', name: 'ちょびひげ', un: 'shop:50' },
+    { id: 'f_monocle', k: 'f', name: '片メガネ', un: 'lv:7' },
+    // ---- 服・持ち物 ----
+    { id: 'w_bowtie', k: 'w', name: '蝶ネクタイ', un: 'start' },
+    { id: 'w_tie', k: 'w', name: 'ネクタイ', un: 'lv:1' },
+    { id: 'w_book', k: 'w', name: '英語の本', un: 'badge:library5' },
+    { id: 'w_mic', k: 'w', name: 'マイク', un: 'badge:recite' },
+    { id: 'w_scarf', k: 'w', name: 'マフラー', un: 'card:20' },
+    { id: 'w_balloon', k: 'w', name: 'ふうせん', un: 'shop:90' },
+    { id: 'w_wand', k: 'w', name: '星のステッキ', un: 'shop:150' },
+    { id: 'w_cape', k: 'w', name: 'ヒーローマント', un: 'lv:9' },
+    { id: 'w_medal', k: 'w', name: '金メダル', un: 'badge:streak30' },
+    { id: 'w_trophy', k: 'w', name: 'ライブのトロフィー', un: 'live:3' },
+    // ---- 背景 ----
+    { id: 'bg_sky', k: 'bg', name: '青空', un: 'start' },
+    { id: 'bg_pink', k: 'bg', name: 'ピンク', un: 'start' },
+    { id: 'bg_mint', k: 'bg', name: 'ミント', un: 'start' },
+    { id: 'bg_lemon', k: 'bg', name: 'レモン', un: 'start' },
+    { id: 'bg_class', k: 'bg', name: '教室', un: 'lv:1' },
+    { id: 'bg_rainbow', k: 'bg', name: 'にじ', un: 'badge:words1000' },
+    { id: 'bg_sakura', k: 'bg', name: 'さくら', un: 'card:30' },
+    { id: 'bg_sea', k: 'bg', name: '海', un: 'shop:120' },
+    { id: 'bg_space', k: 'bg', name: '宇宙', un: 'lv:6' },
+    { id: 'bg_stage', k: 'bg', name: 'ライブのステージ', un: 'live:10' },
+    { id: 'bg_gold', k: 'bg', name: 'チャンピオンの金色', un: 'live:1' }
+  ];
+  var byId = {};
+  L.forEach(function (d) { byId[d.id] = d; });
+  var KINDS = { b: 'キャラクター', h: '帽子・頭', f: '顔', w: '服・持ち物', bg: '背景' };
+  var SKINS = ['#ffe3cc', '#f6c9a1', '#d9a273', '#9c6644'];
+  root.AvatarSet = { list: L, byId: byId, KINDS: KINDS, SKINS: SKINS };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/*
  * アプリの中心となる処理（サーバー側ロジック）
  * - 本番：Google Apps Script の中で動きます（gas/Code.gs に自動で同梱）
  * - デモ：ブラウザの中で動きます（データは端末内に保存）
@@ -509,7 +596,7 @@
   };
   // スタンプの絵の一覧（js/stamps.js）
   function SS() { return root.StampSet || { list: [], byId: {}, pool: function () { return []; } }; }
-  var STAMP_ANIMALS = ['cat', 'rabbit', 'bear', 'dog', 'panda', 'chick', 'penguin', 'frog', 'hamster', 'shiba', 'star', 'heart'];
+  var STAMP_ANIMALS = ['cat', 'rabbit', 'bear', 'dog', 'panda', 'chick', 'penguin', 'frog', 'hamster', 'shiba', 'star', 'heart', 'boy', 'girl', 'kid2', 'kid3', 'robot', 'ghost', 'dragon', 'alien', 'unicorn'];
   var STAMP_POSES = ['banzai', 'wave', 'heart', 'star'], STAMP_EXPRS = ['sparkle', 'happy', 'wink'];
   // 条件ごとの絵の中からランダムに1つ（最近もらった絵はなるべく避ける）
   function pickDesign(list, ach) {
@@ -558,15 +645,34 @@
     try { o = JSON.parse(str(s.ach) || '{}'); } catch (e) { o = {}; }
     if (!o || typeof o !== 'object') o = {};
     o.b = o.b || {}; o.c = o.c || {}; o.lib = o.lib || []; o.st = o.st || []; o.sk = o.sk || {};
-    o.p = num(o.p); o.d = num(o.d);
+    o.p = num(o.p); o.d = num(o.d); o.ps = num(o.ps); o.own = o.own || []; o.sn = o.sn || [];
     return o;
   }
+  // ---------------- アバター ----------------
+  function AV() { return root.AvatarSet || { list: [], byId: {}, SKINS: [] }; }
+  function itemUnlocked(it, ach, s) {
+    var un = str(it.un), n = num(un.split(':')[1]);
+    if (un === 'start') return true;
+    if (un.indexOf('lv:') === 0) return levelOf(num(s.totalWords)).index >= n;
+    if (un.indexOf('card:') === 0) return num(ach.d) >= n;
+    if (un.indexOf('badge:') === 0) return !!ach.b[un.slice(6)];
+    return ach.own.indexOf(it.id) >= 0;   // shop / live
+  }
+  function unlockedItems(ach, s) { return AV().list.filter(function (it) { return itemUnlocked(it, ach, s); }).map(function (it) { return it.id; }); }
+  function avatarOf(ach) { return ach.av && ach.av.b ? ach.av : null; }
+  function availPoints(ach) { return Math.max(0, num(ach.p) - num(ach.ps)); }
+  // ライブの表彰でもらえるアイテム
+  function liveItems(rank) {
+    return AV().list.filter(function (it) { var un = str(it.un); return un.indexOf('live:') === 0 && rank <= num(un.slice(5)); }).map(function (it) { return it.id; });
+  }
   function rewardsPublic(ach, s, today, store) {
-    var lv = levelOf(num(s.totalWords));
+    var lv = levelOf(num(s.totalWords)), unl = unlockedItems(ach, s);
     return { points: ach.p, badges: ach.b, days: ach.d, stampedToday: ach.ld === today, theme: ach.th || 'blue', icon: ach.ic || '',
       weekDays: ach.wk === weekStart(today) ? num(ach.wd) : 0, read: ach.lib, counts: ach.c,
       stamps: ach.st.slice(-40), newStamps: ach.st.filter(function (x) { return x.n; }).length,
-      icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index, stampImgs: stampImgs(store, ach.st.slice(-40)) };
+      icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index, stampImgs: stampImgs(store, ach.st.slice(-40)),
+      av: avatarOf(ach), own: ach.own, unlocked: unl, spent: num(ach.ps), avail: availPoints(ach),
+      newItems: avatarOf(ach) ? unl.filter(function (id) { return ach.sn.indexOf(id) < 0 && str((AV().byId[id] || {}).un) !== 'start'; }) : [] };
   }
   function stampRulesOn(store) {
     var v = str(store.getSetting('自動スタンプ'));
@@ -1076,6 +1182,9 @@
     stamp('perfect', 'pf:' + ws, r.accuracy >= 100);
     stamp('comeback', 'cb:' + today, comeback);
     award('teacher', ach.st.length >= 1);
+    // ポイント（お店で使える）：毎日の最初の音読 +10、バッジ1つ +20、課題達成 +30
+    var gain = (newDay ? 10 : 0) + newBadges.length * 20 + (achievedNew ? 30 : 0);
+    ach.p += gain;
     // 古い記録を整理（データが大きくなりすぎないように）
     if (ach.st.length > 60) ach.st = ach.st.slice(-60);
     var sk = Object.keys(ach.sk);
@@ -1102,7 +1211,8 @@
       passed: a ? r.accuracy >= passLine(a) : null,
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
-      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store), live: liveResult
+      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store), live: liveResult,
+      pointsGained: gain + bonus
     };
   };
 
@@ -1122,7 +1232,7 @@
       store.getRecordsSince(since).forEach(function (r) { score[r.sid] = (score[r.sid] || 0) + num(r.correct); });
     }
     var list = students.map(function (x) {
-      return { id: x.id, name: displayName(x, allowNick), words: score[x.id] || 0, level: levelOf(num(x.totalWords)).name };
+      return { id: x.id, name: displayName(x, allowNick), words: score[x.id] || 0, level: levelOf(num(x.totalWords)).name, av: avatarOf(achOf(x)) };
     }).sort(function (a, b) { return b.words - a.words; });
     var rank = 0, prev = -1, mine = null;
     list.forEach(function (x, i) {
@@ -1131,7 +1241,8 @@
       x.me = x.id === s.id;
       if (x.me) mine = { rank: x.rank, words: x.words };
     });
-    var top = list.slice(0, 30).map(function (x) { return { rank: x.rank, name: x.name, words: x.words, level: x.level, me: x.me }; });
+    var top = list.slice(0, 30).map(function (x) { return { rank: x.rank, name: x.name, words: x.words, level: x.level, me: x.me, av: x.av }; });
+    if (mine) mine.av = avatarOf(achOf(s));
     return { list: top, mine: mine, count: list.length, period: period, scope: scope };
   };
 
@@ -1143,7 +1254,7 @@
     var byId = {};
     store.getStudents().forEach(function (x) { byId[x.id] = x; });
     var list = store.getBestsByAssignment(a.id).filter(function (b) { return byId[b.sid]; })
-      .map(function (b) { return { sid: b.sid, name: displayName(byId[b.sid], allowNick), best: num(b.best), at: str(b.bestAt) }; })
+      .map(function (b) { return { sid: b.sid, name: displayName(byId[b.sid], allowNick), best: num(b.best), at: str(b.bestAt), av: avatarOf(achOf(byId[b.sid])) }; })
       .sort(function (x, y) { return y.best - x.best || x.at.localeCompare(y.at); });
     var mine = null;
     list.forEach(function (x, i) {
@@ -1153,7 +1264,7 @@
     });
     return {
       title: a.title, due: str(a.due), mine: mine, count: list.length,
-      list: list.slice(0, 30).map(function (x) { return { rank: x.rank, name: x.name, best: x.best, me: x.me }; })
+      list: list.slice(0, 30).map(function (x) { return { rank: x.rank, name: x.name, best: x.best, me: x.me, av: x.av }; })
     };
   };
 
@@ -1196,6 +1307,44 @@
     return { theme: ach.th || 'blue', icon: ach.ic || '' };
   };
   // ---- 届いた先生スタンプを「見た」にする ----
+  // アバターを決める・着せ替える
+  handlers.setAvatar = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), ach = achOf(s), v = p.av || {}, A = AV();
+    var first = !avatarOf(ach), out = {};
+    function pick(kind, id, required) {
+      id = str(id);
+      if (!id) { if (required) throw err('キャラクターを選んでください。'); return; }
+      var it = A.byId[id];
+      if (!it || it.k !== kind) throw err('そのアイテムはありません。');
+      if (!itemUnlocked(it, ach, s)) throw err('「' + it.name + '」はまだ使えません。');
+      out[kind] = id;
+    }
+    pick('b', v.b, true); pick('h', v.h); pick('f', v.f); pick('w', v.w); pick('bg', v.bg);
+    var sk = Math.round(num(v.sk)); if (sk > 0 && sk < (A.SKINS || []).length) out.sk = sk;
+    ach.av = out;
+    if (first) ach.sn = unlockedItems(ach, s);   // 最初に選んだときは、今あるアイテムを「見た」ことにする
+    s.ach = JSON.stringify(ach);
+    store.updateStudent(s.id, { ach: s.ach });
+    return { rewards: rewardsPublic(ach, s, jstDate(ctx.now()), store) };
+  };
+  // お店：ポイントでアイテムと交換
+  handlers.buyItem = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), ach = achOf(s), it = AV().byId[str(p.id)];
+    if (!it || str(it.un).indexOf('shop:') !== 0) throw err('そのアイテムはお店にありません。');
+    if (ach.own.indexOf(it.id) >= 0) throw err('もう持っています。');
+    var price = num(str(it.un).slice(5));
+    if (availPoints(ach) < price) throw err('ポイントが足りません。（あと ' + (price - availPoints(ach)) + 'pt）');
+    ach.own.push(it.id); ach.ps = num(ach.ps) + price; ach.sn.push(it.id);
+    s.ach = JSON.stringify(ach);
+    store.updateStudent(s.id, { ach: s.ach });
+    return { rewards: rewardsPublic(ach, s, jstDate(ctx.now()), store) };
+  };
+  handlers.seenItems = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), ach = achOf(s);
+    ach.sn = unlockedItems(ach, s);
+    store.updateStudent(s.id, { ach: JSON.stringify(ach) });
+    return {};
+  };
   handlers.seenStamps = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx);
     var ach = achOf(s), changed = false;
@@ -1304,6 +1453,7 @@
       pub.name = str(s.name);
       pub.weekWords = week[s.id] || 0;
       pub.weekFlags = flags[s.id] || 0;
+      pub.av = avatarOf(achOf(s));
       if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
       return pub;
     });
@@ -1446,7 +1596,7 @@
         accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total), transcript: str(r.transcript),
         flag: str(r.flag), audio: str(r.audio), reviewed: str(r.reviewed), rid: rid(r) };
     });
-    var pub = studentPublic(s); pub.name = str(s.name);
+    var pub = studentPublic(s); pub.name = str(s.name); pub.av = avatarOf(achOf(s));
     return { student: pub, records: recs, rewards: rewardsPublic(achOf(s), s, jstDate(ctx.now()), store) };
   };
 
@@ -1595,7 +1745,7 @@
     var sc = jsonObj(l.scores);
     return liveOrder(sc).map(function (sid, i) {
       var s = store.getStudent(sid), e = sc[sid];
-      return { rank: i + 1, sid: sid, name: s ? (str(s.nick) || s.cls + ' ' + s.no + '番') : sid, cls: s ? s.cls : '',
+      return { rank: i + 1, sid: sid, name: s ? (str(s.nick) || s.cls + ' ' + s.no + '番') : sid, cls: s ? s.cls : '', av: s ? avatarOf(achOf(s)) : null,
         points: num(e.p), count: num(e.c), best: Math.round(num(e.b) * 10) / 10 };
     });
   }
@@ -1664,11 +1814,14 @@
       var entry = stampEntry(findStampDef(store, key)) || stampEntry(LIVE_STAMPS[row.rank <= 3 ? 'rank' + row.rank : 'top10']);
       var s = store.getStudent(row.sid); if (!s) return;
       s.ach = pushStamp(s, entry, 'live', today, str(l.title));
+      var ach2 = achOf(s);
+      liveItems(row.rank).forEach(function (id) { if (ach2.own.indexOf(id) < 0) ach2.own.push(id); });
+      s.ach = JSON.stringify(ach2);
       ups.push({ id: s.id, f: { ach: s.ach } });
       row.stamp = entry;
     });
     updateStudents(store, ups);
-    var results = rows.slice(0, 10).map(function (x) { return { rank: x.rank, name: x.name, cls: x.cls, points: x.points, count: x.count, best: x.best, stamp: x.stamp }; });
+    var results = rows.slice(0, 10).map(function (x) { return { rank: x.rank, name: x.name, cls: x.cls, points: x.points, count: x.count, best: x.best, stamp: x.stamp, av: x.av }; });
     store.updateLive(str(l.id), { status: 'ended', ended: now.toISOString(), results: JSON.stringify(results) });
     return { board: liveBoard(store, getLiveFor(me, store, p.id), now), awarded: ups.length };
   };
@@ -1898,7 +2051,7 @@
     return { mime: a.mime, b64: a.b64 };
   };
 
-  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
     t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
