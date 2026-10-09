@@ -495,7 +495,21 @@
   L.forEach(function (d) { byId[d.id] = d; });
   var KINDS = { b: 'キャラクター', h: '帽子・頭', f: '顔', w: '服・持ち物', bg: '背景' };
   var SKINS = ['#ffe3cc', '#f6c9a1', '#d9a273', '#9c6644'];
-  root.AvatarSet = { list: L, byId: byId, KINDS: KINDS, SKINS: SKINS };
+  // 「パーツで作る」の選択肢（[値, 名前]）
+  var MAKER = {
+    sh: [['round', 'まる'], ['oval', 'たまご'], ['square', 'しかく'], ['wide', 'よこ長']],
+    sk: [['#ffe3cc', ''], ['#f6c9a1', ''], ['#d9a273', ''], ['#9c6644', ''], ['#b2f2bb', ''], ['#a5d8ff', ''], ['#d0bfff', ''], ['#ffc9de', '']],
+    hs: [['short', 'ショート'], ['spiky', 'ツンツン'], ['bob', 'ボブ'], ['long', 'ロング'], ['curly', 'くるくる'], ['bun', 'おだんご'], ['twin', 'ツインテール'], ['pony', 'ポニーテール'], ['mohawk', 'モヒカン'], ['none', 'なし']],
+    hc: [['#2b2118', ''], ['#5c3a1e', ''], ['#a0612b', ''], ['#f2c14e', ''], ['#e8590c', ''], ['#f783ac', ''], ['#4dabf7', ''], ['#40c057', ''], ['#9775fa', ''], ['#f1f3f5', '']],
+    ey: [['dot', 'てん'], ['round', 'まる'], ['sparkle', 'キラキラ'], ['happy', 'にっこり'], ['sleepy', 'ねむい'], ['star', 'ほし'], ['wink', 'ウインク']],
+    br: [['none', 'なし'], ['normal', 'ふつう'], ['thick', 'ふとい'], ['angry', 'キリッ'], ['worried', 'こまり']],
+    mo: [['smile', 'にこ'], ['open', 'あーん'], ['cat', 'ω'], ['tongue', 'ベー'], ['oh', 'お'], ['grin', 'ニカッ']],
+    ch: [['pink', 'ピンク'], ['none', 'なし'], ['freckles', 'そばかす'], ['hearts', 'ハート']],
+    ea: [['human', 'ひと'], ['cat', 'ねこ'], ['bear', 'くま'], ['rabbit', 'うさぎ'], ['elf', 'エルフ']],
+    cl: [['#4dabf7', ''], ['#f783ac', ''], ['#69db7c', ''], ['#ffd43b', ''], ['#ff8787', ''], ['#9775fa', ''], ['#495057', ''], ['#ffffff', '']]
+  };
+  var MAKER_DEFAULT = { sh: 'round', sk: '#ffe3cc', hs: 'short', hc: '#5c3a1e', ey: 'sparkle', br: 'normal', mo: 'smile', ch: 'pink', ea: 'human', cl: '#4dabf7' };
+  root.AvatarSet = { list: L, byId: byId, KINDS: KINDS, SKINS: SKINS, MAKER: MAKER, MAKER_DEFAULT: MAKER_DEFAULT };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 /*
@@ -659,7 +673,19 @@
     return ach.own.indexOf(it.id) >= 0;   // shop / live
   }
   function unlockedItems(ach, s) { return AV().list.filter(function (it) { return itemUnlocked(it, ach, s); }).map(function (it) { return it.id; }); }
-  function avatarOf(ach) { return ach.av && ach.av.b ? ach.av : null; }
+  // mode：'self'（本人）/ 'teacher'（先生：確認待ちの画像もそのまま）/ 'others'（ほかの生徒：確認前の画像は代わりのアバター）
+  function avatarOf(ach, mode) {
+    var av = ach.av && ach.av.b ? ach.av : null;
+    if (!av || av.b !== 'pic') return av;
+    var pk = ach.pk || {}, out = { b: 'pic', pic: str(pk.id), st: str(pk.st), bg: av.bg || '' };
+    if (mode === 'self' || mode === 'teacher') { if (av.fb) out.fb = av.fb; return out; }
+    if (pk.st === 'ok' && pk.id) return { b: 'pic', pic: str(pk.id), bg: av.bg || '' };
+    return av.fb || null;
+  }
+  var MAX_PIC = 32000;   // 絵・画像のアバターの大きさの上限（文字数）
+  function pendingPics(store, me) {
+    return store.getStudents().filter(function (s) { var a = achOf(s); return a.pk && a.pk.st === 'p' && (!me || canTeach(me, s.cls)); });
+  }
   function availPoints(ach) { return Math.max(0, num(ach.p) - num(ach.ps)); }
   // ライブの表彰でもらえるアイテム
   function liveItems(rank) {
@@ -671,8 +697,8 @@
       weekDays: ach.wk === weekStart(today) ? num(ach.wd) : 0, read: ach.lib, counts: ach.c,
       stamps: ach.st.slice(-40), newStamps: ach.st.filter(function (x) { return x.n; }).length,
       icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index, stampImgs: stampImgs(store, ach.st.slice(-40)),
-      av: avatarOf(ach), own: ach.own, unlocked: unl, spent: num(ach.ps), avail: availPoints(ach),
-      newItems: avatarOf(ach) ? unl.filter(function (id) { return ach.sn.indexOf(id) < 0 && str((AV().byId[id] || {}).un) !== 'start'; }) : [] };
+      av: avatarOf(ach, 'self'), own: ach.own, picRejected: !!ach.pr, lastMk: ach.mkl || null, pk: ach.pk && ach.pk.st !== 'x' ? ach.pk : null, unlocked: unl, spent: num(ach.ps), avail: availPoints(ach),
+      newItems: ach.av && ach.av.b ? unl.filter(function (id) { return ach.sn.indexOf(id) < 0 && str((AV().byId[id] || {}).un) !== 'start'; }) : [] };
   }
   function stampRulesOn(store) {
     var v = str(store.getSetting('自動スタンプ'));
@@ -1232,7 +1258,7 @@
       store.getRecordsSince(since).forEach(function (r) { score[r.sid] = (score[r.sid] || 0) + num(r.correct); });
     }
     var list = students.map(function (x) {
-      return { id: x.id, name: displayName(x, allowNick), words: score[x.id] || 0, level: levelOf(num(x.totalWords)).name, av: avatarOf(achOf(x)) };
+      return { id: x.id, name: displayName(x, allowNick), words: score[x.id] || 0, level: levelOf(num(x.totalWords)).name, av: avatarOf(achOf(x), x.id === s.id ? 'self' : 'others') };
     }).sort(function (a, b) { return b.words - a.words; });
     var rank = 0, prev = -1, mine = null;
     list.forEach(function (x, i) {
@@ -1242,7 +1268,7 @@
       if (x.me) mine = { rank: x.rank, words: x.words };
     });
     var top = list.slice(0, 30).map(function (x) { return { rank: x.rank, name: x.name, words: x.words, level: x.level, me: x.me, av: x.av }; });
-    if (mine) mine.av = avatarOf(achOf(s));
+    if (mine) mine.av = avatarOf(achOf(s), 'self');
     return { list: top, mine: mine, count: list.length, period: period, scope: scope };
   };
 
@@ -1254,7 +1280,7 @@
     var byId = {};
     store.getStudents().forEach(function (x) { byId[x.id] = x; });
     var list = store.getBestsByAssignment(a.id).filter(function (b) { return byId[b.sid]; })
-      .map(function (b) { return { sid: b.sid, name: displayName(byId[b.sid], allowNick), best: num(b.best), at: str(b.bestAt), av: avatarOf(achOf(byId[b.sid])) }; })
+      .map(function (b) { return { sid: b.sid, name: displayName(byId[b.sid], allowNick), best: num(b.best), at: str(b.bestAt), av: avatarOf(achOf(byId[b.sid]), b.sid === s.id ? 'self' : 'others') }; })
       .sort(function (x, y) { return y.best - x.best || x.at.localeCompare(y.at); });
     var mine = null;
     list.forEach(function (x, i) {
@@ -1310,7 +1336,7 @@
   // アバターを決める・着せ替える
   handlers.setAvatar = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx), ach = achOf(s), v = p.av || {}, A = AV();
-    var first = !avatarOf(ach), out = {};
+    var first = !(ach.av && ach.av.b), out = {};
     function pick(kind, id, required) {
       id = str(id);
       if (!id) { if (required) throw err('キャラクターを選んでください。'); return; }
@@ -1319,9 +1345,25 @@
       if (!itemUnlocked(it, ach, s)) throw err('「' + it.name + '」はまだ使えません。');
       out[kind] = id;
     }
-    pick('b', v.b, true); pick('h', v.h); pick('f', v.f); pick('w', v.w); pick('bg', v.bg);
-    var sk = Math.round(num(v.sk)); if (sk > 0 && sk < (A.SKINS || []).length) out.sk = sk;
+    if (v.b === 'maker' || v.b === 'pic') { var vb = v.b; v = JSON.parse(JSON.stringify(v)); v.b = vb; }
+    var M = A.MAKER || {};
+    if (v.b === 'maker') {
+      // パーツで作ったキャラクター
+      out.b = 'maker'; out.mk = {};
+      Object.keys(M).forEach(function (k) {
+        var val = str((v.mk || {})[k]), okv = M[k].some(function (x) { return x[0] === val; });
+        out.mk[k] = okv ? val : (A.MAKER_DEFAULT || {})[k];
+      });
+    } else if (v.b === 'pic') {
+      // 絵・画像のアバター（アップロードした最新の1つだけ）
+      if (!ach.pk || !ach.pk.id || ach.pk.st === 'x') throw err('絵や画像のアバターがありません。もう一度作ってください。');
+      out.b = 'pic'; out.fb = (ach.av && ach.av.fb) || (ach.av && ach.av.b && ach.av.b !== 'pic' ? ach.av : { b: 'cat' });
+    } else pick('b', v.b, true);
+    if (v.b !== 'pic') { pick('h', v.h); pick('f', v.f); pick('w', v.w); }
+    pick('bg', v.bg);
+    var sk = Math.round(num(v.sk)); if (out.b !== 'maker' && out.b !== 'pic' && sk > 0 && sk < (A.SKINS || []).length) out.sk = sk;
     ach.av = out;
+    if (out.b === 'maker') ach.mkl = out.mk;
     if (first) ach.sn = unlockedItems(ach, s);   // 最初に選んだときは、今あるアイテムを「見た」ことにする
     s.ach = JSON.stringify(ach);
     store.updateStudent(s.id, { ach: s.ach });
@@ -1341,8 +1383,60 @@
   };
   handlers.seenItems = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx), ach = achOf(s);
-    ach.sn = unlockedItems(ach, s);
+    ach.sn = unlockedItems(ach, s); delete ach.pr;
     store.updateStudent(s.id, { ach: JSON.stringify(ach) });
+    return {};
+  };
+  // 絵・画像のアバターを送る（先生が確認するまで、ほかの人には見えない）
+  handlers.uploadAvatarPic = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), ach = achOf(s), img = str(p.image);
+    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(img)) throw err('画像が正しくありません。');
+    if (img.length > MAX_PIC) throw err('画像が大きすぎます。');
+    if (!store.addPic) throw err('この機能は使えません。');
+    store.getPics().filter(function (x) { return str(x.sid) === s.id; }).forEach(function (x) { store.deletePic(str(x.id)); });
+    var id = 'P' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    store.addPic({ id: id, sid: s.id, image: img, kind: p.kind === 'draw' ? 'draw' : 'photo', status: 'p', created: ctx.now().toISOString(), reviewed: '' });
+    var prev = ach.av && ach.av.b && ach.av.b !== 'pic' ? ach.av : (ach.av && ach.av.fb) || { b: 'cat' };
+    ach.pk = { id: id, st: 'p' };
+    ach.av = { b: 'pic', bg: (ach.av && ach.av.bg) || 'bg_sky', fb: prev };
+    delete ach.pr;
+    s.ach = JSON.stringify(ach);
+    store.updateStudent(s.id, { ach: s.ach });
+    return { rewards: rewardsPublic(ach, s, jstDate(ctx.now()), store) };
+  };
+  // 絵・画像のデータ（本人と先生は確認前でも見られる。ほかの生徒は先生がOKしたものだけ）
+  handlers.avatarPics = function (p, store, ctx) {
+    var tk = readToken(ctx, p.token, null), teacher = tk.role === 'teacher', want = {}, out = {};
+    [].concat(p.ids || []).slice(0, 80).forEach(function (id) { want[str(id)] = 1; });
+    if (store.getPics) store.getPics().forEach(function (x) {
+      var id = str(x.id);
+      if (!want[id]) return;
+      if (teacher || str(x.status) === 'ok' || str(x.sid) === tk.id) out[id] = str(x.image);
+    });
+    return { pics: out };
+  };
+  handlers.t_pics = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), byId = {};
+    pendingPics(store, me).forEach(function (s) { byId[achOf(s).pk.id] = s; });
+    var list = (store.getPics ? store.getPics() : []).filter(function (x) { return byId[str(x.id)]; }).map(function (x) {
+      var s = byId[str(x.id)];
+      return { id: str(x.id), sid: s.id, cls: s.cls, no: s.no, name: str(s.name), kind: str(x.kind), image: str(x.image), created: str(x.created) };
+    });
+    return { list: list };
+  };
+  handlers.t_reviewPic = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx), id = str(p.id);
+    var row = (store.getPics ? store.getPics() : []).filter(function (x) { return str(x.id) === id; })[0];
+    if (!row) throw err('見つかりません。');
+    var s = store.getStudent(str(row.sid));
+    if (!s || !canTeach(me, s.cls)) throw err('担当クラスの生徒ではありません。');
+    var ach = achOf(s), ok = !!p.ok;
+    store.updatePic(id, { status: ok ? 'ok' : 'x', reviewed: ctx.now().toISOString() + ' ' + me.name });
+    if (ach.pk && ach.pk.id === id) {
+      ach.pk.st = ok ? 'ok' : 'x';
+      if (!ok) { if (ach.av && ach.av.b === 'pic') ach.av = ach.av.fb || { b: 'cat' }; ach.pr = 1; }
+      store.updateStudent(s.id, { ach: JSON.stringify(ach) });
+    }
     return {};
   };
   handlers.seenStamps = function (p, store, ctx) {
@@ -1453,13 +1547,13 @@
       pub.name = str(s.name);
       pub.weekWords = week[s.id] || 0;
       pub.weekFlags = flags[s.id] || 0;
-      pub.av = avatarOf(achOf(s));
+      pub.av = avatarOf(achOf(s), 'teacher');
       if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
       return pub;
     });
     var settings = settingsForClient(store);
     return { assignments: assignments, students: list, classes: classList(store).map(function (c) { return c.name; }), today: today, settings: settings,
-      openFlags: openFlags(store, today), me: me };
+      openFlags: openFlags(store, today) + pendingPics(store, me).length, me: me };
   };
 
   handlers.t_getAssignment = function (p, store, ctx) {
@@ -1596,7 +1690,7 @@
         accuracy: num(r.accuracy), correct: num(r.correct), total: num(r.total), transcript: str(r.transcript),
         flag: str(r.flag), audio: str(r.audio), reviewed: str(r.reviewed), rid: rid(r) };
     });
-    var pub = studentPublic(s); pub.name = str(s.name); pub.av = avatarOf(achOf(s));
+    var pub = studentPublic(s); pub.name = str(s.name); pub.av = avatarOf(achOf(s), 'teacher');
     return { student: pub, records: recs, rewards: rewardsPublic(achOf(s), s, jstDate(ctx.now()), store) };
   };
 
@@ -1745,7 +1839,7 @@
     var sc = jsonObj(l.scores);
     return liveOrder(sc).map(function (sid, i) {
       var s = store.getStudent(sid), e = sc[sid];
-      return { rank: i + 1, sid: sid, name: s ? (str(s.nick) || s.cls + ' ' + s.no + '番') : sid, cls: s ? s.cls : '', av: s ? avatarOf(achOf(s)) : null,
+      return { rank: i + 1, sid: sid, name: s ? (str(s.nick) || s.cls + ' ' + s.no + '番') : sid, cls: s ? s.cls : '', av: s ? avatarOf(achOf(s), 'others') : null,
         points: num(e.p), count: num(e.c), best: Math.round(num(e.b) * 10) / 10 };
     });
   }
@@ -1989,7 +2083,7 @@
   }
   handlers.t_flagCount = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
-    return { count: openFlags(store, jstDate(ctx.now())) };
+    return { count: openFlags(store, jstDate(ctx.now())) + pendingPics(store, me).length };
   };
   handlers.t_flags = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
@@ -2051,7 +2145,7 @@
     return { mime: a.mime, b64: a.b64 };
   };
 
-  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
     t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
@@ -2110,7 +2204,9 @@ var SHEETS = {
     ['color', '色', '@'], ['image', '画像データ（自動）', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] },
   lives: { name: 'ライブ', cols: [['id', 'ID', '@'], ['title', 'タイトル', '@'], ['aid', '課題ID', '@'], ['classes', 'クラス', '@'],
     ['status', '状態', '@'], ['created', '作成日時', '@'], ['started', '開始日時', '@'], ['ends', '終了予定', '@'], ['ended', '終了日時', '@'],
-    ['minutes', '制限時間（分）', '0'], ['owner', '作成した先生', '@'], ['scores', 'ポイント（自動）', '@'], ['results', '結果（自動）', '@'], ['awards', '表彰スタンプ', '@']] }
+    ['minutes', '制限時間（分）', '0'], ['owner', '作成した先生', '@'], ['scores', 'ポイント（自動）', '@'], ['results', '結果（自動）', '@'], ['awards', '表彰スタンプ', '@']] },
+  pics: { name: 'アバター画像', cols: [['id', 'ID', '@'], ['sid', '生徒ID', '@'], ['image', '画像データ（自動）', '@'], ['kind', '種類（draw：絵／photo：画像）', '@'],
+    ['status', '状態（p：確認待ち／ok：OK／x：使えない）', '@'], ['created', '作成日時', '@'], ['reviewed', '確認した日時・先生', '@']] }
 };
 
 var DEFAULT_SETTINGS = [
@@ -2225,7 +2321,7 @@ SheetStore.prototype.publishCache_ = function () {
 
 SheetStore.prototype.sheet = function (k) {
   var sh = this.book_().getSheetByName(SHEETS[k].name);
-  if (!sh && (k === 'library' || k === 'stamps' || k === 'lives')) {
+  if (!sh && (k === 'library' || k === 'stamps' || k === 'lives' || k === 'pics')) {
     // あとから追加したシートは、なければ自動で作る
     try { sh = this.book_().insertSheet(SHEETS[k].name); }
     catch (e) { sh = this.book_().getSheetByName(SHEETS[k].name); if (!sh) throw e; return sh; } // 同時に作られたとき
@@ -2349,6 +2445,17 @@ SheetStore.prototype.updateStamp = function (id, f) {
 SheetStore.prototype.deleteStamp = function (id) {
   var l = this.getStamps();
   for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('stamps', l[i]._row); return; }
+};
+// アバターの絵・画像（大きいのでキャッシュしない）
+SheetStore.prototype.getPics = function () { return this.load('pics').filter(function (x) { return x.id; }); };
+SheetStore.prototype.addPic = function (x) { this.writeRow('pics', x); this.load('pics').push(x); };
+SheetStore.prototype.updatePic = function (id, f) {
+  var l = this.getPics();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('pics', l[i]); }
+};
+SheetStore.prototype.deletePic = function (id) {
+  var l = this.getPics();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('pics', l[i]._row); return; }
 };
 // ライブ
 SheetStore.prototype.getLives = function () { return this.load('lives').filter(function (x) { return x.id; }); };
@@ -2578,7 +2685,7 @@ function doPost(e) {
   }
   try {
     // 書き込む処理は、書き換える可能性のあるシートを必ずシートから読む（生徒の操作は「生徒」「課題別ベスト」「ライブ」だけ）
-    var fresh = !write ? null : (/^t_/.test(action) || action === 'teacherLogin') ? true : { students: 1, bests: 1, lives: 1 };
+    var fresh = !write ? null : (/^t_/.test(action) || action === 'teacherLogin') ? true : { students: 1, bests: 1, lives: 1, pics: 1 };
     var store = new SheetStore({ fresh: fresh, request: true });
     var res = Core.handle(action, payload, store, GAS_CTX);
     if (lock) { SpreadsheetApp.flush(); store.publishCache_(); }
