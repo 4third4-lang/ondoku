@@ -678,6 +678,40 @@ html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primar
 .pic-card img { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; border: 2px solid var(--line); }
 .pic-card.done { opacity: .65; }
 
+/* ===== 課題フォルダ ===== */
+.folds { display: flex; flex-direction: column; gap: 10px; }
+.fold { border: 2px solid #dbe7f3; border-radius: 14px; background: #f7fbff; overflow: hidden; }
+.fold .fold { margin: 8px 8px 0 14px; background: #fff; border-color: #e6eef7; }
+.fold.all { border-color: #c7ebd2; background: #f4fbf6; }
+.fold-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 14px; background: none; border: 0; text-align: left; font: inherit; font-size: 1.05rem; color: var(--ink, #222); cursor: pointer; box-shadow: none; border-radius: 0; min-height: 0; }
+.fold-head:hover { background: rgba(0, 0, 0, .03); }
+.fold-arrow { display: inline-block; font-size: .75rem; color: #7a8899; transition: transform .2s; }
+.fold.open > .fold-head .fold-arrow, .frow.open .fold-arrow { transform: rotate(90deg); }
+.fold-ic { font-size: 1.3rem; }
+.fold-name { flex: 1; font-weight: 800; }
+.fold-count { font-size: .85rem; font-weight: 700; color: #5a6b7d; background: #fff; border: 1px solid #dbe7f3; border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
+.fold.all > .fold-head .fold-count { color: #2b8a3e; border-color: #b2e2c0; }
+.fold-body { display: none; padding: 0 8px 10px; }
+.fold.open > .fold-body { display: block; }
+.fold-body > .list { margin-top: 6px; }
+/* 先生の一覧 */
+.assign-table th.cb, .assign-table td.cb { width: 34px; text-align: center; padding-left: 6px; padding-right: 0; }
+.assign-table tr.frow td { background: #f2f7fc; border-top: 2px solid #dbe7f3; }
+.assign-table tr.frow.d1 td { background: #f7fafd; }
+.assign-table tr.frow.d2 td, .assign-table tr.frow.d3 td { background: #fbfcfe; }
+.assign-table tr.frow td { display: table-cell; }
+.f-toggle { background: none; border: 0; box-shadow: none; padding: 4px 6px; font: inherit; font-size: 1rem; cursor: pointer; color: inherit; min-height: 0; }
+.f-toggle:hover { background: rgba(0, 0, 0, .04); }
+.f-acts { float: right; display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.f-acts .btn-small, .f-acts button { padding: 4px 9px; font-size: .82rem; }
+.drag-h { cursor: grab; color: #a7b3c0; margin-right: 6px; font-size: 1rem; }
+tr.dragging { opacity: .45; }
+tr.frow.drop-on td { background: #fff3bf !important; outline: 2px dashed #f59f00; outline-offset: -3px; }
+.move-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: #fff9db; border: 1px solid #ffe066; border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; }
+.move-bar select { width: auto; min-width: 200px; margin: 0; }
+.move-bar.hidden { display: none; }
+.folder-dlg select, .folder-dlg input { width: 100%; }
+
 </style>
 </head>
 <body>
@@ -1898,15 +1932,19 @@ window.APP_CONFIG = {
           created: str(a.created), best: b ? num(b.best) : null, attempts: pg.attempts,
           types: pg.types, bests: pg.bests, master: pg.master, pass: pg.pass,
           clearedSteps: pg.clearedSteps, masterCleared: pg.masterCleared,
-          achieved: pg.achieved, totalPasses: pg.totalPasses, need: pg.need,
+          achieved: pg.achieved, totalPasses: pg.totalPasses, need: pg.need, folder: str(a.folder),
           detail: assignmentDetail(a, b, pg) // 課題を開いたときにすぐ表示できるよう、本文などもいっしょに送る
         };
       });
     list.sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
+    var used = {};
+    list.forEach(function (a) { if (a.folder) used[a.folder] = 1; });
+    var folders = foldersFor(store, used), fm = folderMap(folders);
+    list.forEach(function (a) { if (a.folder && !fm[a.folder]) a.folder = ''; }); // 消えたフォルダ → その他
     var pub = studentPublic(s);
     if (pub.todayDate !== today) pub.todayWords = 0;
     if (pub.lastDate && pub.lastDate < addDays(today, -1)) pub.streak = 0;
-    return { student: pub, assignments: list, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today, store), live: liveForStudent(store, s, ctx.now()) };
+    return { student: pub, assignments: list, folders: folders, settings: settingsForClient(store), today: today, rewards: rewardsPublic(achOf(s), s, today, store), live: liveForStudent(store, s, ctx.now()) };
   };
 
   handlers.getAssignment = function (p, store, ctx) {
@@ -2420,7 +2458,7 @@ window.APP_CONFIG = {
         owner: str(a.owner), ownerName: tname[str(a.owner)] || '', canEdit: canEditAssignment(me, a),
         start: str(a.start), scheduled: isScheduled(a), achieved: achievedN,
         mine: str(a.owner) === me.id || splitClasses(a.classes).some(function (c) { return me.classes.indexOf(c) >= 0; }),
-        targets: targets.length, done: done, avg: avg, passCount: passNeed(a)
+        targets: targets.length, done: done, avg: avg, passCount: passNeed(a), folder: str(a.folder)
       };
     }).sort(function (x, y) { return (y.created || '').localeCompare(x.created || ''); });
     var weekSince = weekStart(today);
@@ -2440,7 +2478,8 @@ window.APP_CONFIG = {
     });
     var settings = settingsForClient(store);
     return { assignments: assignments, students: list, classes: classList(store).map(function (c) { return c.name; }), today: today, settings: settings,
-      openFlags: openFlags(store, today) + pendingPics(store, me).length, me: me };
+      openFlags: openFlags(store, today) + pendingPics(store, me).length, me: me,
+      folders: folderList(store).map(function (f) { return folderPublic(f, me, tname); }) };
   };
 
   handlers.t_getAssignment = function (p, store, ctx) {
@@ -2451,7 +2490,7 @@ window.APP_CONFIG = {
       id: a.id, title: a.title, text: a.text, ja: str(a.ja), classes: str(a.classes),
       due: str(a.due), contest: bool(a.contest), published: bool(a.published),
       types: aTypes(a), mode: isMaster(a) ? 'master' : 'normal', pass: passLine(a), passCount: passNeed(a), blanks: str(a.blanks),
-      start: str(a.start), canEdit: canEditAssignment(me, a)
+      start: str(a.start), canEdit: canEditAssignment(me, a), folder: str(a.folder)
     } };
   };
 
@@ -2481,6 +2520,7 @@ window.APP_CONFIG = {
     data.blanks = str(a.blanks).replace(/[^\d,]/g, '').slice(0, 8000);
     data.start = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str(a.start)) ? str(a.start).slice(0, 16) : '';
     if (data.start && data.due && data.due < data.start.slice(0, 10)) throw err('締切が開始日時より前になっています。');
+    if (a.folder !== undefined) data.folder = folderMap(folderList(store))[str(a.folder)] ? str(a.folder) : '';
     // 権限：担当クラスにだけ出せる（全員向けは管理者のみ）
     var cls = splitClasses(data.classes);
     if (!me.admin) {
@@ -2507,6 +2547,100 @@ window.APP_CONFIG = {
     if (da && !canEditAssignment(me, da)) throw err('この課題を削除する権限がありません。');
     store.deleteAssignment(str(p.aid));
     return {};
+  };
+
+  // ================= 課題フォルダ =================
+  // いちばん上のフォルダ（例：教材A）の中に、サブフォルダを3階層まで作れる（合わせて4階層）
+  var FOLDER_DEPTH = 4;
+  var DEPTH_MSG = 'フォルダは、いちばん上のフォルダの中に3階層までしか作れません。';
+  function folderList(store) { return store.getFolders ? store.getFolders() : []; }
+  function folderMap(list) { var m = {}; list.forEach(function (f) { m[str(f.id)] = f; }); return m; }
+  function folderDepth(m, id) { var d = 0, seen = {}; id = str(id); while (id && m[id] && !seen[id]) { seen[id] = 1; d++; id = str(m[id].parent); } return d; }
+  function folderHeight(list, id, seen) {
+    seen = seen || {}; if (seen[id]) return 0; seen[id] = 1;
+    return 1 + list.filter(function (f) { return str(f.parent) === id; })
+      .reduce(function (mx, k) { return Math.max(mx, folderHeight(list, str(k.id), seen)); }, 0);
+  }
+  function folderUnder(m, id, anc) { var seen = {}; id = str(id); while (id && m[id] && !seen[id]) { if (id === anc) return true; seen[id] = 1; id = str(m[id].parent); } return false; }
+  function folderCanEdit(me, f) { return !!(me.admin || str(f.owner) === me.id); }
+  function folderPublic(f, me, tname) {
+    var o = { id: str(f.id), name: str(f.name), parent: str(f.parent) };
+    if (me) { o.owner = str(f.owner); o.ownerName = (tname && tname[o.owner]) || ''; o.canEdit = folderCanEdit(me, f); }
+    return o;
+  }
+  // 生徒に見せるフォルダ：見える課題が入っているフォルダと、その上のフォルダだけ
+  function foldersFor(store, used) {
+    var list = folderList(store), m = folderMap(list), need = {};
+    Object.keys(used).forEach(function (id) { var seen = {}; while (id && m[id] && !seen[id]) { seen[id] = need[id] = 1; id = str(m[id].parent); } });
+    return list.filter(function (f) { return need[str(f.id)]; }).map(function (f) { return folderPublic(f); });
+  }
+  function moveFolder(store, me, list, m, id, parent) {
+    var cur = m[id];
+    if (!cur) throw err('フォルダが見つかりません。');
+    if (!folderCanEdit(me, cur)) throw err('「' + str(cur.name) + '」フォルダを変更する権限がありません（作った先生か管理者だけが変更できます）。');
+    if (parent && !m[parent]) throw err('移動先のフォルダが見つかりません。');
+    if (parent === id || folderUnder(m, parent, id)) throw err('フォルダを、そのフォルダ自身の中には移動できません。');
+    if (folderDepth(m, parent) + folderHeight(list, id) > FOLDER_DEPTH) throw err(DEPTH_MSG);
+    var name = str(cur.name);
+    if (list.some(function (x) { return str(x.parent) === parent && str(x.name) === name && str(x.id) !== id; })) throw err('移動先に同じ名前のフォルダ「' + name + '」があります。');
+    store.updateFolder(id, { parent: parent });
+    cur.parent = parent;
+  }
+
+  handlers.t_saveFolder = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var f = p.folder || {}, id = str(f.id), name = str(f.name).replace(/\s+/g, ' ').trim().slice(0, 40), parent = str(f.parent);
+    if (!name) throw err('フォルダの名前を入力してください。');
+    var list = folderList(store), m = folderMap(list);
+    if (parent && !m[parent]) throw err('入れる先のフォルダが見つかりません。');
+    if (list.some(function (x) { return str(x.parent) === parent && str(x.name) === name && str(x.id) !== id; })) throw err('同じ場所に「' + name + '」フォルダがすでにあります。');
+    if (id) {
+      if (!m[id]) throw err('フォルダが見つかりません。');
+      if (!folderCanEdit(me, m[id])) throw err('このフォルダを変更する権限がありません（作った先生か管理者だけが変更できます）。');
+      if (parent !== str(m[id].parent)) moveFolder(store, me, list, m, id, parent);
+      store.updateFolder(id, { name: name });
+      return { id: id };
+    }
+    if (folderDepth(m, parent) + 1 > FOLDER_DEPTH) throw err(DEPTH_MSG);
+    do { id = 'F' + ctx.now().getTime().toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase(); } while (m[id]);
+    store.addFolder({ id: id, name: name, parent: parent, owner: me.id, created: ctx.now().toISOString() });
+    return { id: id };
+  };
+
+  // フォルダを消す：中の課題とサブフォルダは、ひとつ上のフォルダへ出す（課題は消えない）
+  handlers.t_deleteFolder = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var id = str(p.fid), list = folderList(store), m = folderMap(list), f = m[id];
+    if (!f) throw err('フォルダが見つかりません。');
+    if (!folderCanEdit(me, f)) throw err('このフォルダを削除する権限がありません（作った先生か管理者だけが削除できます）。');
+    var up = str(f.parent), movedA = 0, movedF = 0;
+    store.getAssignments().forEach(function (a) { if (str(a.folder) === id) { store.updateAssignment(a.id, { folder: up }); movedA++; } });
+    list.forEach(function (x) {
+      if (str(x.parent) !== id) return;
+      var nm = str(x.name), dup = list.some(function (y) { return y !== x && str(y.parent) === up && str(y.name) === nm; });
+      store.updateFolder(str(x.id), dup ? { parent: up, name: (nm + '（' + str(f.name) + '）').slice(0, 40) } : { parent: up }); movedF++;
+    });
+    store.deleteFolder(id);
+    return { movedAssignments: movedA, movedFolders: movedF };
+  };
+
+  // まとめて移動（課題 aids と フォルダ fids を、folder の中へ。folder が空なら「その他（フォルダなし）」へ）
+  handlers.t_moveToFolder = function (p, store, ctx) {
+    var me = currentTeacher(p, store, ctx);
+    var to = str(p.folder), list = folderList(store), m = folderMap(list);
+    if (to && !m[to]) throw err('移動先のフォルダが見つかりません。');
+    var moved = 0, skipped = [];
+    [].concat(p.aids || []).slice(0, 500).forEach(function (aid) {
+      var a = store.getAssignment(str(aid)); if (!a) return;
+      if (!canEditAssignment(me, a)) { skipped.push(str(a.title)); return; }
+      if (str(a.folder) !== to) { store.updateAssignment(a.id, { folder: to }); }
+      moved++;
+    });
+    [].concat(p.fids || []).slice(0, 100).forEach(function (fid) {
+      fid = str(fid); if (!m[fid] || str(m[fid].parent) === to) return;
+      moveFolder(store, me, list, m, fid, to); moved++;
+    });
+    return { moved: moved, skipped: skipped };
   };
 
   // 課題の音読記録の集計（全回の平均・合計時間）。無効になった記録（不正・未確認）は数えない
@@ -3032,7 +3166,7 @@ window.APP_CONFIG = {
     return { mime: a.mime, b64: a.b64 };
   };
 
-  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1,
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1, t_saveFolder: 1, t_deleteFolder: 1, t_moveToFolder: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
     t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
@@ -3052,7 +3186,7 @@ window.APP_CONFIG = {
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
     weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit,
-    BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
+    FOLDER_DEPTH: FOLDER_DEPTH, BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
@@ -3204,6 +3338,10 @@ window.APP_CONFIG = {
   P.updatePic = function (id, f) { (this.d.pics || []).forEach(function (x) { if (x.id === id) for (var k in f) x[k] = f[k]; }); this._changed(); };
   P.deletePic = function (id) { this.d.pics = (this.d.pics || []).filter(function (x) { return x.id !== id; }); this._changed(); };
   // ライブ
+  P.getFolders = function () { return (this.d.folders || []).slice(); };
+  P.addFolder = function (x) { (this.d.folders = this.d.folders || []).push(x); this._changed(); };
+  P.updateFolder = function (id, f) { (this.d.folders || []).forEach(function (x) { if (x.id === id) for (var k in f) x[k] = f[k]; }); this._changed(); };
+  P.deleteFolder = function (id) { this.d.folders = (this.d.folders || []).filter(function (x) { return x.id !== id; }); this._changed(); };
   P.getLives = function () { return (this.d.lives || []).slice(); };
   P.addLive = function (x) { (this.d.lives = this.d.lives || []).push(x); this._changed(); };
   P.updateLive = function (id, f) { (this.d.lives || []).forEach(function (x) { if (x.id === id) for (var k in f) x[k] = f[k]; }); this._changed(); };
@@ -4992,21 +5130,10 @@ window.SAMPLE_ASSIGNMENTS = [
       '<div class="ja">' + esc(pv[1]) + '</div><div class="en">' + esc(pv[0]) + '</div></div>';
     html += '<div class="card"><div class="card-title"><h2>📝 課題</h2>' + (todo.length ? '<span class="pill todo">未提出 ' + todo.length + '</span>' : '') + '</div>';
     if (!h.assignments.length) html += '<div class="empty">今は課題がありません。自主練で音読してみましょう！</div>';
-    else html += '<ul class="list">' + h.assignments.map(function (a) {
-      var overdue = a.due && a.due < h.today && (a.master ? !a.masterCleared : !a.achieved);
-      return '<li><a class="item" href="#/a/' + encodeURIComponent(a.id) + '"><div class="main">' +
-        '<div class="title">' + (a.contest ? '<span class="pill contest">🏆 音読大会</span> ' : '') + esc(a.title) + '</div>' +
-        '<div class="sub">' + n(a.words) + '語' + (a.due ? '・締切 ' + fmtDay(a.due) : '') + (a.attempts ? '・' + a.attempts + '回挑戦' : '') +
-        (!a.master && a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : '') + '</div></div>' +
-        (a.master
-          ? (a.masterCleared ? '<span class="pill done">🏆 マスター達成</span>' : '<span class="pill master">🎓 マスター ' + a.clearedSteps + '/' + a.types.length + '</span>')
-          : (a.achieved ? '<span class="pill done">✅ 達成' + (a.best !== null ? ' ' + a.best + '%' : '') + '</span>'
-            : a.best !== null ? '<div style="text-align:right"><div class="score-chip">' + a.best + '%</div>' + (a.need ? '<div class="muted" style="font-size:.75rem">合格 ' + (a.totalPasses || 0) + '/' + a.need + '回</div>' : '') + '</div>'
-            : '<span class="pill ' + (overdue ? 'todo' : 'gray') + '">' + (overdue ? '締切すぎ' : '未提出') + '</span>')) +
-        '</a></li>';
-    }).join('') + '</ul>';
+    else html += studentAssignHTML(h);
     html += '</div>';
     $app.innerHTML = html;
+    bindFolds($app, 'ondoku_fold_s');
     // はじめての人はアバターを選ぶ → 届いたスタンプ → 新しいアイテム の順にお知らせ
     if (!rw.av) { go('#/avatar/new'); return; }
     if (rw.picRejected) {
@@ -5024,6 +5151,82 @@ window.SAMPLE_ASSIGNMENTS = [
       var fresh = (rw.stamps || []).filter(function (x) { return x.n; });
       showRewardPopup(fresh, [], function () { call('seenStamps').catch(function () {}); if (state.home && state.home.rewards) state.home.rewards.newStamps = 0; itemsPopup(); });
     } else itemsPopup();
+  }
+
+  // ================= 課題フォルダ（生徒・先生共通） =================
+  var FOLDER_DEPTH = 4; // いちばん上のフォルダ＋サブフォルダ3階層
+  function folderTree(folders) {
+    var byId = {}, kids = {};
+    (folders || []).forEach(function (f) { byId[f.id] = f; });
+    (folders || []).forEach(function (f) { var p = f.parent && byId[f.parent] ? f.parent : ''; (kids[p] = kids[p] || []).push(f); });
+    Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'ja', { numeric: true }); }); });
+    return { byId: byId, kids: kids };
+  }
+  function folderPath(tree, id) { var out = [], seen = {}; while (id && tree.byId[id] && !seen[id]) { seen[id] = 1; out.unshift(tree.byId[id].name); id = tree.byId[id].parent; } return out; }
+  function folderHeightC(tree, id) { return 1 + (tree.kids[id] || []).reduce(function (m, k) { return Math.max(m, folderHeightC(tree, k.id)); }, 0); }
+  // <option> の一覧（階層を字下げで表示）。skip のフォルダとその中は出さない。maxDepth を超える場所は選べない
+  function folderOptions(tree, sel, o) {
+    o = o || {};
+    var html = '';
+    (function walk(pid, d) {
+      (tree.kids[pid] || []).forEach(function (f) {
+        if (o.skip && f.id === o.skip) return;
+        var dis = o.maxDepth && d + 1 > o.maxDepth;
+        html += '<option value="' + esc(f.id) + '"' + (f.id === sel ? ' selected' : '') + (dis ? ' disabled' : '') + '>' + '\u3000'.repeat(d) + '📁 ' + esc(f.name) + '</option>';
+        walk(f.id, d + 1);
+      });
+    })('', 0);
+    return html;
+  }
+  function foldOpenGet(key) { try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { return {}; } }
+  function foldOpenSet(key, id, v) { var m = foldOpenGet(key); m[id] = v ? 1 : 0; try { localStorage.setItem(key, JSON.stringify(m)); } catch (e) { /* noop */ } }
+  function bindFolds(root, key) {
+    $all('.fold-head', root).forEach(function (b) {
+      b.onclick = function () { var f = b.parentNode; f.classList.toggle('open'); foldOpenSet(key, f.dataset.fid, f.classList.contains('open')); };
+    });
+  }
+  function aDone(a) { return a.master ? !!a.masterCleared : !!a.achieved; }
+  function studentItemHTML(a, h) {
+      var overdue = a.due && a.due < h.today && (a.master ? !a.masterCleared : !a.achieved);
+      return '<li><a class="item" href="#/a/' + encodeURIComponent(a.id) + '"><div class="main">' +
+        '<div class="title">' + (a.contest ? '<span class="pill contest">🏆 音読大会</span> ' : '') + esc(a.title) + '</div>' +
+        '<div class="sub">' + n(a.words) + '語' + (a.due ? '・締切 ' + fmtDay(a.due) : '') + (a.attempts ? '・' + a.attempts + '回挑戦' : '') +
+        (!a.master && a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : '') + '</div></div>' +
+        (a.master
+          ? (a.masterCleared ? '<span class="pill done">🏆 マスター達成</span>' : '<span class="pill master">🎓 マスター ' + a.clearedSteps + '/' + a.types.length + '</span>')
+          : (a.achieved ? '<span class="pill done">✅ 達成' + (a.best !== null ? ' ' + a.best + '%' : '') + '</span>'
+            : a.best !== null ? '<div style="text-align:right"><div class="score-chip">' + a.best + '%</div>' + (a.need ? '<div class="muted" style="font-size:.75rem">合格 ' + (a.totalPasses || 0) + '/' + a.need + '回</div>' : '') + '</div>'
+            : '<span class="pill ' + (overdue ? 'todo' : 'gray') + '">' + (overdue ? '締切すぎ' : '未提出') + '</span>')) +
+        '</a></li>';
+  }
+  // 生徒のホーム：課題をフォルダごとに開いたり閉じたりできる一覧で表示（未達成の課題があるフォルダは最初から開いておく）
+  function studentAssignHTML(h) {
+    var fs = h.folders || [];
+    function ul(list) { return '<ul class="list">' + list.map(function (a) { return studentItemHTML(a, h); }).join('') + '</ul>'; }
+    if (!fs.length) return ul(h.assignments);
+    var tree = folderTree(fs), byF = {}, open = foldOpenGet('ondoku_fold_s'), memo = {};
+    h.assignments.forEach(function (a) { var k = a.folder && tree.byId[a.folder] ? a.folder : ''; (byF[k] = byF[k] || []).push(a); });
+    function stat(id) {
+      if (memo[id]) return memo[id];
+      var t = 0, d = 0;
+      (byF[id] || []).forEach(function (a) { t++; if (aDone(a)) d++; });
+      (tree.kids[id] || []).forEach(function (k) { var x = stat(k.id); t += x.t; d += x.d; });
+      return (memo[id] = { t: t, d: d });
+    }
+    function box(id, name, depth, inner) {
+      var st = stat(id), isOpen = open[id] !== undefined ? !!open[id] : st.d < st.t, all = st.t && st.d === st.t;
+      return '<div class="fold d' + depth + (isOpen ? ' open' : '') + (all ? ' all' : '') + '" data-fid="' + esc(id) + '">' +
+        '<button class="fold-head" type="button"><span class="fold-arrow">▶</span><span class="fold-ic">' + (id === '_other' ? '🗂' : '📁') + '</span>' +
+        '<span class="fold-name">' + esc(name) + '</span><span class="fold-count">' + (all ? '✅ ' : '') + '達成 ' + st.d + '/' + st.t + '</span></button>' +
+        '<div class="fold-body">' + inner + '</div></div>';
+    }
+    function folderHTML(f, depth) {
+      if (!stat(f.id).t) return '';
+      return box(f.id, f.name, depth, (tree.kids[f.id] || []).map(function (k) { return folderHTML(k, depth + 1); }).join('') + ((byF[f.id] || []).length ? ul(byF[f.id]) : ''));
+    }
+    var html = '<div class="folds">' + (tree.kids[''] || []).map(function (f) { return folderHTML(f, 0); }).join('');
+    if ((byF[''] || []).length) { byF._other = byF['']; html += box('_other', 'その他', 0, ul(byF[''])); }
+    return html + '</div>';
   }
 
   // ================= 生徒：アバター =================
@@ -6651,35 +6854,158 @@ window.SAMPLE_ASSIGNMENTS = [
         '<div class="stat"><div class="v">' + n(weekTotal) + '</div><div class="l">今週の音読単語数</div></div>' +
         '<div class="stat"><div class="v">' + o.assignments.length + '</div><div class="l">課題数</div></div></div><div style="height:16px"></div>';
       var scope = sessionStorage.getItem('assignScope') || (isAdmin() ? 'all' : 'mine');
-      var list = o.assignments.filter(function (a) { return scope === 'all' || a.mine; });
       html += '<div class="card"><div class="card-title"><h2>課題一覧</h2><div class="btn-row">' +
         '<div class="seg" id="segScope"><button data-v="mine" class="' + (scope === 'mine' ? 'active' : '') + '">担当クラス</button><button data-v="all" class="' + (scope === 'all' ? 'active' : '') + '">すべて</button></div>' +
+        '<button class="btn" id="bNewFolder" type="button">📁 新しいフォルダ</button>' +
         '<a class="btn btn-primary" href="#/t/new">＋ 新しい課題</a></div></div>' +
-        (!isAdmin() && !(me().classes || []).length ? '<div class="notice warn">担当クラスが設定されていません。管理者に担当クラスを設定してもらってください。</div>' : '');
-      html += list.length ? '<div class="table-wrap"><table><thead><tr><th>タイトル</th><th>対象</th><th>作成</th><th>締切</th><th class="num">提出</th><th class="num">達成</th><th class="num">平均</th><th>状態</th></tr></thead><tbody>' +
-        list.map(function (a) {
-          return '<tr class="clickable" data-href="#/t/results/' + encodeURIComponent(a.id) + '"><td>' + (a.contest ? '🏆 ' : '') + esc(a.title) + '<br><small class="muted">' + a.words + '語' +
-            (a.mode === 'master' ? '・🎓マスター' : (a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : (a.types && a.types[0] !== 1 ? '・' + '①②③④⑤'.charAt(a.types[0] - 1) : ''))) + '</small></td>' +
-            '<td>' + esc(a.classes || '全員') + '</td><td>' + esc(a.ownerName || '—') + (a.canEdit ? '' : ' <small class="muted">（閲覧のみ）</small>') + '</td><td>' + (a.due ? fmtDay(a.due) : '—') + '</td>' +
-            '<td class="num">' + a.done + ' / ' + a.targets + '</td><td class="num">' + (a.achieved || 0) + ' / ' + a.targets + '</td><td class="num ' + scoreClass(a.avg) + '">' + (a.avg === null ? '—' : a.avg + '%') + '</td>' +
-            '<td>' + (!a.published ? '<span class="pill gray">非公開</span>' : a.scheduled ? '<span class="pill sched">⏰ 予約 ' + fmtStart(a.start) + '</span>' : '<span class="pill done">公開中</span>') + '</td></tr>';
-        }).join('') + '</tbody></table></div>' : '<div class="empty">' + (scope === 'mine' ? '担当クラスの課題はまだありません。' : 'まだ課題がありません。') + '「＋ 新しい課題」から作成しましょう。</div>';
-      html += '</div>';
+        (!isAdmin() && !(me().classes || []).length ? '<div class="notice warn">担当クラスが設定されていません。管理者に担当クラスを設定してもらってください。</div>' : '') +
+        '<div id="assignBox"></div></div>';
       $app.innerHTML = html;
-      bindRows();
+      drawTeacherAssign(o, scope);
       $all('#segScope button').forEach(function (b) { b.onclick = function () { sessionStorage.setItem('assignScope', b.dataset.v); viewTeacher(); }; });
+      $('#bNewFolder').onclick = function () { folderDialog(o, null, ''); };
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
   function bindRows() {
     $all('tr.clickable').forEach(function (tr) { tr.onclick = function () { go(tr.dataset.href); }; });
   }
 
+  // ---- 先生：課題一覧（フォルダ表示・まとめて移動・ドラッグで移動） ----
+  function typeMarks(a) {
+    return a.mode === 'master' ? '・🎓マスター' : (a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : (a.types && a.types[0] !== 1 ? '・' + '①②③④⑤'.charAt(a.types[0] - 1) : ''));
+  }
+  function drawTeacherAssign(o, scope) {
+    var box = $('#assignBox'); if (!box) return;
+    var list = o.assignments.filter(function (a) { return scope === 'all' || a.mine; });
+    var tree = folderTree(o.folders || []), byF = {}, open = foldOpenGet('ondoku_fold_t'), cnt = {};
+    list.forEach(function (a) { var k = a.folder && tree.byId[a.folder] ? a.folder : ''; (byF[k] = byF[k] || []).push(a); });
+    function count(id) { if (cnt[id] !== undefined) return cnt[id]; var c = (byF[id] || []).length; (tree.kids[id] || []).forEach(function (k) { c += count(k.id); }); return (cnt[id] = c); }
+    var hasF = (o.folders || []).length > 0;
+    function pad(d) { return 'padding-left:' + (10 + d * 24) + 'px'; }
+    function aRow(a, d) {
+      return '<tr class="clickable arow" data-href="#/t/results/' + encodeURIComponent(a.id) + '" data-aid="' + esc(a.id) + '"' + (a.canEdit ? ' draggable="true"' : '') + '>' +
+        '<td class="cb">' + (a.canEdit ? '<input type="checkbox" class="aSel" value="' + esc(a.id) + '" aria-label="選ぶ">' : '') + '</td>' +
+        '<td style="' + pad(d) + '">' + (hasF ? '<span class="drag-h" title="ドラッグしてフォルダへ移動">⠿</span>' : '') + (a.contest ? '🏆 ' : '') + esc(a.title) + '<br><small class="muted">' + a.words + '語' + typeMarks(a) + '</small></td>' +
+        '<td>' + esc(a.classes || '全員') + '</td><td>' + esc(a.ownerName || '—') + (a.canEdit ? '' : ' <small class="muted">（閲覧のみ）</small>') + '</td><td>' + (a.due ? fmtDay(a.due) : '—') + '</td>' +
+        '<td class="num">' + a.done + ' / ' + a.targets + '</td><td class="num">' + (a.achieved || 0) + ' / ' + a.targets + '</td><td class="num ' + scoreClass(a.avg) + '">' + (a.avg === null ? '—' : a.avg + '%') + '</td>' +
+        '<td>' + (!a.published ? '<span class="pill gray">非公開</span>' : a.scheduled ? '<span class="pill sched">⏰ 予約 ' + fmtStart(a.start) + '</span>' : '<span class="pill done">公開中</span>') + '</td></tr>';
+    }
+    function fRow(f, d) {
+      var id = f ? f.id : '', isOpen = open[id || '_other'] !== undefined ? !!open[id || '_other'] : true;
+      var acts = f ? '<span class="f-acts">' +
+        '<a class="btn btn-small" href="#/t/new/' + encodeURIComponent(id) + '" title="このフォルダに課題を作る">＋課題</a>' +
+        (d + 1 < FOLDER_DEPTH ? '<button class="btn-small" data-fsub="' + esc(id) + '" type="button" title="この中にフォルダを作る">＋📁</button>' : '') +
+        (f.canEdit ? '<button class="btn-small" data-fedit="' + esc(id) + '" type="button" title="名前・場所を変える">✏️</button><button class="btn-small" data-fdel="' + esc(id) + '" type="button" title="フォルダを削除">🗑</button>' : '') + '</span>' : '';
+      return '<tr class="frow d' + d + (isOpen ? ' open' : '') + '" data-fid="' + esc(id) + '"' + (f && f.canEdit ? ' draggable="true"' : '') + '><td colspan="9" style="' + pad(d) + '">' +
+        '<button class="f-toggle" type="button" data-ftog="' + esc(id || '_other') + '"><span class="fold-arrow">▶</span> ' + (f ? '📁 ' : '🗂 ') + '<b>' + esc(f ? f.name : 'その他（フォルダなし）') + '</b> <small class="muted">課題 ' + count(id) + '</small></button>' + acts + '</td></tr>';
+    }
+    var rows = '';
+    (function walk(pid, d) {
+      (tree.kids[pid] || []).forEach(function (f) {
+        rows += fRow(f, d);
+        var isOpen = open[f.id] !== undefined ? !!open[f.id] : true;
+        if (isOpen) { walk(f.id, d + 1); (byF[f.id] || []).forEach(function (a) { rows += aRow(a, d + 1); }); }
+      });
+    })('', 0);
+    if (hasF) {
+      rows += fRow(null, 0);
+      var oOpen = open._other !== undefined ? !!open._other : true;
+      if (oOpen) (byF[''] || []).forEach(function (a) { rows += aRow(a, 1); });
+    } else (byF[''] || []).forEach(function (a) { rows += aRow(a, 0); });
+    var moveOpts = '<option value="">🗂 その他（フォルダなし）</option>' + folderOptions(tree, '');
+    box.innerHTML = (list.length || hasF ? '<div class="move-bar hidden" id="moveBar"><b id="mvN">0件</b> 選んだ課題を <select id="mvTo">' + moveOpts + '</select> <button class="btn-small btn-primary" id="mvGo" type="button">へ移動</button> <button class="btn-small" id="mvClr" type="button">選択をやめる</button></div>' +
+      '<div class="table-wrap"><table class="assign-table"><thead><tr><th class="cb"><input type="checkbox" id="aSelAll" aria-label="すべて選ぶ"></th><th>タイトル</th><th>対象</th><th>作成</th><th>締切</th><th class="num">提出</th><th class="num">達成</th><th class="num">平均</th><th>状態</th></tr></thead><tbody>' +
+      rows + '</tbody></table></div>' + (hasF ? '<div class="muted" style="font-size:.82rem;margin-top:6px">💡 課題の左の ⠿ をつかんでフォルダの行へドラッグすると移動できます。チェックを入れて「へ移動」でまとめて移動することもできます。</div>' : '')
+      : '') + (list.length ? '' : '<div class="empty">' + (scope === 'mine' ? '担当クラスの課題はまだありません。' : 'まだ課題がありません。') + '「＋ 新しい課題」から作成しましょう。</div>');
+    bindRows();
+    var redraw = function () { drawTeacherAssign(o, scope); };
+    $all('[data-ftog]', box).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var id = b.dataset.ftog; var cur = foldOpenGet('ondoku_fold_t')[id]; foldOpenSet('ondoku_fold_t', id, cur === undefined ? false : !cur); redraw(); }; });
+    $all('[data-fsub]', box).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); folderDialog(o, null, b.dataset.fsub); }; });
+    $all('[data-fedit]', box).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); folderDialog(o, tree.byId[b.dataset.fedit], ''); }; });
+    $all('[data-fdel]', box).forEach(function (b) {
+      b.onclick = async function (e) {
+        e.stopPropagation();
+        var f = tree.byId[b.dataset.fdel];
+        if (!confirm('「' + f.name + '」フォルダを削除しますか？\n中の課題とサブフォルダは消えずに、ひとつ上の' + (f.parent ? 'フォルダ' : '「その他」') + 'へ移ります。')) return;
+        try { await call('t_deleteFolder', { fid: f.id }); toast('フォルダを削除しました'); state.overview = null; viewTeacher(); } catch (err) { showError(err); }
+      };
+    });
+    $all('.f-acts a', box).forEach(function (a) { a.onclick = function (e) { e.stopPropagation(); }; });
+    // まとめて移動
+    var bar = $('#moveBar');
+    function sel() { return $all('.aSel', box).filter(function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+    function sync() { var n0 = sel().length; if (bar) { bar.classList.toggle('hidden', !n0); $('#mvN').textContent = n0 + '件'; } }
+    $all('.aSel', box).forEach(function (c) { c.onclick = function (e) { e.stopPropagation(); sync(); }; });
+    $all('td.cb', box).forEach(function (td) { td.onclick = function (e) { e.stopPropagation(); }; });
+    if ($('#aSelAll')) $('#aSelAll').onchange = function () { var on = this.checked; $all('.aSel', box).forEach(function (c) { c.checked = on; }); sync(); };
+    async function moveTo(to, aids, fids) {
+      try {
+        var r = await call('t_moveToFolder', { folder: to, aids: aids || [], fids: fids || [] });
+        toast((r.skipped && r.skipped.length ? '移動しました（権限のない課題 ' + r.skipped.length + '件は移動していません）' : '移動しました'));
+        if (to) foldOpenSet('ondoku_fold_t', to, true);
+        state.overview = null; viewTeacher();
+      } catch (err) { showError(err); }
+    }
+    if (bar) {
+      $('#mvGo').onclick = function () { moveTo($('#mvTo').value, sel(), []); };
+      $('#mvClr').onclick = function () { $all('.aSel', box).forEach(function (c) { c.checked = false; }); if ($('#aSelAll')) $('#aSelAll').checked = false; sync(); };
+    }
+    // ドラッグで移動（課題 → フォルダ、フォルダ → フォルダ）
+    var drag = null;
+    $all('tr[draggable=true]', box).forEach(function (tr) {
+      tr.addEventListener('dragstart', function (e) {
+        if (tr.dataset.aid) { var s0 = sel(); drag = { aids: s0.indexOf(tr.dataset.aid) >= 0 ? s0 : [tr.dataset.aid], fids: [] }; }
+        else drag = { aids: [], fids: [tr.dataset.fid] };
+        tr.classList.add('dragging');
+        try { e.dataTransfer.setData('text/plain', JSON.stringify(drag)); e.dataTransfer.effectAllowed = 'move'; } catch (err) { /* noop */ }
+      });
+      tr.addEventListener('dragend', function () { tr.classList.remove('dragging'); $all('.drop-on', box).forEach(function (x) { x.classList.remove('drop-on'); }); });
+    });
+    $all('tr.frow', box).forEach(function (tr) {
+      tr.addEventListener('dragover', function (e) { if (!drag) return; e.preventDefault(); tr.classList.add('drop-on'); });
+      tr.addEventListener('dragleave', function () { tr.classList.remove('drop-on'); });
+      tr.addEventListener('drop', function (e) {
+        e.preventDefault(); tr.classList.remove('drop-on');
+        if (!drag) return;
+        var d = drag; drag = null;
+        if (d.fids.length && d.fids[0] === tr.dataset.fid) return;
+        moveTo(tr.dataset.fid, d.aids, d.fids);
+      });
+    });
+  }
+  // フォルダの作成・名前と場所の変更
+  function folderDialog(o, f, parent) {
+    var tree = folderTree(o.folders || []);
+    var h = f ? folderHeightC(tree, f.id) : 1;
+    var el = document.createElement('div');
+    el.className = 'reward-overlay';
+    el.innerHTML = '<div class="reward-box folder-dlg" style="text-align:left"><h2>' + (f ? '📁 フォルダの名前・場所' : '📁 新しいフォルダ') + '</h2>' +
+      '<label for="fdName">フォルダの名前</label><input type="text" id="fdName" maxlength="40" placeholder="例：NEW HORIZON 1 / Unit 1 / Part 1" value="' + esc(f ? f.name : '') + '">' +
+      '<label for="fdParent">入れる場所</label><select id="fdParent"><option value="">（いちばん上）</option>' + folderOptions(tree, f ? f.parent : parent, { skip: f ? f.id : '', maxDepth: FOLDER_DEPTH - h }) + '</select>' +
+      '<div class="muted" style="font-size:.82rem;margin-top:4px">フォルダの中には、さらに3階層までサブフォルダを作れます。</div>' +
+      '<div class="error" id="fdErr"></div><div class="btn-row" style="margin-top:14px;justify-content:flex-end"><button class="btn" id="fdCancel" type="button">キャンセル</button><button class="btn btn-primary" id="fdSave" type="button">' + (f ? '保存する' : '作成する') + '</button></div></div>';
+    document.body.appendChild(el);
+    var inp = $('#fdName', el); inp.focus();
+    $('#fdCancel', el).onclick = function () { el.remove(); };
+    el.addEventListener('click', function (e) { if (e.target === el) el.remove(); });
+    async function save() {
+      var btn = $('#fdSave', el); btn.disabled = true; $('#fdErr', el).textContent = '';
+      try {
+        var par = $('#fdParent', el).value;
+        await call('t_saveFolder', { folder: { id: f ? f.id : '', name: inp.value, parent: par } });
+        if (par) foldOpenSet('ondoku_fold_t', par, true);
+        el.remove(); toast(f ? '保存しました' : 'フォルダを作りました'); state.overview = null; viewTeacher();
+      } catch (e) { $('#fdErr', el).textContent = e.message; btn.disabled = false; }
+    }
+    $('#fdSave', el).onclick = save;
+    inp.onkeydown = function (e) { if (e.key === 'Enter') save(); };
+  }
   // ---- 課題の作成・編集 ----
-  async function viewEdit(aid) {
+  async function viewEdit(aid, inFolder) {
     bottomNav(); $app.classList.add('wide'); loading();
     try {
       var o = await loadOverview();
-      var a = { title: '', text: '', ja: '', classes: '', due: '', contest: false, published: true, types: [1], mode: 'normal', pass: 80, passCount: 1, blanks: '' };
+      var a = { title: '', text: '', ja: '', classes: '', due: '', contest: false, published: true, types: [1], mode: 'normal', pass: 80, passCount: 1, blanks: '', folder: inFolder || '' };
       if (aid) a = (await cached('t_getAssignment', { aid: aid })).assignment;
       if (aid && a.canEdit === false) {
         $app.innerHTML = '<a class="back" href="#/t/results/' + encodeURIComponent(aid) + '">← もどる</a><div class="card empty">この課題は、担当クラスがちがうため編集できません（閲覧のみ）。</div>';
@@ -6689,6 +7015,8 @@ window.SAMPLE_ASSIGNMENTS = [
       var html = '<a class="back" href="' + (aid ? '#/t/results/' + encodeURIComponent(aid) : '#/t') + '">← もどる</a>';
       html += '<div class="card"><h2>' + (aid ? '課題を編集' : '新しい課題') + '</h2>' +
         '<label for="eTitle">タイトル</label><input type="text" id="eTitle" maxlength="80" value="' + esc(a.title) + '" placeholder="例：Unit 3 Part 1">' +
+        '<label for="eFolder">フォルダ</label><div class="btn-row"><select id="eFolder" style="flex:1;min-width:200px"><option value="">🗂 その他（フォルダなし）</option>' + folderOptions(folderTree(o.folders || []), a.folder || '') + '</select>' +
+        '<button class="btn-small" type="button" id="eNewFolder">＋ 新しいフォルダ</button></div>' +
         '<label for="eText">英文 <small class="muted">（日本語を混ぜて書くと、日本語は表示のみ・判定の対象外になります）</small></label>' +
         '<div class="btn-row" style="margin-bottom:6px"><label class="btn btn-small" for="eFile" style="margin:0">📷 写真から取り込む</label><input type="file" id="eFile" accept="image/*" hidden>' +
         '<label class="btn btn-small" for="ePdf" style="margin:0">📄 PDFから読み取る</label><input type="file" id="ePdf" accept="application/pdf,.pdf" hidden>' +
@@ -6821,6 +7149,16 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#ePdf').onchange = function () { if (this.files[0]) pdfImport(this.files[0], ta, $('#ePdfBox'), wc); this.value = ''; };
       bindVoiceSeg($app);
       $('#ePlay').onclick = function () { if (ta.value.trim()) Speaker.speak(Scoring.englishOnly(ta.value), 0.9, CFG.SPEECH_LANG || 'en-US'); };
+      $('#eNewFolder').onclick = async function () {
+        var nm = prompt('新しいフォルダの名前（選んでいるフォルダの中に作ります）', '');
+        if (!nm) return;
+        try {
+          var r = await call('t_saveFolder', { folder: { name: nm, parent: $('#eFolder').value } });
+          o = await loadOverview(true);
+          $('#eFolder').innerHTML = '<option value="">🗂 その他（フォルダなし）</option>' + folderOptions(folderTree(o.folders || []), r.id);
+          toast('フォルダを作りました');
+        } catch (e) { showError(e); }
+      };
       $('#eSave').onclick = async function () {
         var btn = this; btn.disabled = true; $('#eErr').textContent = '';
         try {
@@ -6829,7 +7167,7 @@ window.SAMPLE_ASSIGNMENTS = [
             due: $('#eDue').value, start: $('#eStart').value, contest: $('#eContest').checked, published: $('#ePub').checked,
             mode: $('input[name=eMode]:checked').value,
             types: $all('.eType').filter(function (c) { return c.checked; }).map(function (c) { return +c.value; }),
-            pass: +$('#ePass').value || 80, passCount: Math.max(1, Math.min(20, Math.round(+$('#ePassCount').value || 1))), blanks: blanks.join(',') };
+            pass: +$('#ePass').value || 80, passCount: Math.max(1, Math.min(20, Math.round(+$('#ePassCount').value || 1))), blanks: blanks.join(','), folder: $('#eFolder').value };
           var r = await call('t_saveAssignment', { assignment: data });
           state.overview = null;
           var nowLocal = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16);
@@ -7745,7 +8083,7 @@ window.SAMPLE_ASSIGNMENTS = [
       if (parts[0] !== 't') return go('#/t');
       startFlagWatch();
       switch (parts[1]) {
-        case 'new': return viewEdit(null);
+        case 'new': return viewEdit(null, parts[2]);
         case 'edit': return viewEdit(parts[2]);
         case 'results': return viewResults(parts[2]);
         case 'students': return viewStudents();
