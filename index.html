@@ -1350,22 +1350,27 @@ window.APP_CONFIG = {
     { id: 'dog', k: 'b', name: 'いぬ', un: 'start' },
     { id: 'rabbit', k: 'b', name: 'うさぎ', un: 'start' },
     { id: 'panda', k: 'b', name: 'パンダ', un: 'start' },
+    { id: 'hamster', k: 'b', name: 'ハムスター', un: 'start' },
+    { id: 'shiba', k: 'b', name: 'しばいぬ', un: 'start' },
+    { id: 'chick', k: 'b', name: 'ひよこ', un: 'start' },
     { id: 'penguin', k: 'b', name: 'ペンギン', un: 'start' },
     { id: 'boy', k: 'b', name: '男の子', un: 'start', human: 1 },
     { id: 'girl', k: 'b', name: '女の子', un: 'start', human: 1 },
-    { id: 'robot', k: 'b', name: 'ロボット', un: 'start' },
-    { id: 'ghost', k: 'b', name: 'おばけ', un: 'start' },
-    { id: 'dragon', k: 'b', name: 'ドラゴン', un: 'start' },
     // ---- キャラクター（ごほうびで増える） ----
     { id: 'kid2', k: 'b', name: 'くるくる髪の子', un: 'lv:1', human: 1 },
     { id: 'bear', k: 'b', name: 'くま', un: 'lv:2' },
     { id: 'kid3', k: 'b', name: 'おだんご髪の子', un: 'lv:3', human: 1 },
-    { id: 'chick', k: 'b', name: 'ひよこ', un: 'card:10' },
+    { id: 'robot', k: 'b', name: 'ロボット', un: 'lv:4' },
+    { id: 'ghost', k: 'b', name: 'おばけ', un: 'lv:5' },
     { id: 'alien', k: 'b', name: 'うちゅうじん', un: 'lv:6' },
-    { id: 'frog', k: 'b', name: 'かえる', un: 'badge:streak7' },
-    { id: 'hamster', k: 'b', name: 'ハムスター', un: 'badge:perfect' },
-    { id: 'shiba', k: 'b', name: 'しばいぬ', un: 'shop:150' },
+    { id: 'dragon', k: 'b', name: 'ドラゴン', un: 'lv:7' },
     { id: 'unicorn', k: 'b', name: 'ユニコーン', un: 'lv:8' },
+    { id: 'koala', k: 'b', name: 'コアラ', un: 'card:10' },
+    { id: 'sheep', k: 'b', name: 'ひつじ', un: 'card:20' },
+    { id: 'frog', k: 'b', name: 'かえる', un: 'badge:streak7' },
+    { id: 'fox', k: 'b', name: 'きつね', un: 'badge:perfect' },
+    { id: 'seal', k: 'b', name: 'アザラシ', un: 'shop:100' },
+    { id: 'redpanda', k: 'b', name: 'レッサーパンダ', un: 'shop:150' },
     // ---- 帽子・頭のかざり ----
     { id: 'h_ribbon', k: 'h', name: 'リボン', un: 'start' },
     { id: 'h_cap', k: 'h', name: 'キャップ', un: 'start' },
@@ -1587,7 +1592,7 @@ window.APP_CONFIG = {
   function AV() { return root.AvatarSet || { list: [], byId: {}, SKINS: [] }; }
   function itemUnlocked(it, ach, s) {
     var un = str(it.un), n = num(un.split(':')[1]);
-    if (un === 'start') return true;
+    if (un === 'start' || ach.own.indexOf(it.id) >= 0) return true;
     if (un.indexOf('lv:') === 0) return levelOf(num(s.totalWords)).index >= n;
     if (un.indexOf('card:') === 0) return num(ach.d) >= n;
     if (un.indexOf('badge:') === 0) return !!ach.b[un.slice(6)];
@@ -2262,6 +2267,9 @@ window.APP_CONFIG = {
   handlers.setAvatar = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx), ach = achOf(s), v = p.av || {}, A = AV();
     var first = !(ach.av && ach.av.b), out = {};
+    // 前は最初から使えたキャラクター（ロボットなど）を使っていた人は、そのまま持ち続けられる
+    var curB = ach.av ? (ach.av.b === 'pic' ? ach.av.fb && ach.av.fb.b : ach.av.b) : '';
+    if (curB && A.byId[curB] && A.byId[curB].k === 'b' && !itemUnlocked(A.byId[curB], ach, s)) ach.own.push(curB);
     function pick(kind, id, required) {
       id = str(id);
       if (!id) { if (required) throw err('キャラクターを選んでください。'); return; }
@@ -3908,6 +3916,7 @@ window.SAMPLE_ASSIGNMENTS = [
     else if (ey === 'round') face += pairs(function (x) { return '<circle cx="' + x + '" cy="' + EY + '" r="6" fill="#fff" stroke="' + DARK + '" stroke-width="1.6"/><circle cx="' + x + '" cy="' + (EY + 0.5) + '" r="3.4" fill="' + DARK + '"/><circle cx="' + (x + 1.2) + '" cy="' + (EY - 1) + '" r="1.2" fill="#fff"/>'; });
     else if (ey === 'sleepy') face += pairs(function (x) { return '<path d="M' + (x - 5) + ' ' + EY + ' Q' + x + ' ' + (EY + 4) + ' ' + (x + 5) + ' ' + EY + '" stroke="' + DARK + '" stroke-width="3" fill="none" stroke-linecap="round"/>'; });
     else if (ey === 'star') face += pairs(function (x) { return '<path d="' + starPath(x, EY, 6.5, 3, 5) + '" fill="#fab005" stroke="' + DARK + '" stroke-width="1.2" stroke-linejoin="round"/>'; });
+    else if (ey === 'sparkle') { var mg = nid('me'); face += chibiGrad(mg, '#7a4a1e') + pairs(function (x) { return '<g transform="translate(' + x + ' ' + (EY + 1) + ') scale(.8) translate(' + (-x) + ' ' + (-(EY + 1)) + ')">' + chibiEye(x, EY + 1, '#7a4a1e', mg) + '</g>'; }); }
     else face += eyes(ey === 'happy' ? 'happy' : ey === 'wink' ? 'wink' : 'sparkle', EY);
     // まゆ
     if (br === 'normal') face += '<path d="M42 45 Q48 42 54 45 M66 45 Q72 42 78 45" stroke="' + hl + '" stroke-width="2.4" fill="none" stroke-linecap="round"/>';
@@ -4130,6 +4139,221 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
 
+  // =================== アバター用：キラキラ目の2頭身キャラクター ===================
+  // 120×120 の中に描く。頭の中心 (60,54)、目の高さ 60、首 86
+  var CH = {
+    cat: { f: '#ffc078', l: '#d9822b', b: '#fff4e6', e: '#8a4b14', m: 'cat', n: 'pink' },
+    dog: { f: '#fff3e0', l: '#b07a45', b: '#ffffff', e: '#5c3b24', m: 'open', n: 'dark' },
+    rabbit: { f: '#ffffff', l: '#e599b7', b: '#fff0f6', e: '#c2255c', m: 'cat', n: 'pink' },
+    panda: { f: '#ffffff', l: '#495057', b: '#ffffff', e: '#a0703a', m: 'open', n: 'dark', arm: '#343a40' },
+    penguin: { f: '#4c6ef5', l: '#2b3f9e', b: '#ffffff', e: '#1c2f8a', m: 'beak' },
+    hamster: { f: '#ffcf99', l: '#d08a43', b: '#fffaf3', e: '#5c3b24', m: 'cat', n: 'pink' },
+    shiba: { f: '#f4a259', l: '#c0622a', b: '#fff8ee', e: '#5c3b24', m: 'cat', n: 'dark' },
+    chick: { f: '#ffe066', l: '#e0a800', b: '#fff3bf', e: '#7a4a1e', m: 'beak' },
+    bear: { f: '#c08457', l: '#7a4a28', b: '#f5d7b8', e: '#4a2c17', m: 'cat', n: 'dark' },
+    koala: { f: '#b8c1cc', l: '#6c7782', b: '#f1f3f5', e: '#3d4652', m: 'smile', n: 'koala' },
+    fox: { f: '#ff922b', l: '#d9480f', b: '#fff8f0', e: '#8a3b0c', m: 'cat', n: 'dark' },
+    seal: { f: '#eef1f5', l: '#97a3b3', b: '#ffffff', e: '#3d4652', m: 'cat', n: 'dark' },
+    redpanda: { f: '#dd6b3d', l: '#9c3b1c', b: '#fff8f0', e: '#5c2410', m: 'cat', n: 'dark', arm: '#6b2f17' },
+    sheep: { f: '#fff4e6', l: '#c9a27c', b: '#ffffff', e: '#6b4a2b', m: 'open', n: 'pink' },
+    frog: { f: '#8ce99a', l: '#2f9e44', b: '#ebfbee', e: '#2b6b3a', m: 'wide' },
+    boy: { f: '#ffe3cc', hair: '#4a2f1d', shirt: '#4dabf7', e: '#5c3b24', m: 'open', human: 1 },
+    girl: { f: '#ffe3cc', hair: '#7b4321', shirt: '#f783ac', e: '#8a4b2a', m: 'open', human: 1, lash: 1 },
+    kid2: { f: '#ffe3cc', hair: '#2b2118', shirt: '#69db7c', e: '#3d2a1c', m: 'open', human: 1 },
+    kid3: { f: '#ffe3cc', hair: '#8a4b14', shirt: '#ffd43b', e: '#7a4a1e', m: 'open', human: 1, lash: 1 },
+    robot: { f: '#dfe7f0', l: '#6b7a8b', b: '#c5d3e3', e: '#3bc9db', m: 'robot' },
+    ghost: { f: '#ffffff', l: '#a5a4d4', b: '#ffffff', e: '#5f3dc4', m: 'open' },
+    alien: { f: '#a9e34b', l: '#5c940d', b: '#d8f5a2', e: '#5f3dc4', m: 'open' },
+    dragon: { f: '#69db7c', l: '#2b8a3e', b: '#fff3bf', e: '#e67700', m: 'open', n: 'dragon' },
+    unicorn: { f: '#ffffff', l: '#c39bd3', b: '#fff0f6', e: '#9c36b5', m: 'cat', lash: 1 }
+  };
+  function chibiEye(x, y, col, gid, lash) {
+    var D = '#2a1a14';
+    return '<ellipse cx="' + x + '" cy="' + y + '" rx="7.6" ry="9.4" fill="url(#' + gid + ')"/>' +
+      '<ellipse cx="' + x + '" cy="' + (y + 5) + '" rx="4.4" ry="2.5" fill="' + tint(col, 0.55) + '" opacity=".85"/>' +
+      '<path d="M' + (x - 8.6) + ' ' + (y - 3) + ' Q' + x + ' ' + (y - 13.4) + ' ' + (x + 8.6) + ' ' + (y - 3) + '" stroke="' + D + '" stroke-width="2.8" fill="none" stroke-linecap="round"/>' +
+      (lash ? '<path d="M' + (x + (x < 60 ? -8.2 : 8.2)) + ' ' + (y - 3.8) + ' l' + (x < 60 ? -3.6 : 3.6) + ' -2.6" stroke="' + D + '" stroke-width="2.2" stroke-linecap="round"/>' : '') +
+      '<circle cx="' + (x + 2.6) + '" cy="' + (y - 3.6) + '" r="3.3" fill="#fff"/><circle cx="' + (x - 2.9) + '" cy="' + (y + 3.8) + '" r="1.5" fill="#fff"/>' +
+      '<path d="' + starPath(x - 2.8, y - 4.6, 2, 0.7, 4) + '" fill="#fff"/>';
+  }
+  function chibiGrad(gid, col) {
+    return '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22140e"/><stop offset=".55" stop-color="' + col + '"/><stop offset="1" stop-color="' + tint(col, 0.35) + '"/></linearGradient></defs>';
+  }
+  function chibiMouth(t, y) {
+    var D = '#3a2420';
+    if (t === 'cat') return '<path d="M54 ' + y + ' q3 3.6 6 0 q3 3.6 6 0" stroke="' + D + '" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (t === 'smile') return '<path d="M55 ' + y + ' Q60 ' + (y + 5) + ' 65 ' + y + '" stroke="' + D + '" stroke-width="2.2" fill="none" stroke-linecap="round"/>';
+    if (t === 'beak') return '<path d="M54 ' + (y - 4) + ' Q60 ' + (y - 7) + ' 66 ' + (y - 4) + ' Q63 ' + (y + 2) + ' 60 ' + (y + 2.5) + ' Q57 ' + (y + 2) + ' 54 ' + (y - 4) + 'Z" fill="#ff922b" stroke="#d9480f" stroke-width="1.4" stroke-linejoin="round"/><path d="M55.5 ' + (y - 3) + ' Q60 ' + (y - 1) + ' 64.5 ' + (y - 3) + '" stroke="#d9480f" stroke-width="1" fill="none"/>';
+    if (t === 'wide') return '<path d="M48 ' + (y - 1) + ' Q60 ' + (y + 9) + ' 72 ' + (y - 1) + ' Q60 ' + (y + 3) + ' 48 ' + (y - 1) + 'Z" fill="#e8505b" stroke="' + D + '" stroke-width="2" stroke-linejoin="round"/>';
+    if (t === 'robot') return '<path d="M54 ' + y + ' Q60 ' + (y + 5) + ' 66 ' + y + '" stroke="#66e3ff" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
+    return '<path d="M55 ' + (y - 1) + ' Q60 ' + (y + 7.5) + ' 65 ' + (y - 1) + ' Q60 ' + (y + 1) + ' 55 ' + (y - 1) + 'Z" fill="#e8505b" stroke="' + D + '" stroke-width="1.8" stroke-linejoin="round"/><ellipse cx="60" cy="' + (y + 3.4) + '" rx="2.6" ry="1.5" fill="#ff9bb5"/>';
+  }
+  function chibiBlush(y) {
+    var o = '';
+    [37, 83].forEach(function (x) {
+      o += '<ellipse cx="' + x + '" cy="' + y + '" rx="7.2" ry="4.2" fill="#ff8fab" opacity=".55"/>' +
+        '<path d="M' + (x - 3.5) + ' ' + (y + 1.5) + ' l2 -3.4 M' + (x - 0.5) + ' ' + (y + 1.5) + ' l2 -3.4 M' + (x + 2.5) + ' ' + (y + 1.5) + ' l2 -3.4" stroke="#ff6f91" stroke-width="1.1" stroke-linecap="round" opacity=".8"/>';
+    });
+    return o;
+  }
+  function chibi(sp, opt) {
+    opt = opt || {};
+    var c = CH[sp] || CH.cat, f = c.f, l = c.l, gid = nid('ce');
+    if (c.human) { f = /^#[0-9a-f]{6}$/i.test(opt.skin || '') ? opt.skin : c.f; l = tint(f, -0.4); }
+    var sw = ' stroke="' + l + '" stroke-width="2.6" stroke-linejoin="round"';
+    var back = '', body = '', head = '', mark = '', front = '', top = '', ey = 60, my = 73, eyes = true;
+    var HEAD = '<ellipse cx="60" cy="54" rx="37" ry="32" fill="' + f + '"' + sw + '/>';
+    // 体と腕（下の方は丸い枠で切れる）
+    var shirt = c.human ? c.shirt : f, shirtL = c.human ? tint(c.shirt, -0.35) : l, armC = c.human ? f : (c.arm || f);
+    body = '<path d="M36 124 C36 98 45 85 60 85 C75 85 84 98 84 124Z" fill="' + shirt + '" stroke="' + shirtL + '" stroke-width="2.6"/>' +
+      (c.human ? '<path d="M52 86 L60 95 L68 86" fill="#fff" stroke="' + shirtL + '" stroke-width="2" stroke-linejoin="round"/>'
+        : '<ellipse cx="60" cy="108" rx="13" ry="13" fill="' + c.b + '"/>') +
+      '<ellipse cx="41" cy="104" rx="7" ry="9.5" fill="' + armC + '" stroke="' + (c.arm ? tint(c.arm, -0.3) : l) + '" stroke-width="2.4" transform="rotate(18 41 104)"/>' +
+      '<ellipse cx="79" cy="104" rx="7" ry="9.5" fill="' + armC + '" stroke="' + (c.arm ? tint(c.arm, -0.3) : l) + '" stroke-width="2.4" transform="rotate(-18 79 104)"/>';
+    head = HEAD;
+    function ears(path, inner, innerCol) { return '<path d="' + path + '" fill="' + f + '"' + sw + '/>' + (inner ? '<path d="' + inner + '" fill="' + (innerCol || '#ffc9d6') + '"/>' : ''); }
+    function round(cx, cy, r, inC, ir) { return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + f + '"' + sw + '/>' + (inC ? '<circle cx="' + cx + '" cy="' + (cy + 1) + '" r="' + (ir || r * 0.5) + '" fill="' + inC + '"/>' : ''); }
+    switch (sp) {
+      case 'cat':
+        back = ears('M27 46 L29 9 L56 27Z M93 46 L91 9 L64 27Z', 'M33 38 L34 19 L48 29Z M87 38 L86 19 L72 29Z');
+        mark = '<path d="M53 25 v6 M60 24 v8 M67 25 v6" stroke="' + l + '" stroke-width="2.6" stroke-linecap="round"/>';
+        front = '<path d="M16 66 h11 M17 74 l10 -3.5 M104 66 h-11 M103 74 l-10 -3.5" stroke="' + l + '" stroke-width="1.8" stroke-linecap="round"/>';
+        break;
+      case 'dog':
+        mark = '<ellipse cx="75" cy="56" rx="12" ry="11" fill="#f0c79a"/><ellipse cx="60" cy="72" rx="12" ry="8" fill="#fff"/>';
+        front = '<ellipse cx="25" cy="52" rx="11" ry="21" fill="#c8915c"' + sw + ' transform="rotate(20 25 52)"/><ellipse cx="95" cy="52" rx="11" ry="21" fill="#c8915c"' + sw + ' transform="rotate(-20 95 52)"/>';
+        break;
+      case 'rabbit':
+        back = '<ellipse cx="45" cy="12" rx="9.5" ry="22" fill="' + f + '"' + sw + ' transform="rotate(-8 45 12)"/><ellipse cx="75" cy="12" rx="9.5" ry="22" fill="' + f + '"' + sw + ' transform="rotate(8 75 12)"/>' +
+          '<ellipse cx="45" cy="14" rx="4.5" ry="15" fill="#ffc9de" transform="rotate(-8 45 12)"/><ellipse cx="75" cy="14" rx="4.5" ry="15" fill="#ffc9de" transform="rotate(8 75 12)"/>';
+        break;
+      case 'panda':
+        back = '<circle cx="29" cy="27" r="11.5" fill="#343a40"/><circle cx="91" cy="27" r="11.5" fill="#343a40"/>';
+        mark = '<ellipse cx="45" cy="61" rx="11" ry="13" fill="#343a40" transform="rotate(22 45 61)"/><ellipse cx="75" cy="61" rx="11" ry="13" fill="#343a40" transform="rotate(-22 75 61)"/>';
+        break;
+      case 'penguin':
+        mark = '<path d="M60 38 C48 28 26 36 28 60 C30 80 46 86 60 86 C74 86 90 80 92 60 C94 36 72 28 60 38Z" fill="#fff"/>';
+        top = '<path d="M56 23 q2 -9 8 -10 q-2 5 1 10" fill="' + f + '"' + sw + '/>';
+        break;
+      case 'hamster':
+        back = round(31, 29, 8.5, '#ffc9d6') + round(89, 29, 8.5, '#ffc9d6');
+        mark = '<ellipse cx="60" cy="73" rx="28" ry="13" fill="' + c.b + '"/><path d="M56 23 Q60 33 64 23" fill="' + tint(f, -0.12) + '"/>';
+        break;
+      case 'shiba':
+        back = ears('M28 44 L31 10 L55 28Z M92 44 L89 10 L65 28Z', 'M34 36 L36 20 L48 30Z M86 36 L84 20 L72 30Z', '#fff8ee');
+        mark = '<path d="M25 64 Q40 90 60 86 Q80 90 95 64 Q80 74 60 69 Q40 74 25 64Z" fill="' + c.b + '"/><ellipse cx="45" cy="45" rx="3.6" ry="2.3" fill="' + c.b + '"/><ellipse cx="75" cy="45" rx="3.6" ry="2.3" fill="' + c.b + '"/>';
+        break;
+      case 'chick':
+        top = '<path d="M55 24 q-4 -13 5 -9 q3 -11 9 -1" fill="none" stroke="' + l + '" stroke-width="3" stroke-linecap="round"/>';
+        break;
+      case 'bear':
+        back = round(29, 27, 11.5, c.b, 6);
+        back += round(91, 27, 11.5, c.b, 6);
+        mark = '<ellipse cx="60" cy="72" rx="12" ry="8.5" fill="' + c.b + '"/>';
+        break;
+      case 'koala':
+        back = '<circle cx="24" cy="36" r="16" fill="' + f + '"' + sw + '/><circle cx="96" cy="36" r="16" fill="' + f + '"' + sw + '/><circle cx="25" cy="38" r="9" fill="#f8f9fa"/><circle cx="95" cy="38" r="9" fill="#f8f9fa"/>';
+        my = 79;
+        break;
+      case 'fox':
+        back = ears('M28 46 L25 4 L55 27Z M92 46 L95 4 L65 27Z', 'M33 37 L32 15 L47 29Z M87 37 L88 15 L73 29Z', '#fff3e0') +
+          '<path d="M26.5 16 L25 4 L35 11Z M93.5 16 L95 4 L85 11Z" fill="#5c2b0c"/>';
+        mark = '<path d="M23 62 Q38 92 60 86 Q82 92 97 62 Q82 75 60 70 Q38 75 23 62Z" fill="' + c.b + '"/>';
+        break;
+      case 'seal':
+        mark = '<ellipse cx="54.5" cy="72" rx="6.5" ry="5" fill="#fff"/><ellipse cx="65.5" cy="72" rx="6.5" ry="5" fill="#fff"/>' +
+          '<circle cx="52" cy="72" r=".9" fill="#97a3b3"/><circle cx="55" cy="74" r=".9" fill="#97a3b3"/><circle cx="65" cy="74" r=".9" fill="#97a3b3"/><circle cx="68" cy="72" r=".9" fill="#97a3b3"/>';
+        front = '<path d="M20 68 l10 1 M21 75 l9 -2 M100 68 l-10 1 M99 75 l-9 -2" stroke="#97a3b3" stroke-width="1.6" stroke-linecap="round"/>';
+        my = 78;
+        break;
+      case 'redpanda':
+        back = ears('M26 42 C22 22 34 12 50 24Z M94 42 C98 22 86 12 70 24Z', 'M30 36 C28 24 36 18 45 25Z M90 36 C92 24 84 18 75 25Z', '#fff8f0');
+        mark = '<ellipse cx="37" cy="72" rx="12" ry="9" fill="' + c.b + '"/><ellipse cx="83" cy="72" rx="12" ry="9" fill="' + c.b + '"/><ellipse cx="60" cy="73" rx="10" ry="8" fill="' + c.b + '"/>' +
+          '<ellipse cx="44" cy="44" rx="6.5" ry="3.6" fill="' + c.b + '"/><ellipse cx="76" cy="44" rx="6.5" ry="3.6" fill="' + c.b + '"/>';
+        break;
+      case 'sheep':
+        back = '<ellipse cx="20" cy="58" rx="10" ry="5.5" fill="' + f + '"' + sw + ' transform="rotate(-15 20 58)"/><ellipse cx="100" cy="58" rx="10" ry="5.5" fill="' + f + '"' + sw + ' transform="rotate(15 100 58)"/>';
+        [[26, 48], [28, 32], [40, 21], [54, 16], [68, 16], [81, 21], [92, 32], [94, 48]].forEach(function (p) { back += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="12" fill="#fff" stroke="#d9cbbb" stroke-width="2.2"/>'; });
+        [[36, 34], [48, 29], [60, 28], [72, 29], [84, 34]].forEach(function (p) { front += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="9" fill="#fff" stroke="#d9cbbb" stroke-width="2"/>'; });
+        body = body.replace('fill="' + f + '" stroke="' + l + '" stroke-width="2.6"/>', 'fill="#fff" stroke="#d9cbbb" stroke-width="2.6"/>');
+        break;
+      case 'frog':
+        back = round(40, 27, 13, tint(f, 0.6), 7) + round(80, 27, 13, tint(f, 0.6), 7);
+        break;
+      case 'robot':
+        back = '<path d="M60 22 V8" stroke="' + l + '" stroke-width="3"/><circle cx="60" cy="7" r="5.5" fill="#ff6b6b" stroke="#c92a2a" stroke-width="2"/>' +
+          '<rect x="12" y="44" width="10" height="22" rx="4" fill="' + c.b + '"' + sw + '/><rect x="98" y="44" width="10" height="22" rx="4" fill="' + c.b + '"' + sw + '/>';
+        head = '<rect x="19" y="20" width="82" height="66" rx="22" fill="' + f + '"' + sw + '/><rect x="27" y="31" width="66" height="47" rx="15" fill="#1f2d3d" stroke="' + l + '" stroke-width="1.6"/>';
+        body = body.replace('<ellipse cx="60" cy="108" rx="13" ry="13" fill="' + c.b + '"/>', '<circle cx="52" cy="102" r="3" fill="#ff6b6b"/><circle cx="60" cy="102" r="3" fill="#ffd43b"/><circle cx="68" cy="102" r="3" fill="#51cf66"/>');
+        break;
+      case 'ghost':
+        head = '<path d="M23 60 C21 18 99 18 97 60 L97 108 Q90 118 83 108 Q76 118 69 108 Q62 118 55 108 Q48 118 41 108 Q34 118 27 108 Q23 114 23 108Z" fill="#fff"' + sw + '/>' +
+          '<ellipse cx="40" cy="34" rx="8" ry="4.5" fill="#f3f0ff" transform="rotate(-25 40 34)"/>';
+        body = '<ellipse cx="22" cy="80" rx="8" ry="5.5" fill="#fff"' + sw + ' transform="rotate(-30 22 80)"/><ellipse cx="98" cy="80" rx="8" ry="5.5" fill="#fff"' + sw + ' transform="rotate(30 98 80)"/>';
+        break;
+      case 'alien':
+        back = '<path d="M44 26 L32 6 M76 26 L88 6" stroke="' + l + '" stroke-width="2.6" stroke-linecap="round"/><circle cx="32" cy="6" r="5.5" fill="#ffd43b" stroke="#e67700" stroke-width="2"/><circle cx="88" cy="6" r="5.5" fill="#ffd43b" stroke="#e67700" stroke-width="2"/>';
+        head = '<path d="M60 20 C94 20 100 46 95 64 C90 82 74 88 60 88 C46 88 30 82 25 64 C20 46 26 20 60 20Z" fill="' + f + '"' + sw + '/>';
+        break;
+      case 'dragon':
+        back = '<path d="M20 100 Q4 76 16 68 Q22 84 34 88Z M100 100 Q116 76 104 68 Q98 84 86 88Z" fill="' + tint(f, 0.3) + '"' + sw + '/>' +
+          '<path d="M40 30 L38 8 L52 24Z M80 30 L82 8 L68 24Z" fill="#fff3bf" stroke="#e0a800" stroke-width="2.2" stroke-linejoin="round"/>';
+        top = '<path d="M50 24 L55 15 L60 23 L65 15 L70 24Z" fill="' + l + '"/>';
+        mark = '<ellipse cx="60" cy="74" rx="13" ry="8" fill="' + tint(f, 0.55) + '"/><circle cx="56" cy="71" r="1.5" fill="' + l + '"/><circle cx="64" cy="71" r="1.5" fill="' + l + '"/>';
+        my = 77;
+        break;
+      case 'unicorn':
+        back = ears('M28 42 L30 14 L50 28Z M92 42 L90 14 L70 28Z', 'M33 36 L34 21 L45 29Z M87 36 L86 21 L75 29Z');
+        ['#ff8787', '#ffc078', '#ffe066', '#8ce99a', '#74c0fc', '#b197fc'].forEach(function (cc, i) { back += '<circle cx="' + (92 + (i % 2) * 4) + '" cy="' + (34 + i * 10) + '" r="10" fill="' + cc + '"/>'; });
+        front = '<path d="M30 46 C30 28 46 20 62 22 C56 28 52 34 54 40 C46 34 38 38 30 46Z" fill="#b197fc" stroke="#9775fa" stroke-width="1.6"/><path d="M36 40 C38 30 48 26 56 26 C50 30 48 34 49 37 C44 34 40 36 36 40Z" fill="#ff8fab"/>' +
+          '<path d="M55 24 L60 0 L65 24Z" fill="#ffe066" stroke="#e0a800" stroke-width="2" stroke-linejoin="round"/><path d="M57 17 L63 15 M56.5 21 L63.5 19 M58 11 L62 10" stroke="#e0a800" stroke-width="1.4"/>';
+        break;
+    }
+    // ---- 人 ----
+    if (c.human) {
+      var hc = c.hair, hl = tint(hc, -0.35), hs = ' fill="' + hc + '" stroke="' + hl + '" stroke-width="2.4" stroke-linejoin="round"';
+      back += '<circle cx="23" cy="63" r="6.5" fill="' + f + '" stroke="' + l + '" stroke-width="2.2"/><circle cx="97" cy="63" r="6.5" fill="' + f + '" stroke="' + l + '" stroke-width="2.2"/>';
+      if (sp === 'boy') {
+        back = '<path d="M21 58 C17 22 44 12 62 13 C84 12 104 26 99 58Z"' + hs + '/>' + back;
+        front = '<path d="M23 56 C21 30 40 19 60 19 C82 19 99 30 97 56 C92 46 86 41 79 42 L77 33 L69 41 L62 31 L55 41 L47 33 L44 43 C36 42 28 47 23 56Z"' + hs + '/>' +
+          '<path d="M52 15 L56 5 L61 14 L67 7 L69 17" fill="' + hc + '" stroke="' + hl + '" stroke-width="2.2" stroke-linejoin="round"/>';
+      } else if (sp === 'girl') {
+        back = '<path d="M19 58 C13 20 40 10 60 11 C80 10 107 20 101 58 L105 108 C96 116 86 110 86 98 L34 98 C34 110 24 116 15 108Z"' + hs + '/>' + back;
+        front = '<path d="M23 58 C23 30 41 19 60 19 C80 19 97 30 97 58 C93 46 85 38 75 40 C70 47 63 48 57 44 C51 40 45 38 39 42 C31 46 26 51 23 58Z"' + hs + '/>' +
+          '<g transform="translate(88,25) rotate(15)"><path d="M0 0 L-11 -8 L-11 8Z M0 0 L11 -8 L11 8Z" fill="#ff6b8a" stroke="#c2255c" stroke-width="2" stroke-linejoin="round"/><circle r="3.6" fill="#ff8fab" stroke="#c2255c" stroke-width="1.8"/></g>';
+      } else if (sp === 'kid2') {
+        var cs = '';
+        [[22, 58], [22, 42], [29, 28], [42, 18], [60, 14], [78, 18], [91, 28], [98, 42], [98, 58]].forEach(function (p) { cs += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="12"' + hs + '/>'; });
+        back = cs + back;
+        [[32, 34], [45, 27], [60, 25], [75, 27], [88, 34]].forEach(function (p) { front += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="9.5"' + hs + '/>'; });
+      } else if (sp === 'kid3') {
+        back = '<circle cx="60" cy="12" r="13"' + hs + '/><path d="M48 21 Q60 26 72 21" stroke="#ff6b8a" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M21 58 C17 24 42 15 60 16 C78 15 103 24 99 58Z"' + hs + '/>' + back;
+        front = '<path d="M23 60 C21 31 40 20 60 20 C80 20 99 31 97 60 C95 51 92 45 88 41 C80 39 71 41 60 39 C49 41 40 39 32 41 C28 45 25 51 23 60Z"' + hs + '/>' +
+          '<path d="M23 58 C22 66 24 74 28 78 L30 56Z M97 58 C98 66 96 74 92 78 L90 56Z"' + hs + '/>';
+      }
+    }
+    // ---- 目・ほっぺ・鼻・口 ----
+    var face = chibiGrad(gid, c.e);
+    if (sp === 'robot') {
+      face += '<g>' + [47, 73].map(function (x) { return '<ellipse cx="' + x + '" cy="' + ey + '" rx="7" ry="9" fill="#66e3ff"/><circle cx="' + (x + 2.4) + '" cy="' + (ey - 3.4) + '" r="2.8" fill="#fff"/><circle cx="' + (x - 2.4) + '" cy="' + (ey + 3.6) + '" r="1.3" fill="#fff"/>'; }).join('') + '</g>' +
+        '<ellipse cx="36" cy="70" rx="6" ry="3.5" fill="#ff8fab" opacity=".55"/><ellipse cx="84" cy="70" rx="6" ry="3.5" fill="#ff8fab" opacity=".55"/>';
+    } else {
+      face += chibiEye(47, ey, c.e, gid, c.lash) + chibiEye(73, ey, c.e, gid, c.lash) + chibiBlush(70);
+      if (sp === 'panda') face = face.replace(/stroke="#2a1a14" stroke-width="2.8"/g, 'stroke="#fff" stroke-width="2.4"');
+    }
+    var nose = '';
+    if (c.n === 'pink') nose = '<path d="M57 ' + (my - 6) + ' h6 l-3 3.4z" fill="#f06595" stroke="#d6336c" stroke-width="1" stroke-linejoin="round"/>';
+    else if (c.n === 'dark') nose = '<ellipse cx="60" cy="' + (my - 5) + '" rx="4.2" ry="3" fill="#2a1a14"/><ellipse cx="58.8" cy="' + (my - 6) + '" rx="1.3" ry=".8" fill="#fff" opacity=".8"/>';
+    else if (c.n === 'koala') nose = '<ellipse cx="60" cy="' + (my - 10) + '" rx="6.5" ry="8" fill="#3d4652"/><ellipse cx="57.5" cy="' + (my - 13) + '" rx="1.8" ry="2.4" fill="#fff" opacity=".6"/>';
+    var mouthY = c.m === 'beak' ? my : my;
+    return back + body + head + mark + top + front + face + nose + chibiMouth(c.m, mouthY);
+  }
+  function chibiAnchors(sp) {
+    if (sp === 'robot') return { ey: 60, top: 21, ny: 86, hs: 1.12 };
+    if (sp === 'ghost') return { ey: 60, top: 24, ny: 92, hs: 1.12 };
+    return { ey: 60, top: 23, ny: 86, hs: 1.15 };
+  }
+
   // =================== アバター ===================
   function bgArt(id, clip) {
     var g = nid('bgg'), o = '';
@@ -4191,7 +4415,7 @@ window.SAMPLE_ASSIGNMENTS = [
   // アバター：av = { b：キャラクター, sk：肌の色, h：帽子, f：顔, w：服・持ち物, bg：背景 }
   function avatar(av, size, opt) {
     av = av || {}; opt = opt || {};
-    var base = SP[av.b] ? av.b : 'cat', a = anchors(base), clip = nid('av');
+    var base = CH[av.b] ? av.b : 'cat', a = chibiAnchors(base), clip = nid('av');
     // 絵や画像のアバター（opt.pic：画像のURL。まだ届いていないときは、あとで差しこむ）
     if (av.b === 'pic') {
       var sp2 = size || 64, sh2 = opt.square ? '<rect x="1" y="1" width="118" height="118" rx="22"/>' : '<circle cx="60" cy="60" r="58"/>';
@@ -4203,9 +4427,15 @@ window.SAMPLE_ASSIGNMENTS = [
     var skins = (root.AvatarSet && root.AvatarSet.SKINS) || [];
     var skin = skins[+av.sk] || '';
     var cape = av.w === 'w_cape' ? '<path d="M40 80 Q60 84 80 80 L94 112 Q60 118 26 112Z" fill="#e03131" stroke="#a61e1e" stroke-width="2.2" stroke-linejoin="round"/><circle cx="44" cy="81" r="3" fill="#ffd43b"/><circle cx="76" cy="81" r="3" fill="#ffd43b"/>' : '';
-    if (av.b === 'maker') a = { ey: 56, top: 28 };
-    var who = av.b === 'maker' ? makerChar(av.mk) : character(base, 'stand', 'sparkle', { skin: skin });
-    var inner = cape + who + (av.w && av.w !== 'w_cape' ? wearItem(av.w, a) : '') + (av.f ? faceItem(av.f, a) : '') + (av.h ? headItem(av.h, a) : '');
+    if (av.b === 'maker') a = { ey: 56, top: 28, ny: 80, hs: 1 };
+    var who = av.b === 'maker' ? makerChar(av.mk) : chibi(base, { skin: skin });
+    var dy = (a.ny || 80) - 80, chest = { w_bowtie: 1, w_tie: 1, w_scarf: 1, w_medal: 1 };
+    if (cape && dy) cape = '<g transform="translate(0,' + dy + ')">' + cape + '</g>';
+    var wear = av.w && av.w !== 'w_cape' ? wearItem(av.w, a) : '';
+    if (wear && dy && chest[av.w]) wear = '<g transform="translate(0,' + dy + ')">' + wear + '</g>';
+    var hat = av.h ? headItem(av.h, a) : '';
+    if (hat && a.hs && a.hs !== 1) hat = '<g transform="translate(60,' + a.top + ') scale(' + a.hs + ') translate(-60,-' + a.top + ')">' + hat + '</g>';
+    var inner = cape + who + wear + (av.f ? faceItem(av.f, a) : '') + hat;
     var s = size || 64, shape = opt.square ? '<rect x="1" y="1" width="118" height="118" rx="22"/>' : '<circle cx="60" cy="60" r="58"/>';
     return '<svg class="avatar-svg" width="' + s + '" height="' + s + '" viewBox="0 0 120 120" role="img" aria-label="' + esc(opt.label || 'アバター') + '">' +
       '<defs><clipPath id="' + clip + '">' + shape + '</clipPath></defs>' + bgArt(av.bg || 'bg_sky', clip) +
