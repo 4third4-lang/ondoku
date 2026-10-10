@@ -712,6 +712,32 @@ tr.frow.drop-on td { background: #fff3bf !important; outline: 2px dashed #f59f00
 .move-bar.hidden { display: none; }
 .folder-dlg select, .folder-dlg input { width: 100%; }
 
+/* ===== おみくじ英文（読んでから引く） ===== */
+.om-sentence { background: linear-gradient(180deg, #fffdf6, #fff6e0); border: 2px solid #f1d58a; border-radius: 16px; padding: 18px 16px; margin: 14px 0; text-align: center; }
+.om-sentence .om-cat { display: inline-block; font-size: .8rem; font-weight: 800; color: #9a6b00; background: #fff3bf; border-radius: 999px; padding: 2px 12px; }
+.om-sentence .om-ja { font-size: 1.05rem; color: #5c4a2a; margin-top: 12px; }
+.om-sentence .om-en { font-size: 1.8rem; font-weight: 700; color: #2b2118; margin: 6px 0 2px; line-height: 1.35; }
+.omikuji-card p small { display: block; font-size: .78rem; margin-top: 2px; }
+.om-ready { text-align: center; border: 2px dashed #f59f00; background: #fff9db; }
+.om-ready-t { font-size: 1.15rem; font-weight: 800; margin-bottom: 10px; }
+.omikuji-draw { text-align: center; }
+.om-result { max-width: 420px; margin: 0 auto; padding: 16px 18px 18px; background: #fffdf6 repeating-linear-gradient(0deg, transparent 0 26px, rgba(232,197,107,.12) 26px 27px); border: 3px double #d9a520; box-shadow: 0 6px 20px rgba(160,110,0,.18); }
+.om-result .om-top { font-size: .85rem; letter-spacing: .5em; color: #b5121b; font-weight: 800; border-bottom: 2px solid #b5121b; display: inline-block; padding: 0 0 2px .5em; }
+.om-result .fortune { font-size: 3.2rem; margin: 6px 0 2px; }
+.om-result .fortune.f0 { text-shadow: 0 0 14px rgba(255,200,0,.8); animation: omGlow 1.6s ease-in-out infinite; }
+@keyframes omGlow { 50% { text-shadow: 0 0 26px rgba(255,170,0,1); } }
+.om-msg { font-weight: 700; margin: 4px 0 12px; }
+.om-lucks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; text-align: left; margin: 0 auto 12px; max-width: 320px; }
+.om-luck { display: flex; justify-content: space-between; font-size: .9rem; border-bottom: 1px dotted #e8c56b; padding: 2px 0; }
+.om-luck b { color: #f08c00; letter-spacing: .05em; } .om-luck b i { color: #e9ecef; font-style: normal; }
+.om-lucky { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.om-lucky > div { background: #fff; border: 1px solid #f1d58a; border-radius: 10px; padding: 6px 4px; display: flex; flex-direction: column; gap: 2px; }
+.om-lucky small { font-size: .7rem; color: #9a6b00; font-weight: 700; }
+.om-lucky b { font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; }
+.om-lucky span { font-size: .78rem; color: var(--muted); }
+.om-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: middle; border: 1px solid rgba(0,0,0,.15); }
+@media (max-width: 480px) { .om-lucky { grid-template-columns: 1fr; } .om-sentence .om-en { font-size: 1.5rem; } }
+
 </style>
 </head>
 <body>
@@ -1508,7 +1534,7 @@ window.APP_CONFIG = {
     { id: 'omikuji', icon: '🎲', name: 'おみくじ', desc: 'おみくじ英文を読んだ' },
     { id: 'teacher', icon: '💌', name: '先生からのスタンプ', desc: '先生からスタンプをもらった' },
     { id: 'early', icon: '🌅', name: '早起き音読', desc: '朝7時より前に音読した', hidden: true },
-    { id: 'daikichi', icon: '🎊', name: '大吉', desc: 'おみくじで大吉を引いて読んだ', hidden: true },
+    { id: 'daikichi', icon: '🎊', name: '大吉', desc: 'おみくじ英文を読んで、大吉を引いた', hidden: true },
     { id: 'proverb7', icon: '🍀', name: 'ことわざ好き', desc: 'ことわざを7回読んだ', hidden: true },
     { id: 'marathon', icon: '🏃', name: '1日1000語', desc: '1日に1000語読んだ', hidden: true },
     { id: 'five', icon: '✋', name: '1日5回', desc: '1日に5回音読した', hidden: true },
@@ -1971,6 +1997,8 @@ window.APP_CONFIG = {
   function preSubmit(p, store, ctx) {
     var s = currentStudent(p, store, ctx);
     if (!store.saveAudio || !audioOk(settingsForClient(store), p)) return;
+    var la = p.aid ? store.getAssignment(str(p.aid)) : null;
+    if (la && liveRunning(store, s, ctx.now(), la.id)) { delete p.audio; return; }   // ライブ中の音読は録音を保存しない
     var id = store.saveAudio({ mime: str(p.audio.mime).slice(0, 60) || 'audio/webm', b64: String(p.audio.b64),
       name: s.id + '_' + ctx.now().toISOString().replace(/[:.]/g, '-') });
     if (id) { p._audioId = String(id); delete p.audio; }
@@ -2006,6 +2034,24 @@ window.APP_CONFIG = {
     }
     // 1秒に4語を超える速さ（15語以上）は、人の音読としては不自然 → 先生が確認
     if (!flag && r.correct >= 15 && dur > 0 && r.correct / dur > 4) flag = 'speed';
+
+    // ---- ライブ中の音読：ライブのポイントだけに使う ----
+    // 記録シート・累計単語数・級・課題のベスト・ランキング・ごほうびには入れない（スプレッドシートには何も書かない）
+    var liveNow = a ? liveRunning(store, s, now, a.id) : null;
+    if (liveNow) {
+      var liveResult = null;
+      if (!flag && r.correct > 0) {
+        var sc = jsonObj(liveNow.scores), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
+        le.p = num(le.p) + gained; le.c = num(le.c) + 1; le.b = Math.max(num(le.b), r.accuracy); le.t = now.toISOString();
+        sc[s.id] = le;
+        store.updateLive(str(liveNow.id), { scores: JSON.stringify(sc) });
+        var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
+        liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
+      }
+      if (flag) return { flagged: flag, definite: true, result: r, student: studentPublic(s), liveOnly: true };
+      return { result: r, student: studentPublic(s), live: liveResult, liveOnly: true, newBadges: [], newStamps: [], bonus: 0, pointsGained: 0,
+        rewards: rewardsPublic(achOf(s), s, today, store) };
+    }
 
     // 音声の保存（先生が確認できるように）
     var audioId = str(p._audioId);
@@ -2106,7 +2152,9 @@ window.APP_CONFIG = {
     award('repeat', num(c.rp) >= 1); award('stamp10', ach.d >= 10); award('omikuji', num(c.om) >= 1);
     var hour = (now.getUTCHours() + 9) % 24;
     award('early', r.correct > 0 && hour >= 4 && hour < 7);
-    award('daikichi', p.kind === 'omikuji' && str(p.fortune) === '大吉' && r.accuracy >= 60);
+    // おみくじ：英文を読んだあとに引く。よく読めるほど大吉が出やすい
+    var fortune = p.kind === 'omikuji' && !aid && r.correct > 0 ? drawFortune(r.accuracy) : '';
+    award('daikichi', fortune === '大吉');
     award('proverb7', num(c.pv) >= 7);
     award('marathon', num(s.todayWords) >= 1000);
     award('five', ach.tn >= 5);
@@ -2148,29 +2196,23 @@ window.APP_CONFIG = {
     upd.ach = JSON.stringify(ach); s.ach = upd.ach;
     store.updateStudent(s.id, upd);
 
-    // ---- ライブ（開催中のライブの課題なら、ポイントを加える） ----
-    var liveResult = null;
-    if (a && r.correct > 0) {
-      var liveNow = liveRunning(store, s, now, a.id);
-      if (liveNow) {
-        var sc = jsonObj(liveNow.scores), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
-        le.p = num(le.p) + gained; le.c = num(le.c) + 1; le.b = Math.max(num(le.b), r.accuracy); le.t = now.toISOString();
-        sc[s.id] = le;
-        store.updateLive(str(liveNow.id), { scores: JSON.stringify(sc) });
-        var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
-        liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
-      }
-    }
-
     return {
       progress: after2, masterNew: masterNew, achievedNew: achievedNew,
       passed: a ? r.accuracy >= passLine(a) : null,
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
-      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store), live: liveResult,
-      pointsGained: gain + bonus
+      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store),
+      pointsGained: gain + bonus, fortune: fortune || undefined
     };
   };
+  // おみくじの運勢（正確さが高いほど大吉・中吉が出やすい）
+  var FORTUNE_ODDS = [[95, [50, 30, 15, 5]], [85, [30, 35, 25, 10]], [70, [15, 30, 30, 25]], [0, [5, 20, 35, 40]]];
+  var FORTUNE_NAMES = ['大吉', '中吉', '小吉', '吉'];
+  function drawFortune(acc) {
+    var odds = FORTUNE_ODDS.filter(function (o) { return acc >= o[0]; })[0][1], x = Math.random() * 100;
+    for (var i = 0, sum = 0; i < odds.length; i++) { sum += odds[i]; if (x < sum) return FORTUNE_NAMES[i]; }
+    return '吉';
+  }
 
   handlers.ranking = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx);
@@ -3193,7 +3235,7 @@ window.APP_CONFIG = {
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit,
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit, FORTUNE_ODDS: FORTUNE_ODDS,
     FOLDER_DEPTH: FOLDER_DEPTH, BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
@@ -3634,6 +3676,160 @@ window.SAMPLE_ASSIGNMENTS = [
   root.LIBRARY = L;
   root.LIBRARY_LEVELS = LEVEL_NAMES;
   if (typeof module !== 'undefined' && module.exports) module.exports = { LIBRARY: L, LIBRARY_LEVELS: LEVEL_NAMES };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+  <script>
+/*
+ * おみくじ英文のデータ（短い英文〔3〜8語〕と日本語訳・おみくじの紙にのせる言葉）
+ *  lv：1＝中1 / 2＝中2 / 3＝中3 / 4＝高校
+ *  c ：pos＝前向きなひとこと / prov＝ことわざ・名言 / daily＝日常の表現 / school＝学校生活
+ *  英文を読んだあとに、おみくじを引きます。正確さが高いほど大吉が出やすくなります（運勢はサーバーで決めます）。
+ */
+(function (root) {
+  'use strict';
+  var S = [
+    // ===== 中1 =====
+    [1, 'pos', 'You can do it.', 'あなたならできる。'],
+    [1, 'pos', 'Today is a good day.', '今日はいい日だ。'],
+    [1, 'pos', 'I am happy today.', '私は今日、幸せです。'],
+    [1, 'pos', 'Smile and say hello.', '笑顔であいさつしよう。'],
+    [1, 'pos', 'You are my friend.', 'あなたは私の友だちです。'],
+    [1, 'pos', "Let's try again.", 'もう一度やってみよう。'],
+    [1, 'pos', 'Never give up.', '決してあきらめないで。'],
+    [1, 'prov', 'Time is money.', '時は金なり。'],
+    [1, 'prov', 'Practice makes perfect.', '練習が完ぺきをつくる。（習うより慣れよ）'],
+    [1, 'prov', 'Better late than never.', '遅れても、しないよりはまし。'],
+    [1, 'prov', 'Seeing is believing.', '百聞は一見にしかず。'],
+    [1, 'prov', 'No pain, no gain.', '苦労なくして得るものなし。'],
+    [1, 'prov', 'Many hands make light work.', '人手が多いと仕事は楽になる。'],
+    [1, 'prov', 'Easy come, easy go.', '得やすいものは失いやすい。'],
+    [1, 'daily', 'I like music very much.', '私は音楽が大好きです。'],
+    [1, 'daily', 'I play tennis every day.', '私は毎日テニスをします。'],
+    [1, 'daily', 'My mother is a good cook.', '私の母は料理が上手です。'],
+    [1, 'daily', 'I have a cute dog.', '私はかわいい犬を飼っています。'],
+    [1, 'daily', 'What time is it now?', '今、何時ですか。'],
+    [1, 'daily', 'I can swim fast.', '私は速く泳げます。'],
+    [1, 'daily', 'I usually get up at six.', '私はふだん6時に起きます。'],
+    [1, 'school', "Let's study together.", 'いっしょに勉強しよう。'],
+    [1, 'school', 'I like English class.', '私は英語の授業が好きです。'],
+    [1, 'school', 'Open your textbook, please.', '教科書を開いてください。'],
+    [1, 'school', 'Our school is very big.', '私たちの学校はとても大きいです。'],
+    [1, 'school', 'I am in the brass band.', '私は吹奏楽部に入っています。'],
+    [1, 'school', 'Please listen to me.', '私の話を聞いてください。'],
+    [1, 'school', 'We clean our classroom.', '私たちは教室をそうじします。'],
+    // ===== 中2 =====
+    [2, 'pos', 'You will be fine.', 'あなたはきっと大丈夫。'],
+    [2, 'pos', 'Tomorrow will be a better day.', '明日はもっといい日になるだろう。'],
+    [2, 'pos', 'I want to be strong.', '私は強くなりたい。'],
+    [2, 'pos', 'Trying new things is fun.', '新しいことに挑戦するのは楽しい。'],
+    [2, 'pos', 'You are doing a great job.', 'あなたはとてもよくやっている。'],
+    [2, 'pos', 'There is always a way.', '道はいつもある。'],
+    [2, 'pos', 'Believe in yourself.', '自分を信じよう。'],
+    [2, 'prov', "Where there's a will, there's a way.", '意志あるところに道は開ける。'],
+    [2, 'prov', 'Every cloud has a silver lining.', 'どんな雲にも銀色のふちがある。（悪いことにもよい面がある）'],
+    [2, 'prov', 'The early bird catches the worm.', '早起きの鳥は虫をつかまえる。（早起きは三文の徳）'],
+    [2, 'prov', 'Rome was not built in a day.', 'ローマは一日にして成らず。'],
+    [2, 'prov', 'Actions speak louder than words.', '行動は言葉よりも雄弁だ。'],
+    [2, 'prov', 'A friend in need is a friend indeed.', '困ったときの友こそ、本当の友。'],
+    [2, 'prov', 'Slow and steady wins the race.', 'ゆっくりでも着実な者が勝つ。'],
+    [2, 'daily', 'I went to Kyoto last summer.', '私は去年の夏、京都に行きました。'],
+    [2, 'daily', 'I am going to visit my grandmother.', '私は祖母を訪ねる予定です。'],
+    [2, 'daily', 'It was sunny yesterday.', '昨日は晴れでした。'],
+    [2, 'daily', 'This book is more interesting than that one.', 'この本はあの本よりおもしろい。'],
+    [2, 'daily', 'I have to do my homework.', '私は宿題をしなければならない。'],
+    [2, 'daily', 'Thank you for helping me.', '手伝ってくれてありがとう。'],
+    [2, 'daily', 'When I got home, it was raining.', '家に帰ったとき、雨が降っていた。'],
+    [2, 'school', 'I enjoyed the school festival.', '私は文化祭を楽しみました。'],
+    [2, 'school', 'We must be quiet in the library.', '図書室では静かにしなければならない。'],
+    [2, 'school', 'Studying English is important.', '英語を勉強することは大切です。'],
+    [2, 'school', 'I was practicing soccer after school.', '私は放課後、サッカーを練習していました。'],
+    [2, 'school', 'There are thirty students in my class.', '私のクラスには30人の生徒がいます。'],
+    [2, 'school', 'Our teacher told us an interesting story.', '先生がおもしろい話をしてくれました。'],
+    [2, 'school', 'I will do my best on the test.', '私はテストで全力を尽くします。'],
+    // ===== 中3 =====
+    [3, 'pos', 'I have never given up.', '私は一度もあきらめたことがない。'],
+    [3, 'pos', 'You have grown a lot.', 'あなたはとても成長した。'],
+    [3, 'pos', 'Your effort will be rewarded.', 'あなたの努力は報われるだろう。'],
+    [3, 'pos', 'Mistakes help us learn.', '失敗は、私たちが学ぶ助けになる。'],
+    [3, 'pos', 'It is never too late to start.', '始めるのに遅すぎることはない。'],
+    [3, 'pos', "I'm proud of what you did.", 'あなたがしたことを誇りに思う。'],
+    [3, 'pos', 'Keep going, step by step.', '一歩ずつ、進み続けよう。'],
+    [3, 'prov', 'Knowledge is power.', '知識は力なり。'],
+    [3, 'prov', 'Haste makes waste.', '急いては事をし損じる。'],
+    [3, 'prov', "All's well that ends well.", '終わりよければすべてよし。'],
+    [3, 'prov', 'When in Rome, do as the Romans do.', '郷に入っては郷に従え。'],
+    [3, 'prov', "Don't judge a book by its cover.", '見た目で判断してはいけない。'],
+    [3, 'prov', 'Two heads are better than one.', '三人寄れば文殊の知恵。'],
+    [3, 'prov', 'Look before you leap.', '跳ぶ前によく見よ。（転ばぬ先の杖）'],
+    [3, 'daily', 'I have lived here for ten years.', '私はここに10年間住んでいます。'],
+    [3, 'daily', 'This song is loved by many people.', 'この歌は多くの人に愛されています。'],
+    [3, 'daily', 'The boy playing the guitar is my brother.', 'ギターを弾いている男の子は、私の兄です。'],
+    [3, 'daily', 'I know a girl who speaks French.', '私はフランス語を話す女の子を知っています。'],
+    [3, 'daily', 'Have you ever been to Okinawa?', 'あなたは沖縄に行ったことがありますか。'],
+    [3, 'daily', 'I wish I could fly.', '空を飛べたらいいのになあ。'],
+    [3, 'daily', 'It is easy for me to cook.', '料理をするのは、私には簡単です。'],
+    [3, 'school', 'I have just finished my homework.', '私はちょうど宿題を終えたところです。'],
+    [3, 'school', 'English is spoken all over the world.', '英語は世界中で話されています。'],
+    [3, 'school', 'The picture drawn by Ken is beautiful.', 'ケンがかいた絵は美しい。'],
+    [3, 'school', 'Tell me what you want to do.', 'あなたが何をしたいか教えて。'],
+    [3, 'school', 'We have been friends since elementary school.', '私たちは小学校のときから友だちです。'],
+    [3, 'school', 'The club I belong to is popular.', '私が入っている部は人気があります。'],
+    [3, 'school', 'Do you know when the test is?', 'テストがいつか知っていますか。'],
+    // ===== 高校 =====
+    [4, 'pos', 'Every small step counts.', 'どんな小さな一歩にも意味がある。'],
+    [4, 'pos', 'Your hard work will pay off.', 'あなたの努力は実を結ぶだろう。'],
+    [4, 'pos', 'Challenges make you stronger.', '困難はあなたを強くする。'],
+    [4, 'pos', "Don't be afraid of making mistakes.", '間違えることを恐れないで。'],
+    [4, 'pos', 'The best is yet to come.', '最高のときはこれからだ。'],
+    [4, 'pos', 'Dream big and work hard.', '大きな夢を持ち、一生けんめい努力しよう。'],
+    [4, 'pos', 'Kindness costs nothing.', '親切にお金はかからない。'],
+    [4, 'prov', 'Necessity is the mother of invention.', '必要は発明の母。'],
+    [4, 'prov', 'Honesty is the best policy.', '正直は最善の策。'],
+    [4, 'prov', 'Fortune favors the brave.', '幸運は勇気ある者に味方する。'],
+    [4, 'prov', 'Experience is the best teacher.', '経験は最良の教師である。'],
+    [4, 'prov', 'Little strokes fell great oaks.', '小さな一打も大きな木を倒す。（ちりも積もれば山となる）'],
+    [4, 'prov', 'Great minds think alike.', '賢い人は同じように考える。'],
+    [4, 'prov', 'Absence makes the heart grow fonder.', '会えない時間が愛情を深める。'],
+    [4, 'daily', "I'm looking forward to seeing you.", 'あなたに会えるのを楽しみにしています。'],
+    [4, 'daily', 'Would you mind opening the window?', '窓を開けていただけませんか。'],
+    [4, 'daily', 'It took me an hour to get there.', 'そこに着くのに1時間かかりました。'],
+    [4, 'daily', "I'm used to getting up early.", '私は早起きに慣れています。'],
+    [4, 'daily', 'The more you read, the more you learn.', '読めば読むほど、多くを学べる。'],
+    [4, 'daily', "I can't help laughing at his jokes.", '彼の冗談に、笑わずにはいられない。'],
+    [4, 'daily', 'If I were you, I would try.', '私があなたなら、やってみるだろう。'],
+    [4, 'school', "I'm thinking of studying abroad.", '私は留学しようかと考えています。'],
+    [4, 'school', "Let's make the most of our time.", '時間を最大限に生かそう。'],
+    [4, 'school', 'She is good at solving math problems.', '彼女は数学の問題を解くのが得意です。'],
+    [4, 'school', 'We are supposed to submit the report.', '私たちはレポートを提出することになっている。'],
+    [4, 'school', 'What matters most is doing your best.', 'いちばん大切なのは、全力を尽くすことだ。'],
+    [4, 'school', 'Reading books broadens your horizons.', '読書は視野を広げる。'],
+    [4, 'school', "I'll never forget our school days.", '私は学校生活をけっして忘れない。']
+  ];
+  var list = S.map(function (x, i) { return { id: 'om' + (i + 1), lv: x[0], c: x[1], en: x[2], ja: x[3] }; });
+  var CATS = { pos: '前向きなひとこと', prov: 'ことわざ・名言', daily: '日常の表現', school: '学校生活', review: '課題の復習' };
+  // おみくじの紙にのせる言葉
+  var MESSAGES = {
+    '大吉': ['最高の一日になりそう！思いきって挑戦してみよう。', '今日のあなたは無敵！英語もぐんぐん伸びるよ。', 'うれしいことが次々にやってくる予感！', '努力がキラッと実を結ぶ日。自信をもって！'],
+    '中吉': ['いいことがありそう！笑顔を忘れずにね。', '友だちと協力すると、もっとよくなるよ。', 'こつこつ続けたことが、そろそろ形になりそう。', '新しい発見がある日。いつもとちがう英文も読んでみよう。'],
+    '小吉': ['こつこつがんばると吉！小さな一歩を大切に。', 'あわてず、ていねいに。それが幸運のカギ。', '苦手なことに少しだけ挑戦すると、運が上がるよ。', '今日の復習が、明日の自信になるよ。'],
+    '吉': ['笑顔でいると運が開けるよ！', 'まわりの人に「ありがとう」を伝えると吉。', 'ゆっくり深呼吸。落ち着いて取り組めばうまくいく。', 'もう一度読むと、運気がアップするかも！']
+  };
+  var WORDS = [['rainbow', 'にじ'], ['star', '星'], ['smile', '笑顔'], ['sunshine', '日の光'], ['dream', '夢'], ['friend', '友だち'], ['flower', '花'],
+    ['music', '音楽'], ['adventure', '冒険'], ['treasure', '宝物'], ['courage', '勇気'], ['hope', '希望'], ['ocean', '海'], ['cookie', 'クッキー'],
+    ['piano', 'ピアノ'], ['bicycle', '自転車'], ['breakfast', '朝ごはん'], ['library', '図書館'], ['butterfly', 'ちょう'], ['moon', '月'],
+    ['chocolate', 'チョコレート'], ['kindness', 'やさしさ'], ['challenge', '挑戦'], ['energy', '元気'], ['sky', '空'], ['morning', '朝'],
+    ['thank you', 'ありがとう'], ['future', '未来'], ['peace', '平和'], ['team', 'チーム'], ['journey', '旅'], ['sunflower', 'ひまわり']];
+  var COLORS = [['red', '赤', '#e03131'], ['blue', '青', '#1c7ed6'], ['yellow', '黄色', '#fab005'], ['green', '緑', '#2f9e44'], ['pink', 'ピンク', '#f06595'],
+    ['purple', 'むらさき', '#7048e8'], ['orange', 'オレンジ', '#f76707'], ['white', '白', '#adb5bd'], ['light blue', '水色', '#4dabf7'],
+    ['gold', '金色', '#e0a800'], ['silver', '銀色', '#868e96'], ['brown', '茶色', '#a0612b']];
+  var ITEMS = [['pencil', 'えんぴつ'], ['eraser', '消しゴム'], ['notebook', 'ノート'], ['handkerchief', 'ハンカチ'], ['water bottle', '水とう'],
+    ['dictionary', '辞書'], ['ruler', '定規'], ['sticker', 'シール'], ['hairpin', 'ヘアピン'], ['cap', 'ぼうし'], ['book', '本'], ['umbrella', 'かさ'],
+    ['watch', '腕時計'], ['towel', 'タオル'], ['bookmark', 'しおり'], ['highlighter', '蛍光ペン']];
+  var LUCK = ['勉強運', '友だち運', '部活運', '健康運', '英語運'];
+  // 運勢ごとの★の数の範囲
+  var STARS = { '大吉': [4, 5], '中吉': [3, 5], '小吉': [2, 4], '吉': [2, 4] };
+  root.OmikujiSet = { list: list, CATS: CATS, MESSAGES: MESSAGES, WORDS: WORDS, COLORS: COLORS, ITEMS: ITEMS, LUCK: LUCK, STARS: STARS };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 </script>
@@ -6336,12 +6532,13 @@ window.SAMPLE_ASSIGNMENTS = [
           $('#bAgain2').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); startRec(); };
         } else {
           showResult(r.result, r, false);
-          if (opt.aid && (opt.best === null || opt.best === undefined || r.result.accuracy > opt.best)) { opt.best = r.result.accuracy; }
+          if (opt.aid && !r.liveOnly && (opt.best === null || opt.best === undefined || r.result.accuracy > opt.best)) { opt.best = r.result.accuracy; }
           if (r.progress && opt.onProgress) opt.onProgress(r.progress, r);
           if (state.home) { state.home.student = r.student; if (r.rewards) state.home.rewards = r.rewards; }
           if (r.rewards) applyLook(r.rewards);
-          if (opt.onDone) opt.onDone(r);
-          showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); });
+          var popup = function () { showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); }); };
+          if (opt.deferRewards && opt.onDone) opt.onDone(r, popup);   // おみくじ：引いたあとでバッジなどを出す
+          else { if (opt.onDone) opt.onDone(r); popup(); }
         }
       } catch (e) {
         showError(e);
@@ -6362,12 +6559,12 @@ window.SAMPLE_ASSIGNMENTS = [
       html += '<p style="margin-top:8px;font-weight:700">' + msg + '</p>';
       if (server && server.levelUp) html += '<div class="celebrate">🎊 レベルアップ！「' + esc(server.levelUp) + '」になりました！</div>';
       if (server && server.newBest && opt.aid && opt.best !== null && opt.best !== undefined) html += '<div class="celebrate">⭐ 自己ベスト更新！（前回まで ' + opt.best + '%）</div>';
-      if (server && opt.aid && (opt.best === null || opt.best === undefined)) html += '<div class="celebrate">🎉 はじめての記録です！</div>';
+      if (server && opt.aid && !server.liveOnly && (opt.best === null || opt.best === undefined)) html += '<div class="celebrate">🎉 はじめての記録です！</div>';
       if (server && opt.resultExtra) html += opt.resultExtra(server, r);
       if (server && server.live) html += '<div class="celebrate live-line"><span class="live-dot"></span> ライブ +' + server.live.gained + 'pt！ 合計 <b>' + n(server.live.points) + 'pt</b>（' + server.live.count + '回）・いま <b>' + server.live.rank + '位</b> / ' + server.live.total + '人</div>';
       if (server && server.pointsGained) html += '<div class="celebrate pts-line">🪙 ポイント +' + server.pointsGained + 'pt（使えるポイント ' + n(server.rewards ? server.rewards.avail : 0) + 'pt）<a href="#/avatar/shop">お店へ</a></div>';
       if (server && server.bonus) html += '<div class="celebrate bonus">🧠 ' + (type === 5 ? '日本語→英語' : '暗唱') + 'ボーナス +' + server.bonus + 'ポイント！（合計 ' + n(server.rewards ? server.rewards.points : 0) + 'pt）</div>';
-      html += '<div class="muted" id="saveState">' + (pending ? '記録を保存中…' : '✅ 記録しました（+' + r.correct + '語）') + '</div>';
+      html += '<div class="muted" id="saveState">' + (pending ? '記録を保存中…' : server && server.liveOnly ? '🔴 ライブのポイントに入れました（ライブ中の音読は、ふだんの記録には入りません）' : '✅ 記録しました（+' + r.correct + '語）') + '</div>';
       html += '<div class="btn-row" style="justify-content:center;margin-top:12px">' +
         '<button class="btn-primary" id="bAgain">🔁 もう一度</button>' +
         (opt.contest && opt.aid ? '<a class="btn" href="#/contest/' + encodeURIComponent(opt.aid) + '">🏆 大会ランキング</a>' : '') +
@@ -6519,51 +6716,107 @@ window.SAMPLE_ASSIGNMENTS = [
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
 
-  // ================= 生徒：おみくじ英文 =================
-  var FORTUNES = [['大吉', 15, '最高の一日になりそう！'], ['中吉', 30, 'いいことがありそう！'], ['小吉', 30, 'こつこつがんばると吉！'], ['吉', 25, '笑顔でいると運が開けるよ！']];
+  // ================= 生徒：おみくじ英文（英文を読んでから、おみくじを引く） =================
+  var FORTUNE_CLS = { '大吉': 'f0', '中吉': 'f1', '小吉': 'f2', '吉': 'f3' };
+  function omWords(t) { return String(t).split(/\s+/).filter(function (w) { return /[A-Za-z0-9]/.test(w); }).length; }
+  // 課題の英文から、日本語訳のある短い文（3〜8語）を復習用に集める
+  function omReviewPool() {
+    var out = [];
+    ((state.home && state.home.assignments) || []).forEach(function (a) {
+      var d = (a.detail && a.detail.assignment) || (cget(ckey('getAssignment', { aid: a.id })) || {}).assignment; if (!d || !d.text) return;
+      var en = enSentences(d.text), ja = jaForSentences(d.text, d.ja, en.length);
+      if (!ja.length) return;
+      en.forEach(function (x, i) {
+        x = x.replace(/^([A-Z][\w.']*(?: [A-Z][\w.']*){0,2}):\s+/, '');
+        var n0 = omWords(x);
+        if (n0 >= 3 && n0 <= 8 && ja[i]) out.push({ id: 'rv:' + a.id + ':' + i, c: 'review', en: x, ja: ja[i], from: a.title });
+      });
+    });
+    return out;
+  }
+  function omPick(level, avoid) {
+    var O = window.OmikujiSet || { list: [] };
+    var pool = O.list.filter(function (x) { return x.lv === level && x.en !== avoid; });
+    var rv = omReviewPool().filter(function (x) { return x.en !== avoid; });
+    if (rv.length && Math.random() < 0.3) return rv[Math.floor(Math.random() * rv.length)];
+    if (!pool.length) pool = O.list;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  function omRand(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function omPaperHTML(fortune) {
+    var O = window.OmikujiSet, st = O.STARS[fortune] || [2, 4];
+    var w = omRand(O.WORDS), c = omRand(O.COLORS), it = omRand(O.ITEMS);
+    var luck = O.LUCK.map(function (k) { var n0 = st[0] + Math.floor(Math.random() * (st[1] - st[0] + 1)); return '<div class="om-luck"><span>' + k + '</span><b>' + '★'.repeat(n0) + '<i>' + '★'.repeat(5 - n0) + '</i></b></div>'; }).join('');
+    return '<div class="omikuji-paper om-result pop-in"><div class="om-top">おみくじ</div><div class="fortune ' + (FORTUNE_CLS[fortune] || 'f3') + '">' + esc(fortune) + '</div>' +
+      '<div class="om-msg">' + esc(omRand(O.MESSAGES[fortune] || O.MESSAGES['吉'])) + '</div>' +
+      '<div class="om-lucks">' + luck + '</div>' +
+      '<div class="om-lucky"><div><small>ラッキー英単語</small><b>' + esc(w[0]) + '</b><span>' + esc(w[1]) + '</span></div>' +
+      '<div><small>ラッキーカラー</small><b><i class="om-dot" style="background:' + c[2] + '"></i>' + esc(c[0]) + '</b><span>' + esc(c[1]) + '</span></div>' +
+      '<div><small>ラッキーアイテム</small><b>' + esc(it[0]) + '</b><span>' + esc(it[1]) + '</span></div></div></div>';
+  }
+  function omOdds() {
+    var o = (window.Core && Core.FORTUNE_ODDS) || [];
+    return o.length ? '正確さ95%以上なら大吉の確率 ' + o[0][1][0] + '%、85%以上なら ' + o[1][1][0] + '%' : '';
+  }
+  // 引いたおみくじを出す（ふる → 紙が出る）
+  function drawOmikuji(fortune, area, after) {
+    var box = document.createElement('div');
+    box.className = 'card omikuji-draw';
+    box.innerHTML = '<div class="omikuji-box shake" id="omBox"><div class="omikuji-tube">🎋</div></div><div class="muted" style="text-align:center">カラカラ…</div>';
+    area.appendChild(box);
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(function () {
+      box.innerHTML = omPaperHTML(fortune) +
+        '<div class="btn-row" style="justify-content:center;margin-top:12px"><button class="btn-primary" type="button" id="bOmNext">🎲 ほかの英文でもう一回</button><a class="btn" href="#/home">🏠 ホームへ</a></div>';
+      $('#bOmNext', box).onclick = function () { go('#/omikuji'); };
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (after) setTimeout(after, 2500);
+    }, 1300);
+  }
   async function viewOmikuji() {
     bottomNav('home'); loading();
     try {
       await ensureHome();
-      var L = state.library || await loadLibrary();
       var level = prefs().libLevel || 1;
-      var html = '<a class="back" href="#/home">← もどる</a><div class="card omikuji-card"><h2>🎲 おみくじ英文</h2>' +
-        '<p class="muted">ボタンを押すと、今日のラッキー英文が出てきます。出た英文を読んでみよう！</p>' +
-        '<div class="seg lv-seg">' + [1, 2, 3, 4].map(function (lv) { return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + '</button>'; }).join('') + '</div>' +
-        '<div class="omikuji-box" id="omBox"><div class="omikuji-tube">🎋</div></div>' +
-        '<button class="btn-primary btn-big btn-block" id="bDraw">🎲 おみくじを引く</button></div>';
-      $app.innerHTML = html;
-      $all('.lv-seg button').forEach(function (b) {
-        b.onclick = function () { level = +b.dataset.lv; setPref('libLevel', level); $all('.lv-seg button').forEach(function (x) { x.classList.toggle('active', x === b); }); };
-      });
-      $('#bDraw').onclick = function () {
-        var pool = L.items.filter(function (x) { return x.level === level; });
-        if (!pool.length) pool = L.items;
-        if (!pool.length) { toast('英文がありません', true); return; }
-        var it = pool[Math.floor(Math.random() * pool.length)];
-        var en = enSentences(it.text), ja = splitJaText(String(it.ja || '').replace(/\n/g, ''));
-        var i = Math.floor(Math.random() * en.length), take = (en[i] || '').split(/\s+/).length < 8 && en[i + 1] ? 2 : 1;
-        if (i + take > en.length) i = Math.max(0, en.length - take);
-        var enT = en.slice(i, i + take).join(' '), jaT = ja.length === en.length ? ja.slice(i, i + take).join('') : '';
-        var r = Math.random() * 100, f = FORTUNES[FORTUNES.length - 1];
-        for (var k = 0, acc = 0; k < FORTUNES.length; k++) { acc += FORTUNES[k][1]; if (r < acc) { f = FORTUNES[k]; break; } }
-        var box = $('#omBox'); box.classList.add('shake'); this.disabled = true;
-        var btn = this;
-        setTimeout(function () {
-          box.classList.remove('shake');
-          box.innerHTML = '<div class="omikuji-paper pop-in"><div class="fortune f' + FORTUNES.indexOf(f) + '">' + f[0] + '</div><div class="muted">' + f[2] + '</div>' +
-            (jaT ? '<div class="om-ja">' + esc(jaT) + '</div>' : '') + '<div class="om-en">' + esc(enT) + '</div>' +
-            '<div class="muted" style="font-size:.8rem">出典：' + esc(it.title) + '</div></div>';
-          btn.disabled = false; btn.textContent = '🎲 もう一度引く';
-          var go2 = document.createElement('button');
-          go2.className = 'btn-accent btn-big btn-block'; go2.style.marginTop = '8px'; go2.textContent = '🎤 この英文を読む';
-          go2.onclick = function () {
-            practiceView({ title: 'おみくじ英文（' + f[0] + '）', text: enT, ja: jaT, kind: 'omikuji', fortune: f[0], back: '#/omikuji', noRepeat: true });
-          };
-          var old = $('#bGoRead'); if (old) old.remove();
-          go2.id = 'bGoRead'; btn.insertAdjacentElement('afterend', go2);
-        }, 900);
-      };
+      var cur = null;
+      function card() {
+        var catName = (window.OmikujiSet.CATS[cur.c] || '');
+        return '<div class="om-sentence"><div class="om-cat">' + (cur.c === 'review' ? '📝 課題「' + esc(cur.from) + '」から復習' : '✨ ' + esc(catName)) + '</div>' +
+          '<div class="om-ja">' + esc(cur.ja) + '</div><div class="om-en">' + esc(cur.en) + '</div></div>';
+      }
+      function draw() {
+        $app.innerHTML = '<a class="back" href="#/home">← もどる</a><div class="card omikuji-card"><h2>🎲 おみくじ英文</h2>' +
+          '<p class="muted">まず、下の英文を声に出して読もう。読み終わると、おみくじが引けるよ！<br><b>よく読めるほど、大吉が出やすくなります。</b><small>（' + esc(omOdds()) + '）</small></p>' +
+          '<div class="seg lv-seg">' + [1, 2, 3, 4].map(function (lv) { return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + '</button>'; }).join('') + '</div>' +
+          '<div id="omCard">' + card() + '</div>' +
+          '<button class="btn-primary btn-big btn-block" id="bOmRead">🎤 読んで、おみくじを引く</button>' +
+          '<button class="btn btn-block" id="bOmOther" style="margin-top:8px">🔄 ほかの英文にする</button></div>';
+        $all('.lv-seg button').forEach(function (b) {
+          b.onclick = function () { level = +b.dataset.lv; setPref('libLevel', level); cur = omPick(level); draw(); };
+        });
+        $('#bOmOther').onclick = function () { cur = omPick(level, cur.en); $('#omCard').innerHTML = card(); };
+        $('#bOmRead').onclick = function () {
+          var s0 = cur;
+          practiceView({ title: '🎲 おみくじ英文', text: s0.en, ja: String(s0.ja).replace(/。\s*（([^（）]+)）\s*$/, '（$1）。'), kind: 'omikuji', back: '#/omikuji', noRepeat: true, deferRewards: true,
+            onDone: function (r, popup) {
+              var area = $('#resultArea'); if (!area) { if (popup) popup(); return; }
+              var old = $('.om-after'); if (old) old.remove();
+              var wrap = document.createElement('div'); wrap.className = 'om-after';
+              area.appendChild(wrap);
+              if (!r.fortune) {
+                wrap.innerHTML = '<div class="card notice">うまく聞き取れなかったので、おみくじは引けませんでした。もう一度読んでみよう！</div>';
+                if (popup) popup();
+                return;
+              }
+              wrap.innerHTML = '<div class="card om-ready"><div class="om-ready-t">🎋 読めたね！おみくじを引こう</div>' +
+                '<button class="btn-accent btn-big btn-block" id="bOmDraw">🎲 おみくじを引く！</button></div>';
+              $('#bOmDraw').onclick = function () { wrap.innerHTML = ''; drawOmikuji(r.fortune, wrap, popup); };
+              wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } });
+        };
+      }
+      cur = omPick(level);
+      draw();
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
 
@@ -8097,7 +8350,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var html = teacherTabs('live');
       html += '<div class="card"><h2>🔴 ライブをはじめる</h2>' +
         '<p class="muted" style="font-size:.88rem">ライブ中に生徒が課題を読むと、1回ごとに<b>正確さ（%）の数字がポイント</b>になり、合計ポイントで順位が決まります（同じなら先に達した人が上）。' +
-        '順位表を教室の大きな画面に映して使ってください。終了すると、上位3名と10位までの生徒を表彰し、特別スタンプを自動で送ります。</p>' +
+        '順位表を教室の大きな画面に映して使ってください。終了すると、上位3名と10位までの生徒を表彰し、特別スタンプを自動で送ります。<br>📝 ライブの記録（ポイント・順位・ライブ中の音読）は<b>スプレッドシートに保存しません</b>。ライブ中の音読は、ふだんの記録（累計単語数・級・課題のベスト・ランキング）にも入りません。終わったライブの結果は6時間たつと消えます（作っただけでまだ始めていないライブも、6時間で消えます）。</p>' +
         '<label for="lvA">読む課題</label><select id="lvA"><option value="">選んでください</option>' + o.assignments.filter(function (a) { return a.published; }).map(function (a) {
           return '<option value="' + esc(a.id) + '" data-cls="' + esc(a.classes) + '">' + esc(a.title) + (a.classes ? '（' + esc(a.classes) + '）' : '') + '</option>'; }).join('') + '</select>' +
         '<label>参加するクラス</label><div class="check-row" id="lvC">' + classes.map(function (c) { return '<label class="check"><input type="checkbox" value="' + esc(c) + '">' + esc(c) + '</label>'; }).join('') + '</div>' +
