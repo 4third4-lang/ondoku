@@ -1094,10 +1094,10 @@
     if (liveNow) {
       var liveResult = null;
       if (!flag && r.correct > 0) {
-        var sc = jsonObj(liveNow.scores), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
-        le.p = num(le.p) + gained; le.c = num(le.c) + 1; le.b = Math.max(num(le.b), r.accuracy); le.t = now.toISOString();
+        var sc = liveScores(store, liveNow), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
+        le = { p: num(le.p) + gained, c: num(le.c) + 1, b: Math.max(num(le.b), r.accuracy), t: now.toISOString() };
         sc[s.id] = le;
-        store.updateLive(str(liveNow.id), { scores: JSON.stringify(sc) });
+        setLiveScore(store, liveNow, s.id, le, sc);
         var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
         liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
       }
@@ -1959,8 +1959,29 @@
       return num(sc[y].p) - num(sc[x].p) || (str(sc[x].t) < str(sc[y].t) ? -1 : str(sc[x].t) > str(sc[y].t) ? 1 : 0);
     });
   }
+  // ライブのポイント：開催中は生徒ごとに別々に保存（同時に読んでも書きかえがぶつからない）、終わったらライブにまとめて保存
+  function liveTargets(store, l) {
+    var cl = liveClasses(store, l);
+    return store.getStudents().filter(function (x) { return !cl.length || cl.indexOf(x.cls) >= 0; }).map(function (x) { return x.id; });
+  }
+  function liveScores(store, l) {
+    if (str(l.status) === 'running' && store.getLiveScores) return store.getLiveScores(l, liveTargets(store, l));
+    return jsonObj(l.scores);
+  }
+  function setLiveScore(store, l, sid, e, sc) {
+    if (store.setLiveScore) store.setLiveScore(l, sid, e);
+    else store.updateLive(str(l.id), { scores: JSON.stringify(sc) });
+  }
+  // ライブ中の音読かどうか（Apps Script では、これなら順番待ちなし・スプレッドシートを開かずに処理する）
+  function isLiveSubmit(p, store, ctx) {
+    if (!str(p.aid) || !store.getLives) return false;
+    var now = ctx.now();
+    if (!store.getLives().some(function (l) { return liveOpen(l, now) && str(l.aid) === str(p.aid); })) return false;
+    var s = currentStudent(p, store, ctx), a = store.getAssignment(str(p.aid));
+    return !!(a && assignmentVisibleTo(a, s) && liveRunning(store, s, now, a.id));
+  }
   function liveRows(store, l) {
-    var sc = jsonObj(l.scores);
+    var sc = liveScores(store, l);
     return liveOrder(sc).map(function (sid, i) {
       var s = store.getStudent(sid), e = sc[sid];
       return { rank: i + 1, sid: sid, name: s ? (str(s.nick) || s.cls + ' ' + s.no + '番') : sid, cls: s ? s.cls : '', av: s ? avatarOf(achOf(s), 'others') : null,
@@ -1986,7 +2007,7 @@
     var me = currentTeacher(p, store, ctx);
     var list = store.getLives().filter(function (l) { return liveVisible(me, store, l); })
       .sort(function (x, y) { return str(y.created).localeCompare(str(x.created)); }).slice(0, 40)
-      .map(function (l) { var o = livePublic(store, l); o.count = Object.keys(jsonObj(l.scores)).length; return o; });
+      .map(function (l) { var o = livePublic(store, l); o.count = Object.keys(liveScores(store, l)).length; return o; });
     return { lives: list, custom: customStamps(store).map(stampPublic), live: LIVE_STAMPS };
   };
   handlers.t_createLive = function (p, store, ctx) {
@@ -2026,7 +2047,7 @@
   handlers.t_endLive = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx), l = getLiveFor(me, store, p.id), now = ctx.now();
     if (str(l.status) === 'ended') return { board: liveBoard(store, l, now) };
-    var rows = liveRows(store, l), aw = jsonObj(l.awards), today = jstDate(now), ups = [];
+    var finalScores = liveScores(store, l), rows = liveRows(store, l), aw = jsonObj(l.awards), today = jstDate(now), ups = [];
     rows.slice(0, 10).forEach(function (row) {
       var key = row.rank <= 3 ? (aw.top3 || 'l:rank' + row.rank) : (aw.top10 || 'l:top10');
       var entry = stampEntry(findStampDef(store, key)) || stampEntry(LIVE_STAMPS[row.rank <= 3 ? 'rank' + row.rank : 'top10']);
@@ -2040,7 +2061,7 @@
     });
     updateStudents(store, ups);
     var results = rows.slice(0, 10).map(function (x) { return { rank: x.rank, name: x.name, cls: x.cls, points: x.points, count: x.count, best: x.best, stamp: x.stamp, av: x.av }; });
-    store.updateLive(str(l.id), { status: 'ended', ended: now.toISOString(), results: JSON.stringify(results) });
+    store.updateLive(str(l.id), { status: 'ended', ended: now.toISOString(), results: JSON.stringify(results), scores: JSON.stringify(finalScores) });
     return { board: liveBoard(store, getLiveFor(me, store, p.id), now), awarded: ups.length };
   };
   handlers.t_deleteLive = function (p, store, ctx) {
@@ -2288,7 +2309,7 @@
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit, FORTUNE_ODDS: FORTUNE_ODDS,
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit, isLiveSubmit: isLiveSubmit, FORTUNE_ODDS: FORTUNE_ODDS,
     FOLDER_DEPTH: FOLDER_DEPTH, BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
@@ -2616,9 +2637,23 @@ SheetStore.prototype.liveSave_ = function () {
 };
 // 以前の版で作った「ライブ」シートは、最初に一度だけ削除する
 SheetStore.prototype.dropLiveSheet_ = function () {
+  if (this.liveDropChecked_) return; this.liveDropChecked_ = true;
   var pr = PropertiesService.getScriptProperties();
   if (pr.getProperty('LIVE_SHEET_DROPPED')) return;
   try { var sh = this.book_().getSheetByName('ライブ'); if (sh) this.book_().deleteSheet(sh); pr.setProperty('LIVE_SHEET_DROPPED', '1'); } catch (e) { /* 次回もう一度 */ }
+};
+// 開催中のライブのポイント（生徒ごとに別のキャッシュに置くので、同時に読んでもぶつからない）
+function liveScoreKey_(l, sid) { return 'lvs:' + l.id + ':' + String(l.started || '').replace(/[^0-9]/g, '').slice(0, 14) + ':' + sid; }
+SheetStore.prototype.getLiveScores = function (l, sids) {
+  var c = sc_(), out = {}; if (!c || !sids.length) return out;
+  var keys = sids.map(function (sid) { return liveScoreKey_(l, sid); }), got = {};
+  for (var i = 0; i < keys.length; i += 100) { try { var g = c.getAll(keys.slice(i, i + 100)) || {}; for (var k in g) got[k] = g[k]; } catch (e) { /* noop */ } }
+  sids.forEach(function (sid, j) { var v = got[keys[j]]; if (v) { try { out[sid] = JSON.parse(v); } catch (e) { /* noop */ } } });
+  return out;
+};
+SheetStore.prototype.setLiveScore = function (l, sid, e) {
+  var c = sc_(); if (!c) throw new Error('ライブのポイントを一時保存できませんでした。もう一度ためしてください。');
+  c.put(liveScoreKey_(l, sid), JSON.stringify(e), LIVE_TTL_);
 };
 SheetStore.prototype.getLives = function () { return this.liveList_().filter(function (x) { return x.id; }); };
 SheetStore.prototype.addLive = function (x) { var o = {}; for (var k in x) o[k] = x[k]; this.liveList_().push(o); this.liveSave_(); };
@@ -2850,6 +2885,19 @@ function doPost(e) {
   var action = String(req.action || ''), payload = req.payload || {};
   var lock = null, write = !!Core.WRITE_ACTIONS[action];
   if (payload && typeof payload === 'object') delete payload._audioId;
+  // ライブ中の音読：順番待ちなし・スプレッドシートを開かずに処理する（ポイントは生徒ごとにキャッシュへ）
+  if (action === 'submit' && payload.aid) {
+    var qs = new SheetStore({ request: true }), isLive = false;
+    try { isLive = Core.isLiveSubmit(payload, qs, GAS_CTX); } catch (err) { isLive = false; }
+    if (isLive) {
+      delete payload.audio;
+      try {
+        var lr = Core.handle(action, payload, qs, GAS_CTX);
+        lr._ms = Date.now() - t0; lr._sheet = !!qs._book; lr._live = true;
+        return json_(lr);
+      } catch (err) { return json_({ ok: false, error: 'サーバーでエラーが発生しました：' + err.message }); }
+    }
+  }
   // 録音の保存（Googleドライブ）は時間がかかるので、順番待ち（ロック）の前に済ませておく
   if (action === 'submit' && payload.audio) {
     try { Core.preSubmit(payload, new SheetStore({ request: true }), GAS_CTX); } catch (err) { /* 本処理でもう一度確認されます */ }
