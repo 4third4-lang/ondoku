@@ -587,7 +587,7 @@
     { id: 'omikuji', icon: '🎲', name: 'おみくじ', desc: 'おみくじ英文を読んだ' },
     { id: 'teacher', icon: '💌', name: '先生からのスタンプ', desc: '先生からスタンプをもらった' },
     { id: 'early', icon: '🌅', name: '早起き音読', desc: '朝7時より前に音読した', hidden: true },
-    { id: 'daikichi', icon: '🎊', name: '大吉', desc: 'おみくじで大吉を引いて読んだ', hidden: true },
+    { id: 'daikichi', icon: '🎊', name: '大吉', desc: 'おみくじ英文を読んで、大吉を引いた', hidden: true },
     { id: 'proverb7', icon: '🍀', name: 'ことわざ好き', desc: 'ことわざを7回読んだ', hidden: true },
     { id: 'marathon', icon: '🏃', name: '1日1000語', desc: '1日に1000語読んだ', hidden: true },
     { id: 'five', icon: '✋', name: '1日5回', desc: '1日に5回音読した', hidden: true },
@@ -1050,6 +1050,8 @@
   function preSubmit(p, store, ctx) {
     var s = currentStudent(p, store, ctx);
     if (!store.saveAudio || !audioOk(settingsForClient(store), p)) return;
+    var la = p.aid ? store.getAssignment(str(p.aid)) : null;
+    if (la && liveRunning(store, s, ctx.now(), la.id)) { delete p.audio; return; }   // ライブ中の音読は録音を保存しない
     var id = store.saveAudio({ mime: str(p.audio.mime).slice(0, 60) || 'audio/webm', b64: String(p.audio.b64),
       name: s.id + '_' + ctx.now().toISOString().replace(/[:.]/g, '-') });
     if (id) { p._audioId = String(id); delete p.audio; }
@@ -1085,6 +1087,24 @@
     }
     // 1秒に4語を超える速さ（15語以上）は、人の音読としては不自然 → 先生が確認
     if (!flag && r.correct >= 15 && dur > 0 && r.correct / dur > 4) flag = 'speed';
+
+    // ---- ライブ中の音読：ライブのポイントだけに使う ----
+    // 記録シート・累計単語数・級・課題のベスト・ランキング・ごほうびには入れない（スプレッドシートには何も書かない）
+    var liveNow = a ? liveRunning(store, s, now, a.id) : null;
+    if (liveNow) {
+      var liveResult = null;
+      if (!flag && r.correct > 0) {
+        var sc = jsonObj(liveNow.scores), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
+        le.p = num(le.p) + gained; le.c = num(le.c) + 1; le.b = Math.max(num(le.b), r.accuracy); le.t = now.toISOString();
+        sc[s.id] = le;
+        store.updateLive(str(liveNow.id), { scores: JSON.stringify(sc) });
+        var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
+        liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
+      }
+      if (flag) return { flagged: flag, definite: true, result: r, student: studentPublic(s), liveOnly: true };
+      return { result: r, student: studentPublic(s), live: liveResult, liveOnly: true, newBadges: [], newStamps: [], bonus: 0, pointsGained: 0,
+        rewards: rewardsPublic(achOf(s), s, today, store) };
+    }
 
     // 音声の保存（先生が確認できるように）
     var audioId = str(p._audioId);
@@ -1185,7 +1205,9 @@
     award('repeat', num(c.rp) >= 1); award('stamp10', ach.d >= 10); award('omikuji', num(c.om) >= 1);
     var hour = (now.getUTCHours() + 9) % 24;
     award('early', r.correct > 0 && hour >= 4 && hour < 7);
-    award('daikichi', p.kind === 'omikuji' && str(p.fortune) === '大吉' && r.accuracy >= 60);
+    // おみくじ：英文を読んだあとに引く。よく読めるほど大吉が出やすい
+    var fortune = p.kind === 'omikuji' && !aid && r.correct > 0 ? drawFortune(r.accuracy) : '';
+    award('daikichi', fortune === '大吉');
     award('proverb7', num(c.pv) >= 7);
     award('marathon', num(s.todayWords) >= 1000);
     award('five', ach.tn >= 5);
@@ -1227,29 +1249,23 @@
     upd.ach = JSON.stringify(ach); s.ach = upd.ach;
     store.updateStudent(s.id, upd);
 
-    // ---- ライブ（開催中のライブの課題なら、ポイントを加える） ----
-    var liveResult = null;
-    if (a && r.correct > 0) {
-      var liveNow = liveRunning(store, s, now, a.id);
-      if (liveNow) {
-        var sc = jsonObj(liveNow.scores), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
-        le.p = num(le.p) + gained; le.c = num(le.c) + 1; le.b = Math.max(num(le.b), r.accuracy); le.t = now.toISOString();
-        sc[s.id] = le;
-        store.updateLive(str(liveNow.id), { scores: JSON.stringify(sc) });
-        var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
-        liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
-      }
-    }
-
     return {
       progress: after2, masterNew: masterNew, achievedNew: achievedNew,
       passed: a ? r.accuracy >= passLine(a) : null,
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
-      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store), live: liveResult,
-      pointsGained: gain + bonus
+      newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store),
+      pointsGained: gain + bonus, fortune: fortune || undefined
     };
   };
+  // おみくじの運勢（正確さが高いほど大吉・中吉が出やすい）
+  var FORTUNE_ODDS = [[95, [50, 30, 15, 5]], [85, [30, 35, 25, 10]], [70, [15, 30, 30, 25]], [0, [5, 20, 35, 40]]];
+  var FORTUNE_NAMES = ['大吉', '中吉', '小吉', '吉'];
+  function drawFortune(acc) {
+    var odds = FORTUNE_ODDS.filter(function (o) { return acc >= o[0]; })[0][1], x = Math.random() * 100;
+    for (var i = 0, sum = 0; i < odds.length; i++) { sum += odds[i]; if (x < sum) return FORTUNE_NAMES[i]; }
+    return '吉';
+  }
 
   handlers.ranking = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx);
@@ -2272,7 +2288,7 @@
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit,
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit, FORTUNE_ODDS: FORTUNE_ODDS,
     FOLDER_DEPTH: FOLDER_DEPTH, BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
@@ -2312,9 +2328,6 @@ var SHEETS = {
     ['text', '英文', '@'], ['ja', '和訳', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] },
   stamps: { name: '先生スタンプ', cols: [['id', 'ID', '@'], ['kind', '種類（art：絵／image：画像）', '@'], ['animal', '絵', '@'], ['text', '言葉', '@'],
     ['color', '色', '@'], ['image', '画像データ（自動）', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] },
-  lives: { name: 'ライブ', cols: [['id', 'ID', '@'], ['title', 'タイトル', '@'], ['aid', '課題ID', '@'], ['classes', 'クラス', '@'],
-    ['status', '状態', '@'], ['created', '作成日時', '@'], ['started', '開始日時', '@'], ['ends', '終了予定', '@'], ['ended', '終了日時', '@'],
-    ['minutes', '制限時間（分）', '0'], ['owner', '作成した先生', '@'], ['scores', 'ポイント（自動）', '@'], ['results', '結果（自動）', '@'], ['awards', '表彰スタンプ', '@']] },
   pics: { name: 'アバター画像', cols: [['id', 'ID', '@'], ['sid', '生徒ID', '@'], ['image', '画像データ（自動）', '@'], ['kind', '種類（draw：絵／photo：画像）', '@'],
     ['status', '状態（p：確認待ち／ok：OK／x：使えない）', '@'], ['created', '作成日時', '@'], ['reviewed', '確認した日時・先生', '@']] }
 };
@@ -2350,7 +2363,7 @@ function fmtCell_(v, key) {
  * ・書き込む処理（ロック中）は必ずシートから読み、書いたあとの最新データをキャッシュに入れ直します。
  * ・キャッシュは「世代番号」つきで保存し、書き込みのたびに世代を新しくします（古いデータは使われません）。
  * ・スプレッドシートを手で編集したときは onEdit で世代を新しくします。行の削除などは最長10分で反映されます。 */
-var CACHED_SHEETS_ = ['students', 'settings', 'assignments', 'classes', 'teachers', 'library', 'bests', 'stamps', 'lives', 'folders'];
+var CACHED_SHEETS_ = ['students', 'settings', 'assignments', 'classes', 'teachers', 'library', 'bests', 'stamps', 'folders'];
 var CACHE_TTL_ = 600, CACHE_CHUNK_ = 30000;
 function sc_() { try { return CacheService.getScriptCache(); } catch (e) { return null; } }
 function newGen_() { return Date.now().toString(36) + Math.floor(Math.random() * 1e8).toString(36); }
@@ -2431,7 +2444,7 @@ SheetStore.prototype.publishCache_ = function () {
 
 SheetStore.prototype.sheet = function (k) {
   var sh = this.book_().getSheetByName(SHEETS[k].name);
-  if (!sh && (k === 'library' || k === 'stamps' || k === 'lives' || k === 'pics' || k === 'folders')) {
+  if (!sh && (k === 'library' || k === 'stamps' || k === 'pics' || k === 'folders')) {
     // あとから追加したシートは、なければ自動で作る
     try { sh = this.book_().insertSheet(SHEETS[k].name); }
     catch (e) { sh = this.book_().getSheetByName(SHEETS[k].name); if (!sh) throw e; return sh; } // 同時に作られたとき
@@ -2575,15 +2588,48 @@ SheetStore.prototype.deletePic = function (id) {
   for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('pics', l[i]._row); return; }
 };
 // ライブ
-SheetStore.prototype.getLives = function () { return this.load('lives').filter(function (x) { return x.id; }); };
-SheetStore.prototype.addLive = function (x) { this.writeRow('lives', x); this.load('lives').push(x); };
+/* ---------- ライブ ----------
+ * ライブの記録（開催の一覧・ポイント・結果）はスプレッドシートに保存しません。
+ * Apps Script のキャッシュに一時的に置き、終わってから6時間（未開始のものは作ってから6時間）で消えます。 */
+var LIVE_KEY_ = 'live:v1', LIVE_TTL_ = 21600;
+SheetStore.prototype.liveList_ = function () {
+  if (this.livesMem_) return this.livesMem_;
+  var c = sc_(), v = null, l = [];
+  try { v = c ? c.get(LIVE_KEY_) : null; } catch (e) { v = null; }
+  try { l = v ? JSON.parse(v) : []; } catch (e) { l = []; }
+  if (!(l instanceof Array)) l = [];
+  this.livesMem_ = l;
+  return l;
+};
+SheetStore.prototype.liveSave_ = function () {
+  var now = Date.now(), l = (this.livesMem_ || []).filter(function (x) {
+    var t = Date.parse(x.ended || x.ends || x.started || x.created || '') || now;
+    return x.id && now - t < LIVE_TTL_ * 1000;
+  });
+  var txt = JSON.stringify(l);
+  while (txt.length > 95000 && l.length > 1) { l.shift(); txt = JSON.stringify(l); }   // キャッシュに置ける大きさ（約100KB）まで、古いものから消す
+  this.livesMem_ = l;
+  var c = sc_();
+  if (!c) throw new Error('ライブの一時保存ができませんでした。もう一度ためしてください。');
+  c.put(LIVE_KEY_, txt, LIVE_TTL_);
+  this.dropLiveSheet_();
+};
+// 以前の版で作った「ライブ」シートは、最初に一度だけ削除する
+SheetStore.prototype.dropLiveSheet_ = function () {
+  var pr = PropertiesService.getScriptProperties();
+  if (pr.getProperty('LIVE_SHEET_DROPPED')) return;
+  try { var sh = this.book_().getSheetByName('ライブ'); if (sh) this.book_().deleteSheet(sh); pr.setProperty('LIVE_SHEET_DROPPED', '1'); } catch (e) { /* 次回もう一度 */ }
+};
+SheetStore.prototype.getLives = function () { return this.liveList_().filter(function (x) { return x.id; }); };
+SheetStore.prototype.addLive = function (x) { var o = {}; for (var k in x) o[k] = x[k]; this.liveList_().push(o); this.liveSave_(); };
 SheetStore.prototype.updateLive = function (id, f) {
-  var l = this.getLives();
-  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('lives', l[i]); }
+  var l = this.liveList_();
+  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; }
+  this.liveSave_();
 };
 SheetStore.prototype.deleteLive = function (id) {
-  var l = this.getLives();
-  for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { this.delRow_('lives', l[i]._row); return; }
+  this.livesMem_ = this.liveList_().filter(function (x) { return String(x.id) !== id; });
+  this.liveSave_();
 };
 
 // 課題フォルダ
@@ -2813,8 +2859,8 @@ function doPost(e) {
     if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
   }
   try {
-    // 書き込む処理は、書き換える可能性のあるシートを必ずシートから読む（生徒の操作は「生徒」「課題別ベスト」「ライブ」だけ）
-    var fresh = !write ? null : (/^t_/.test(action) || action === 'teacherLogin') ? true : { students: 1, bests: 1, lives: 1, pics: 1 };
+    // 書き込む処理は、書き換える可能性のあるシートを必ずシートから読む（生徒の操作は「生徒」「課題別ベスト」「アバター画像」だけ。ライブはキャッシュ）
+    var fresh = !write ? null : (/^t_/.test(action) || action === 'teacherLogin') ? true : { students: 1, bests: 1, pics: 1 };
     var store = new SheetStore({ fresh: fresh, request: true });
     var res = Core.handle(action, payload, store, GAS_CTX);
     if (lock) { SpreadsheetApp.flush(); store.publishCache_(); }
