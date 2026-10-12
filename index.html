@@ -2035,6 +2035,12 @@ window.APP_CONFIG = {
     // 1秒に4語を超える速さ（15語以上）は、人の音読としては不自然 → 先生が確認
     if (!flag && r.correct >= 15 && dur > 0 && r.correct / dur > 4) flag = 'speed';
 
+    // 同じ提出（提出番号 rid が同じ）がもう一度届いたときは、記録せずに結果だけ返す（通信の自動再送で二重に数えない）
+    var rid = str(p.rid).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+    if (rid && (achOf(s).rq || []).indexOf(rid) >= 0) {
+      return { result: r, student: studentPublic(s), duplicate: true, newBadges: [], newStamps: [], bonus: 0, pointsGained: 0,
+        progress: a ? progress(store, s.id, a) : null, rewards: rewardsPublic(achOf(s), s, today, store) };
+    }
     // ---- ライブ中の音読：ライブのポイントだけに使う ----
     // 記録シート・累計単語数・級・課題のベスト・ランキング・ごほうびには入れない（スプレッドシートには何も書かない）
     var liveNow = a ? liveRunning(store, s, now, a.id) : null;
@@ -2042,9 +2048,12 @@ window.APP_CONFIG = {
       var liveResult = null;
       if (!flag && r.correct > 0) {
         var sc = liveScores(store, liveNow), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
-        le = { p: num(le.p) + gained, c: num(le.c) + 1, b: Math.max(num(le.b), r.accuracy), t: now.toISOString() };
-        sc[s.id] = le;
-        setLiveScore(store, liveNow, s.id, le, sc);
+        if (rid && (le.q || []).indexOf(rid) >= 0) gained = 0;   // 同じ提出の再送：ポイントは足さない
+        else {
+          le = { p: num(le.p) + gained, c: num(le.c) + 1, b: Math.max(num(le.b), r.accuracy), t: now.toISOString(), q: (le.q || []).concat(rid ? [rid] : []).slice(-5) };
+          sc[s.id] = le;
+          setLiveScore(store, liveNow, s.id, le, sc);
+        }
         var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
         liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
       }
@@ -2193,6 +2202,7 @@ window.APP_CONFIG = {
     if (ach.st.length > 60) ach.st = ach.st.slice(-60);
     var sk = Object.keys(ach.sk);
     if (sk.length > 150) sk.slice(0, sk.length - 150).forEach(function (x) { delete ach.sk[x]; });
+    if (rid) ach.rq = (ach.rq || []).concat([rid]).slice(-30);   // 最近の提出番号（再送の見分け用）
     upd.ach = JSON.stringify(ach); s.ach = upd.ach;
     store.updateStudent(s.id, upd);
 
@@ -4816,24 +4826,30 @@ window.SAMPLE_ASSIGNMENTS = [
   // ---------------- 本番（Apps Script） ----------------
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
+  // 待ち時間を少しずつばらけさせる（全員が同じ間隔で送り直して、また混み合うのを防ぐ）
+  function backoff(i) { return 700 * (i + 1) + Math.floor(Math.random() * 1500); }
   async function callRemote(action, payload) {
     var body = JSON.stringify({ action: action, payload: payload });
-    var lastErr;
-    for (var i = 0; i < 3; i++) {
+    var lastErr, tries = action === 'submit' ? 4 : 3;
+    for (var i = 0; i < tries; i++) {
+      var ctl = window.AbortController ? new AbortController() : null;
+      var timer = ctl ? setTimeout(function () { ctl.abort(); }, action === 'submit' ? 60000 : 30000) : null;   // 返事が来ないときは打ち切る
       try {
         // text/plain にすると、Apps Script でも余計な事前確認（CORS）なしで送れます
-        var res = await fetch(CFG.API_URL, { method: 'POST', body: body,
+        var res = await fetch(CFG.API_URL, { method: 'POST', body: body, signal: ctl ? ctl.signal : undefined,
           headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var json = await res.json();
-        if (json && json.busy) { await sleep(800 * (i + 1)); lastErr = new Error('混み合っています'); continue; }
+        if (json && json.busy) { lastErr = new Error('混み合っています'); if (timer) clearTimeout(timer); await sleep(backoff(i)); continue; }
+        if (timer) clearTimeout(timer);
         return json;
       } catch (e) {
-        lastErr = e;
-        await sleep(700 * (i + 1));
+        if (timer) clearTimeout(timer);
+        lastErr = e && e.name === 'AbortError' ? new Error('時間切れ') : e;
+        if (i < tries - 1) await sleep(backoff(i));
       }
     }
-    return { ok: false, error: '通信できませんでした。インターネット接続を確認して、もう一度ためしてください。（' + (lastErr && lastErr.message) + '）' };
+    return { ok: false, net: true, error: '通信できませんでした。インターネット接続を確認して、もう一度ためしてください。（' + (lastErr && lastErr.message) + '）' };
   }
 
   window.API = {
@@ -5150,9 +5166,9 @@ window.SAMPLE_ASSIGNMENTS = [
     if (!res || !res.ok) {
       var msg = (res && res.error) || 'エラーが発生しました。';
       if (/ログイン/.test(msg) && /有効期限|ログインしてください/.test(msg)) { logout(true); }
-      throw new Error(msg);
+      var er = new Error(msg); er.net = !!(res && (res.net || res.busy)); throw er;
     }
-    delete res._ms; delete res._sheet; delete res._live; // サーバーの処理時間（確認用）は画面では使わない
+    delete res._ms; delete res._sheet; delete res._live; delete res._dup; delete res._wait; delete res._deferErr; // サーバーの処理時間（確認用）は画面では使わない
     noteImgs(res);
     // データを変える操作のあとは、保存しておいた前回のデータを捨てる（古い内容を見せないため）
     if (window.Core && Core.WRITE_ACTIONS[action] && action !== 'teacherLogin' && state.session) {
@@ -5162,6 +5178,40 @@ window.SAMPLE_ASSIGNMENTS = [
     return res;
   }
   function showError(e) { toast(e.message || String(e), true); }
+
+  // ================= 提出番号・未送信の記録 =================
+  // 提出ごとに番号をつける（自動の送り直しや、あとで送る記録が二重に数えられないように）
+  function newRid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 8); }
+  function outboxKey() { var s = state.session; return s && s.role === 'student' ? 'ondoku_ob:' + (s.sid || s.label || '') : ''; }
+  function outboxGet() { var k = outboxKey(); if (!k) return []; try { return JSON.parse(localStorage.getItem(k) || '[]') || []; } catch (e) { return []; } }
+  function outboxSet(list) { var k = outboxKey(); if (!k) return false; try { if (list.length) localStorage.setItem(k, JSON.stringify(list)); else localStorage.removeItem(k); return true; } catch (e) { return false; } }
+  function outboxAdd(payload, title) {
+    var p = {}; for (var k in payload) if (k !== 'audio' && k !== 'token') p[k] = payload[k];   // 録音は大きいので取っておかない
+    var list = outboxGet().filter(function (x) { return x.p.rid !== p.rid; });
+    list.push({ p: p, title: title || '', at: Date.now() });
+    return outboxSet(list.slice(-20));
+  }
+  var outboxBusy = false;
+  async function flushOutbox() {
+    if (outboxBusy || API.isDemo()) return;
+    var list = outboxGet(); if (!list.length) return;
+    outboxBusy = true;
+    var sent = 0;
+    try {
+      while (list.length) {
+        var it = list[0];
+        try { await call('submit', JSON.parse(JSON.stringify(it.p))); sent++; }
+        catch (e) { if (e && e.net) break; }   // まだつながらない → また今度。それ以外のエラー（課題が消えた など）は送るのをやめる
+        list.shift(); outboxSet(list);
+      }
+    } finally { outboxBusy = false; }
+    if (sent) {
+      toast('この端末に保存していた音読の記録を送りました（' + sent + '件）');
+      if (location.hash === '#/home' || location.hash === '' || location.hash === '#/') render();
+    }
+  }
+  window.addEventListener('online', function () { setTimeout(flushOutbox, Math.floor(Math.random() * 8000)); });
+  setInterval(function () { if (outboxGet().length) flushOutbox(); }, 60000);
 
   // ================= 画面の先出し表示 =================
   // 前回のデータがあれば、それですぐ画面を出し、裏で最新のデータを取り直す。
@@ -5515,7 +5565,7 @@ window.SAMPLE_ASSIGNMENTS = [
         var r = await call('studentLogin', { cls: cls, no: no, pass: $('#lPass').value.trim() });
         store('ondoku_last_login', { cls: cls, no: no });
         cclear('');
-        state.session = { role: 'student', token: r.token, label: r.student.cls + ' ' + r.student.no + '番' };
+        state.session = { role: 'student', token: r.token, sid: cls + '-' + no, label: r.student.cls + ' ' + r.student.no + '番' };
         store(SESSION_KEY, state.session);
         if (r.home) { state.home = remember('home', {}, r.home); }
         go('#/home');
@@ -5571,6 +5621,8 @@ window.SAMPLE_ASSIGNMENTS = [
       '<a class="quick" href="#/rewards"><span class="ic">🏅</span>バッジ ' + nb + '<small>/' + BADGES.length + '</small></a>' +
       '<a class="quick" href="#/avatar"><span class="ic">👗</span>着せ替え' + ((rw.newItems || []).length ? '<small class="new-dot">NEW</small>' : '') + '</a>' +
       '</div>';
+    var ob = outboxGet();
+    if (ob.length) html += '<div class="notice">📦 まだ送れていない音読の記録が <b>' + ob.length + '件</b> この端末にあります。つながったら自動で送ります。 <button class="btn-small" id="bObSend">今すぐ送る</button></div>';
     html += stampCardHTML(rw, h.today, s.lastDate);
     html += '<div class="card proverb"><div class="card-title"><h2>🌱 今日のことわざ</h2>' +
       '<a class="btn btn-small btn-primary" href="#/proverb">音読する</a></div>' +
@@ -5581,6 +5633,8 @@ window.SAMPLE_ASSIGNMENTS = [
     html += '</div>';
     $app.innerHTML = html;
     bindFolds($app, 'ondoku_fold_s');
+    if ($('#bObSend')) $('#bObSend').onclick = function () { this.disabled = true; flushOutbox(); };
+    if (ob.length) setTimeout(flushOutbox, 1500 + Math.floor(Math.random() * 4000));
     // はじめての人はアバターを選ぶ → 届いたスタンプ → 新しいアイテム の順にお知らせ
     if (!rw.av) { go('#/avatar/new'); return; }
     if (rw.picRejected) {
@@ -6524,7 +6578,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var flag = ttsDetected ? 'tts' : (phrase && local.phrase && local.phrase.matched === 0) ? 'phrase' : '';
       setPassage(display(local.tokens, true), true);
       passage.classList.remove('mode-trans', 'mode-shuffle', 'mode-nospace');
-      var payload = { aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur,
+      var payload = { rid: newRid(), aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur,
         phrase: phrase, phraseAt: phraseAt, flag: flag, type: type,
         recite: reciteOk && passage.classList.contains('blur'), libId: opt.libId || '', fortune: opt.fortune || '' };
       var liveHere = !!(opt.aid && state.home && state.home.live && state.home.live.aid === opt.aid);   // ライブ中は録音を送らない（速く届くように）
@@ -6563,8 +6617,15 @@ window.SAMPLE_ASSIGNMENTS = [
           else { if (opt.onDone) opt.onDone(r); popup(); }
         }
       } catch (e) {
-        showError(e);
-        if ($('#saveState')) $('#saveState').textContent = '⚠️ 記録を保存できませんでした。もう一度ためしてください。';
+        if (e && e.net && outboxAdd(payload, opt.title)) {
+          // 通信できなかった → この端末に取っておき、つながったら自動で送る（同じ提出番号なので、二重には数えられない）
+          if ($('#saveState')) $('#saveState').innerHTML = '📦 通信が混み合っていたので、この記録を<b>この端末に保存しました</b>。つながったら自動で送ります（もう一度読まなくて大丈夫です）。';
+          toast('記録をこの端末に保存しました。あとで自動で送ります');
+          setTimeout(flushOutbox, 20000 + Math.floor(Math.random() * 20000));
+        } else {
+          showError(e);
+          if ($('#saveState')) $('#saveState').textContent = '⚠️ 記録を保存できませんでした。もう一度ためしてください。';
+        }
       }
       label.textContent = 'もう一度読むときはボタンを押してね';
       micBtn.disabled = false; busy = false;
