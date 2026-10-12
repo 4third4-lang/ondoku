@@ -2334,7 +2334,7 @@ var SHEETS = {
     ['cls', 'クラス', '@'], ['no', '番号', '0'], ['name', '名前', '@'], ['pass', 'パスコード', '@'],
     ['nick', 'ニックネーム', '@'], ['totalWords', '累計単語数', '0'], ['streak', '連続日数', '0'],
     ['bestStreak', '最長連続日数', '0'], ['lastDate', '最終音読日', '@'], ['todayDate', '今日の日付', '@'],
-    ['todayWords', '今日の単語数', '0'], ['ach', '実績データ（自動）', '@']] },
+    ['todayWords', '今日の単語数', '0'], ['ach', '実績データ（自動）', '@'], ['bj', '自己ベスト（自動）', '@']] },
   assignments: { name: '課題', cols: [
     ['id', '課題ID', '@'], ['title', 'タイトル', '@'], ['text', '英文', '@'], ['ja', '和訳', '@'],
     ['classes', '対象クラス', '@'], ['due', '締切', '@'], ['contest', '音読大会', 'check'],
@@ -2444,7 +2444,7 @@ function cacheBump_(k, rows) {
   if (rows && !cacheWrite_(k, g, rows)) g = newGen_();
   try { c.put('g:' + k, g, 21600); } catch (e) { /* noop */ }
 }
-function cacheClearAll_() { CACHED_SHEETS_.forEach(function (k) { cacheBump_(k); }); }
+function cacheClearAll_() { CACHED_SHEETS_.forEach(function (k) { cacheBump_(k); }); pbump_('sx'); }
 
 /* ---------- 保存先（store） ----------
  * opt.fresh: true（すべてのシートをシートから読む）／{ students: 1, ... }（指定したシートだけ）／なし（キャッシュを使う） */
@@ -2461,7 +2461,7 @@ SheetStore.prototype.touch_ = function (k) {
   if (this.gens) delete this.gens['g:' + k]; // この処理の中では、もうキャッシュを使わない
   if (!this.request && CACHED_SHEETS_.indexOf(k) >= 0) cacheBump_(k); // メニューなど、ウェブアプリ以外からの書き込み
 };
-SheetStore.prototype.delRow_ = function (k, row) { this.sheet(k).deleteRow(row); this.cache[k] = null; this.touch_(k); };
+SheetStore.prototype.delRow_ = function (k, row) { this.sheet(k).deleteRow(row); this.cache[k] = null; this.touch_(k); if (k === 'students') pbump_('sx'); };
 // 書き込む処理のあと：最新のデータをキャッシュへ
 SheetStore.prototype.publishCache_ = function () {
   var self = this, gens = null;
@@ -2519,6 +2519,8 @@ SheetStore.prototype.load = function (k) {
     }
   }
   this.cache[k] = rows; this.fromSheet[k] = true;
+  this.rawRows_ = this.rawRows_ || {}; this.rawRows_[k] = last >= 2 ? vals : [];
+  if (k === 'students' && rows.length) { try { this.fillPersonal_(rows, vals); } catch (e) { /* noop */ } }
   if (cacheable && gen && !this.isFresh_(k) && !this.dirty[k]) cacheWrite_(k, gen, rows);
   return rows;
 };
@@ -2527,8 +2529,11 @@ SheetStore.prototype.ensureHead_ = function (k) {
   this.headOk_ = this.headOk_ || {};
   if (this.headOk_[k]) return;
   this.headOk_[k] = true;
+  var hc = sc_(), hk = 'hd:' + k + ':' + SHEETS[k].cols.length;
+  try { if (hc && hc.get(hk)) return; } catch (e) { /* noop */ }   // 見出しの確認は6時間に1回でよい
   var cols = SHEETS[k].cols, sh = this.sheet(k), lc = sh.getLastColumn();
   if (lc < cols.length) sh.getRange(1, lc + 1, 1, cols.length - lc).setValues([cols.slice(lc).map(function (c) { return c[1]; })]).setFontWeight('bold').setBackground('#e3f1f6');
+  try { if (hc) hc.put(hk, '1', 21600); } catch (e) { /* noop */ }
 };
 // 行を末尾に足す（同時にほかの人が足しても重ならない）。文字の列は ' をつけて、日付などに自動変換されないようにする
 SheetStore.prototype.appendRow_ = function (k, obj) {
@@ -2550,6 +2555,7 @@ SheetStore.prototype.writeRow = function (k, obj) {
   var rng = sh.getRange(obj._row, 1, 1, cols.length);
   rng.setNumberFormats([fmts]);
   rng.setValues([row]);  this.touch_(k);
+  if (k === 'students') this.sxPutObj_(obj, row);
 };
 
 // 生徒
@@ -2559,6 +2565,7 @@ SheetStore.prototype.getStudents = function () {
 };
 SheetStore.prototype.getStudent = function (id) {
   if (this.submit_) return this.studentFresh_(id);
+  if (!this.cache.students && !this.isFresh_('students')) { var px = this.sxGet_(id); if (px) return px.o; }   // 生徒ごとのキャッシュ（ホームなど）
   var list = this.getStudents();
   for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
   return null;
@@ -2566,7 +2573,7 @@ SheetStore.prototype.getStudent = function (id) {
 SheetStore.prototype.updateStudent = function (id, f) {
   var s = this.getStudent(id); if (!s) return;
   for (var k in f) s[k] = f[k];
-  if (this.submit_ && !this.inLock_) { this.stuPending_ = s; return; }   // 提出：書くのはロックの中で（下の commitSubmit_）
+  if (this.submit_) { this.stuPending_ = s; return; }   // 提出：書くのはロックの中で（下の commitSubmit_）
   this.writeRow('students', s);
 };
 SheetStore.prototype.addStudent = function (s) {
@@ -2574,47 +2581,137 @@ SheetStore.prototype.addStudent = function (s) {
   this.load('students').push(s);
 };
 
+/* ---------- 生徒ごとのキャッシュ（sx） ----------
+ *  生徒1人の行（行番号・内容・読んだときの値の目印）を、生徒ごとにキャッシュに置きます。
+ *  名簿をシートから全部読んだとき・生徒の行を書いたときに入れ直します。
+ *  「生徒」シートを手で編集したときや、名簿の行を削除したときは、世代を新しくして全部捨てます。 */
+var PCACHE_TTL_ = 21600;
+function pbump_(name) { var c = sc_(); if (c) try { c.put('g:' + name, newGen_(), PCACHE_TTL_); } catch (e) { /* noop */ } }
+SheetStore.prototype.pgen_ = function (name) {
+  this.pg_ = this.pg_ || {};
+  if (this.pg_[name]) return this.pg_[name];
+  var c = sc_(); if (!c) return null;
+  var g = null; try { g = c.get('g:' + name); } catch (e) { g = null; }
+  if (!g) { g = newGen_(); try { c.put('g:' + name, g, PCACHE_TTL_); } catch (e) { return null; } }
+  return (this.pg_[name] = g);
+};
+function rawSig_(v) { return JSON.stringify(v.map(function (x) { return x instanceof Date ? x.toISOString() : String(x === null || x === undefined ? '' : x); })); }
+function rowValues_(k, obj) { return SHEETS[k].cols.map(function (c) { var v = obj[c[0]]; v = v === undefined || v === null ? '' : v; return c[2] === '@' && v !== '' ? String(v) : v; }); }
+SheetStore.prototype.pputAll_ = function (name, map) {
+  var c = sc_(), g = this.pgen_(name); if (!c || !g) return;
+  var batch = {}, n = 0;
+  function flush() { if (n) { try { c.putAll(batch, PCACHE_TTL_); } catch (e) { /* noop */ } batch = {}; n = 0; } }
+  Object.keys(map).forEach(function (sid) { var v = JSON.stringify(map[sid]); if (v.length > 95000) return; batch[name + ':' + g + ':' + sid] = v; if (++n >= 50) flush(); });
+  flush();
+};
+SheetStore.prototype.sxGet_ = function (sid) {
+  var c = sc_(), g = this.pgen_('sx'); if (!c || !g) return null;
+  try { var v = c.get('sx:' + g + ':' + sid); if (!v) return null; var x = JSON.parse(v); x.o._row = x.r; normStudent_(x.o); return x; } catch (e) { return null; }
+};
+function sxEntry_(o, values) { var c = {}; for (var k in o) if (k !== '_row' && k !== 'id') c[k] = o[k]; return { r: o._row, o: c, sig: rawSig_(values) }; }
+SheetStore.prototype.sxPutObj_ = function (obj, values) {
+  if (!obj || !obj._row || !String(obj.cls || '').trim()) return;
+  var m = {}; m[normStudent_({ cls: obj.cls, no: obj.no }).id] = sxEntry_(obj, values);
+  this.pputAll_('sx', m);
+};
+// 名簿をシートから全部読んだときに、全員分の生徒ごとのキャッシュを入れ直す
+SheetStore.prototype.fillPersonal_ = function (rows, vals) {
+  var m = {};
+  rows.forEach(function (o) {
+    if (!String(o.cls).trim() || !String(o.no).trim()) return;
+    m[normStudent_({ cls: o.cls, no: o.no }).id] = sxEntry_(o, vals[o._row - 2]);
+  });
+  this.pputAll_('sx', m);
+};
+
+/* ---------- 自己ベストの写し（生徒の行の「自己ベスト（自動）」列） ----------
+ *  提出のたびに「課題別ベスト」シートを全部読まなくてすむよう、本人の自己ベストを本人の行にも JSON で持ちます。
+ *  形：{ "課題ID（~種類）": [ベスト, 回数, 合格回数, 最終日時, ベスト達成日時, 課題別ベストの行番号] }
+ *  「課題別ベスト」シートは、先生の画面などのための一覧として、これまで通り書きます。 */
+function bjParse_(s) { try { var o = JSON.parse(String(s || '') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+function bjToBest_(sid, key, a) { return { sid: sid, aid: key, best: a[0], attempts: a[1], passes: a[2], last: a[3], bestAt: a[4], _row: a[5] || 0 }; }
+function bestToBj_(b) { return [b.best, b.attempts, b.passes, b.last, b.bestAt, b._row || 0]; }
+
 /* ---------- 提出の高速化 ----------
- * 音読の提出（submit）は、クラス全員がほぼ同時に送ることがあります。順番待ち（ロック）の時間をできるだけ短くするため、
- *  ・ロックの前に：スプレッドシートを開き、「課題別ベスト」を読み、名簿の行の位置を調べておく
- *  ・ロックの中は：本人の行を1行だけ読み、計算して、その1行を書くだけ
- *  ・ロックのあとで：自己ベストと記録を書く（記録や新しいベストは「末尾に足す」ので、同時に書いてもぶつからない） */
+ * 音読の提出（submit）は、クラス全員がほぼ同時に送ることがあります。スプレッドシートへの同時アクセスと順番待ちを減らすため、
+ *  ・計算は、生徒ごとのキャッシュ（本人の行。自己ベストの写しも入っている）を使ってロックなしで行う（シートは読まない）
+ *  ・ロックの中で：本人の行を1行だけ読み直し、変わっていなければ、本人の行と「課題別ベスト」の行を書く。変わっていたら計算し直す
+ *  ・ロックのあとで：記録を「末尾に足す」（同時に足してもぶつからない） */
 SheetStore.prototype.prepareSubmit_ = function () {
-  this.fresh = { bests: 1 };
-  this.load('bests');          // 自分の自己ベストは自分の提出でしか変わらないので、ロックの外で読んでよい
-  this.getStudents();          // 行の位置（キャッシュがあればキャッシュから）
+  this.fresh = {};
   ['settings', 'assignments', 'stamps'].forEach(function (k) { try { this.load(k); } catch (e) { /* noop */ } }, this);
   this.ensureHead_('students'); this.ensureHead_('bests'); this.ensureHead_('records');
 };
 SheetStore.prototype.studentFresh_ = function (id) {
   if (this.subStu_ && this.subStu_.id === id) return this.subStu_;
-  var list = this.getStudents(), hit = null, cols = SHEETS.students.cols;
-  for (var i = 0; i < list.length; i++) if (list[i].id === id) { hit = list[i]; break; }
-  if (hit && hit._row) {
-    var v = this.sheet('students').getRange(hit._row, 1, 1, cols.length).getValues()[0], o = { _row: hit._row };
+  var cols = SHEETS.students.cols;
+  if (!this.inLock_) {
+    var px = this.sxGet_(id);
+    if (px) { this.subSig_ = px.sig; return (this.subStu_ = px.o); }
+  } else if (this.subRow_) {
+    // ロックの中で計算し直すとき：その行を読み直して確かめる
+    var v = this.sheet('students').getRange(this.subRow_, 1, 1, cols.length).getValues()[0], o = { _row: this.subRow_ };
     for (var j = 0; j < cols.length; j++) o[cols[j][0]] = fmtCell_(v[j], cols[j][0]);
-    if (String(o.cls).trim() && String(o.no).trim() && normStudent_(o).id === id) { this.subRaw_ = JSON.stringify(v); return (this.subStu_ = o); }
+    if (String(o.cls).trim() && String(o.no).trim() && normStudent_(o).id === id) { this.subSig_ = rawSig_(v); return (this.subStu_ = o); }
   }
-  // 行がずれていた（並べかえ・削除など）ときは、名簿を全部読み直す
+  // キャッシュがない・行がずれていた → 名簿をシートから全部読む（全員分の生徒ごとのキャッシュも入れ直す）
   this.fresh.students = 1; this.cache.students = null;
-  list = this.getStudents();
+  var list = this.getStudents();
   for (var k = 0; k < list.length; k++) if (list[k].id === id) {
-    this.subRaw_ = JSON.stringify(this.sheet('students').getRange(list[k]._row, 1, 1, cols.length).getValues()[0]);
+    this.subSig_ = rawSig_(this.rawRows_.students[list[k]._row - 2]);
     return (this.subStu_ = list[k]);
   }
   return null;
 };
-// ロックの中：本人の行が、ロックの外で読んだときから変わっていなければ、計算した内容を書く。変わっていたら false（もう一度計算する）
-SheetStore.prototype.commitSubmit_ = function () {
+// 提出の計算に使う、本人の自己ベスト（本人の行の写しから。写しがまだない生徒は、最初の1回だけ「課題別ベスト」から作る）
+SheetStore.prototype.subBests_ = function (sid) {
+  if (this.subBj_ && this.subBjSid_ === sid) return this.subBj_;
+  var s = this.studentFresh_(sid), map = {};
+  if (s && String(s.bj || '').trim()) {
+    var o = bjParse_(s.bj);
+    Object.keys(o).forEach(function (k) { map[k] = bjToBest_(sid, k, o[k]); });
+  } else {
+    this.fresh.bests = 1; this.cache.bests = null;
+    this.getAllBests().forEach(function (b) { if (b.sid === sid && !map[b.aid]) map[b.aid] = b; });
+  }
+  this.subBjSid_ = sid;
+  return (this.subBj_ = map);
+};
+// ロックの中：本人の行が計算に使った内容から変わっていなければ、本人の行と自己ベストを書く。変わっていたら false（計算し直す）
+SheetStore.prototype.commitSubmit_ = function (force) {
   var o = this.stuPending_, cols = SHEETS.students.cols;
-  var now = this.sheet('students').getRange(o._row, 1, 1, cols.length).getValues()[0];
-  if (JSON.stringify(now) !== this.subRaw_) return false;
+  this.subRow_ = o._row;
+  if (!force) {
+    var now = this.sheet('students').getRange(o._row, 1, 1, cols.length).getValues()[0];
+    if (rawSig_(now) !== this.subSig_) return false;
+  }
+  var items = this.subDirty_ || [], self = this;
+  if (items.length) {
+    // 「課題別ベスト」の行：今ある行は本人の行か確かめ、新しい行は末尾の行番号を決める（ロックの中なので重ならない）
+    var sh = this.sheet('bests'), bad = false, last = 0;
+    items.forEach(function (b) {
+      if (!b._row) return;
+      var chk = sh.getRange(b._row, 1, 1, 2).getValues()[0];
+      if (String(chk[0]) !== b.sid || String(chk[1]) !== b.aid) bad = true;
+    });
+    if (bad) {
+      // 行がずれていた（手で並べかえた など）→ シートから読み直して、正しい行を探す
+      this.fresh.bests = 1; this.cache.bests = null;
+      var all = this.getAllBests();
+      items.forEach(function (b) { b._row = 0; for (var i = 0; i < all.length; i++) if (all[i].sid === b.sid && all[i].aid === b.aid) { b._row = all[i]._row; break; } });
+    }
+    items.forEach(function (b) { if (!b._row) { if (!last) last = Math.max(sh.getLastRow(), 1); b._row = ++last; } });
+  }
+  // 本人の行（自己ベストの写しも更新）
+  var map = this.subBj_ || null;
+  if (map) { var bj = {}; Object.keys(map).forEach(function (k) { bj[k] = bestToBj_(map[k]); }); var bjs = JSON.stringify(bj); o.bj = bjs.length < 45000 ? bjs : ''; }   // セルの上限（5万文字）をこえそうなときは写しを持たない
   this.writeRow('students', o);
+  items.forEach(function (b) { self.writeRow('bests', b); });
   return true;
 };
 SheetStore.prototype.resetSubmit_ = function () {
-  this.subStu_ = null; this.subRaw_ = null; this.stuPending_ = null; this.defer_ = [];
-  this.cache.bests = null; this.fresh.bests = 1;
+  this.subStu_ = null; this.subSig_ = null; this.stuPending_ = null; this.defer_ = [];
+  this.subBj_ = null; this.subBjSid_ = null; this.subDirty_ = [];
 };
 SheetStore.prototype.flushDeferred_ = function () {
   var d = this.defer_; this.defer_ = [];
@@ -2642,13 +2739,18 @@ SheetStore.prototype.writeRows_ = function (k, objs) {
   objs.filter(function (o) { return !o._row; }).forEach(function (o) { self.writeRow(k, o); });
   var fmts = cols.map(function (c) { return c[2] === 'check' ? 'General' : c[2]; });
   function rowOf(obj) { return cols.map(function (c) { var v = obj[c[0]]; v = v === undefined || v === null ? '' : v; return c[2] === '@' && v !== '' ? String(v) : v; }); }
-  var i = 0;
+  var i = 0, sxm = {};
   while (i < list.length) {
     var j = i; while (j + 1 < list.length && list[j + 1]._row === list[j]._row + 1) j++;
     var group = list.slice(i, j + 1), rng = sh.getRange(group[0]._row, 1, group.length, cols.length);
     rng.setNumberFormats(group.map(function () { return fmts; }));
     rng.setValues(group.map(rowOf));
+    if (k === 'students') group.forEach(function (o) { sxm[normStudent_({ cls: o.cls, no: o.no }).id] = { r: o._row, o: o, sig: rawSig_(rowOf(o)) }; });
     i = j + 1;
+  }
+  if (k === 'students' && Object.keys(sxm).length) {
+    var cm = {}; Object.keys(sxm).forEach(function (id) { var x = sxm[id], o = {}; for (var f in x.o) if (f !== '_row') o[f] = x.o[f]; cm[id] = { r: x.r, o: o, sig: x.sig }; });
+    this.pputAll_('sx', cm);
   }
   this.touch_(k);
 };
@@ -2774,16 +2876,33 @@ SheetStore.prototype.deleteAssignment = function (id) {
 // 課題別ベスト
 SheetStore.prototype.getAllBests = function () { return this.load('bests').filter(function (b) { return b.sid && b.aid; }); };
 SheetStore.prototype.getBest = function (sid, aid) {
+  if (this.submit_) return this.subBests_(sid)[aid] || null;
+  if (!this.cache.bests && !this.isFresh_('bests')) {
+    // ホームなど：本人の行にある自己ベストの写しを使う（「課題別ベスト」シートを読まずにすむ）
+    var s = this.getStudent(sid);
+    if (s && String(s.bj || '').trim()) { var o = bjParse_(s.bj); return o[aid] ? bjToBest_(sid, aid, o[aid]) : null; }
+  }
   var l = this.getAllBests();
   for (var i = 0; i < l.length; i++) if (l[i].sid === sid && l[i].aid === aid) return l[i];
   return null;
 };
 SheetStore.prototype.setBest = function (sid, aid, f) {
-  var b = this.getBest(sid, aid);
+  var b;
+  if (this.submit_) {
+    var map = this.subBests_(sid);
+    b = map[aid] || (map[aid] = { sid: sid, aid: aid, _row: 0 });
+    for (var k in f) b[k] = f[k];
+    this.subDirty_ = this.subDirty_ || [];
+    if (this.subDirty_.indexOf(b) < 0) this.subDirty_.push(b);
+    return;
+  }
+  b = this.getBest(sid, aid);
   if (!b) { b = { sid: sid, aid: aid }; this.load('bests').push(b); }
-  for (var k in f) b[k] = f[k];
-  if (this.submit_) { var has = this.defer_.some(function (x) { return x.obj === b; }); if (!has) this.defer_.push({ k: 'bests', obj: b }); return; }
+  for (var k2 in f) b[k2] = f[k2];
   this.writeRow('bests', b);
+  // 本人の行にある自己ベストの写しも直す（先生の確認で記録を認めたとき など）
+  var st = this.getStudent(sid);
+  if (st && String(st.bj || '').trim()) { var bj = bjParse_(st.bj); bj[aid] = bestToBj_(b); st.bj = JSON.stringify(bj); this.writeRow('students', st); }
 };
 SheetStore.prototype.getBestsByAssignment = function (aid) {
   return this.getAllBests().filter(function (b) { return b.aid === aid; });
@@ -2955,6 +3074,8 @@ function doGet() {
   return json_({ ok: true, message: '音読アプリのサーバーは動いています。' });
 }
 // 同じ提出（同じ提出番号 rid）が何度届いても、1回だけ記録して同じ返事を返す（通信の自動再送で二重に数えないため）
+// Google 側の混雑（同時アクセスの上限など）によるエラーかどうか
+function busyErr_(msg) { return /同時呼び出し|too many|simultaneous|Service invoked|Service unavailable|サービスが|一時的|timed out|タイムアウト|Exceeded maximum execution|lock/i.test(String(msg || '')); }
 function ridKey_(rid) { return 'rs:' + String(rid).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40); }
 function ridGet_(rid) { if (!rid) return null; try { var c = sc_(), v = c && c.get(ridKey_(rid)); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function ridPut_(rid, res) { if (!rid || !res || !res.ok) return; try { var c = sc_(); if (c) c.put(ridKey_(rid), JSON.stringify(res), 21600); } catch (e) { /* 大きすぎるときは、生徒データの記録（ach.rq）で二重記録を防ぐ */ } }
@@ -3002,16 +3123,28 @@ function doPost(e) {
       lockMs = Date.now() - tw; var th = Date.now();
       try {
         store.inLock_ = true;
-        if (!store.commitSubmit_()) { store.resetSubmit_(); res = Core.handle(action, payload, store, GAS_CTX); res._rerun = true; }   // その間に先生などが本人の行を変えていた（まれ）
+        if (!store.commitSubmit_()) {   // その間に先生などが本人の行を変えていた → ロックの中で計算し直す（まれ）
+          store.resetSubmit_(); res = Core.handle(action, payload, store, GAS_CTX);
+          if (res && res.ok && store.stuPending_) store.commitSubmit_(true);
+          res._rerun = true;
+        }
         SpreadsheetApp.flush(); store.publishCache_();
       } catch (err) {
         res = { ok: false, error: 'サーバーでエラーが発生しました：' + err.message };
       } finally { lock.releaseLock(); held = Date.now() - th; }
     }
     if (res && res.ok && store.defer_.length) {
-      try { store.flushDeferred_(); SpreadsheetApp.flush(); store.publishCache_(); } catch (err) { res._deferErr = String(err.message || err).slice(0, 120); }
+      // 記録を末尾に足す（混雑で失敗したら、少し待って何回か試す）
+      var pend = store.defer_.slice();
+      for (var tr = 0; tr < 5; tr++) {
+        try { store.defer_ = pend.slice(); store.flushDeferred_(); SpreadsheetApp.flush(); res._deferErr = ''; break; }
+        catch (err) { res._deferErr = String(err.message || err).slice(0, 120); Utilities.sleep(300 + Math.floor(Math.random() * 900) * (tr + 1)); }
+      }
+      try { store.publishCache_(); } catch (err) { /* noop */ }
+      if (!res._deferErr) delete res._deferErr;
     }
-    ridPut_(rid, res);
+    if (res && !res.ok && busyErr_(res.error)) res.busy = true;   // 混雑によるエラー → 端末が少し待って送り直す
+    if (!res.busy) ridPut_(rid, res);
     res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = lockMs; res._held = held;
     return json_(res);
   }
@@ -3034,7 +3167,8 @@ function doPost(e) {
   } finally {
     if (lock) lock.releaseLock();
   }
-  ridPut_(rid, res);
+  if (res && !res.ok && busyErr_(res.error)) res.busy = true;
+  if (!res.busy) ridPut_(rid, res);
   res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = lockMs; // 処理時間・スプレッドシートを開いたか・順番待ちの時間（速さの確認用）
   return json_(res);
 }
@@ -3054,6 +3188,7 @@ function onEdit(e) {
   try {
     var name = e && e.range ? e.range.getSheet().getName() : '';
     CACHED_SHEETS_.forEach(function (k) { if (SHEETS[k].name === name) cacheBump_(k); });
+    if (name === SHEETS.students.name) pbump_('sx');
   } catch (err) { /* noop */ }
 }
 function clearAppCache() {
