@@ -2545,7 +2545,7 @@ SheetStore.prototype.appendRow_ = function (k, obj) {
   }));
   this.touch_(k);
 };
-SheetStore.prototype.writeRow = function (k, obj) {
+SheetStore.prototype.writeRow = function (k, obj, keepFormats) {
   var cols = SHEETS[k].cols, sh = this.sheet(k);
   this.ensureHead_(k);
   // 文字の列（クラス名など）は、スプレッドシートが日付や数値に自動変換しないよう「書式なしテキスト」にしてから書く
@@ -2553,9 +2553,9 @@ SheetStore.prototype.writeRow = function (k, obj) {
   var fmts = cols.map(function (c) { return c[2] === 'check' ? 'General' : c[2]; });
   if (!obj._row) obj._row = Math.max(sh.getLastRow(), 1) + 1;
   var rng = sh.getRange(obj._row, 1, 1, cols.length);
-  rng.setNumberFormats([fmts]);
+  if (!keepFormats) rng.setNumberFormats([fmts]);   // 今ある行は書式が設定ずみ（提出を速くするため省く）
   rng.setValues([row]);  this.touch_(k);
-  if (k === 'students') this.sxPutObj_(obj, row);
+  if (k === 'students') { if (this.submit_) (this.postCache_ = this.postCache_ || []).push({ o: obj, v: row }); else this.sxPutObj_(obj, row); }
 };
 
 // 生徒
@@ -2685,29 +2685,31 @@ SheetStore.prototype.commitSubmit_ = function (force) {
     var now = this.sheet('students').getRange(o._row, 1, 1, cols.length).getValues()[0];
     if (rawSig_(now) !== this.subSig_) return false;
   }
-  var items = this.subDirty_ || [], self = this;
-  if (items.length) {
-    // 「課題別ベスト」の行：今ある行は本人の行か確かめ、新しい行は末尾の行番号を決める（ロックの中なので重ならない）
-    var sh = this.sheet('bests'), bad = false, last = 0;
-    items.forEach(function (b) {
-      if (!b._row) return;
-      var chk = sh.getRange(b._row, 1, 1, 2).getValues()[0];
-      if (String(chk[0]) !== b.sid || String(chk[1]) !== b.aid) bad = true;
-    });
-    if (bad) {
-      // 行がずれていた（手で並べかえた など）→ シートから読み直して、正しい行を探す
-      this.fresh.bests = 1; this.cache.bests = null;
-      var all = this.getAllBests();
-      items.forEach(function (b) { b._row = 0; for (var i = 0; i < all.length; i++) if (all[i].sid === b.sid && all[i].aid === b.aid) { b._row = all[i]._row; break; } });
-    }
-    items.forEach(function (b) { if (!b._row) { if (!last) last = Math.max(sh.getLastRow(), 1); b._row = ++last; } });
-  }
+  var items = this.subDirty_ || [], self = this, last = 0;
+  items.forEach(function (b) { if (!b._row) { if (!last) last = Math.max(self.sheet('bests').getLastRow(), 1); b._row = ++last; b._new = true; } });   // 新しい行：ロックの中で末尾の行番号を決める（重ならない）
   // 本人の行（自己ベストの写しも更新）
   var map = this.subBj_ || null;
   if (map) { var bj = {}; Object.keys(map).forEach(function (k) { bj[k] = bestToBj_(map[k]); }); var bjs = JSON.stringify(bj); o.bj = bjs.length < 45000 ? bjs : ''; }   // セルの上限（5万文字）をこえそうなときは写しを持たない
-  this.writeRow('students', o);
-  items.forEach(function (b) { self.writeRow('bests', b); });
+  this.writeRow('students', o);   // 書式も毎回そろえる（「1-1」などが日付に変わらないように。まとめて送るので遅くならない）
+  items.forEach(function (b) { self.writeRow('bests', b); delete b._new; });
   return true;
+};
+// ロックの前に：書きかえる「課題別ベスト」の行が本人の行か確かめる（手で並べかえた などでずれていたら、正しい行を探し直す）
+SheetStore.prototype.verifyBests_ = function () {
+  var items = (this.subDirty_ || []).filter(function (b) { return b._row; });
+  if (!items.length) return;
+  var sh = this.sheet('bests'), bad = false;
+  items.forEach(function (b) { var chk = sh.getRange(b._row, 1, 1, 2).getValues()[0]; if (String(chk[0]) !== b.sid || String(chk[1]) !== b.aid) bad = true; });
+  if (!bad) return;
+  this.fresh.bests = 1; this.cache.bests = null;
+  var all = this.getAllBests();
+  this.subDirty_.forEach(function (b) { b._row = 0; for (var i = 0; i < all.length; i++) if (all[i].sid === b.sid && all[i].aid === b.aid) { b._row = all[i]._row; break; } });
+};
+// ロックのあとで：生徒ごとのキャッシュを入れ直し、古いキャッシュを捨てる
+SheetStore.prototype.afterCommit_ = function () {
+  var pc = this.postCache_ || []; this.postCache_ = [];
+  var self = this; pc.forEach(function (x) { self.sxPutObj_(x.o, x.v); });
+  this.publishCache_();
 };
 SheetStore.prototype.resetSubmit_ = function () {
   this.subStu_ = null; this.subSig_ = null; this.stuPending_ = null; this.defer_ = [];
@@ -3117,6 +3119,7 @@ function doPost(e) {
       res = Core.handle(action, payload, store, GAS_CTX);
     } catch (err) { return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' }); }
     if (res && res.ok && store.stuPending_) {
+      try { store.verifyBests_(); } catch (err) { /* ロックの中でもう一度書く */ }
       lock = LockService.getScriptLock();
       var tw = Date.now();
       if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
@@ -3128,10 +3131,11 @@ function doPost(e) {
           if (res && res.ok && store.stuPending_) store.commitSubmit_(true);
           res._rerun = true;
         }
-        SpreadsheetApp.flush(); store.publishCache_();
+        SpreadsheetApp.flush();
       } catch (err) {
         res = { ok: false, error: 'サーバーでエラーが発生しました：' + err.message };
       } finally { lock.releaseLock(); held = Date.now() - th; }
+      try { store.afterCommit_(); } catch (err) { /* noop */ }
     }
     if (res && res.ok && store.defer_.length) {
       // 記録を末尾に足す（混雑で失敗したら、少し待って何回か試す）
