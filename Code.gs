@@ -2466,6 +2466,7 @@ SheetStore.prototype.delRow_ = function (k, row) { this.sheet(k).deleteRow(row);
 SheetStore.prototype.publishCache_ = function () {
   var self = this, gens = null;
   CACHED_SHEETS_.forEach(function (k) {
+    if (self.submit_ && !self.dirty[k]) return;   // 提出：書いたシートの古いキャッシュを捨てるだけ（速さのため）
     var rows = self.cache[k] && self.fromSheet[k] ? self.cache[k] : null;
     if (self.dirty[k]) { cacheBump_(k, self.submit_ ? null : rows); return; }   // 提出では、ほかの人の同時の書き込みを消さないよう、古いキャッシュを捨てるだけ
     if (!rows) return;
@@ -2565,6 +2566,7 @@ SheetStore.prototype.getStudent = function (id) {
 SheetStore.prototype.updateStudent = function (id, f) {
   var s = this.getStudent(id); if (!s) return;
   for (var k in f) s[k] = f[k];
+  if (this.submit_ && !this.inLock_) { this.stuPending_ = s; return; }   // 提出：書くのはロックの中で（下の commitSubmit_）
   this.writeRow('students', s);
 };
 SheetStore.prototype.addStudent = function (s) {
@@ -2581,6 +2583,7 @@ SheetStore.prototype.prepareSubmit_ = function () {
   this.fresh = { bests: 1 };
   this.load('bests');          // 自分の自己ベストは自分の提出でしか変わらないので、ロックの外で読んでよい
   this.getStudents();          // 行の位置（キャッシュがあればキャッシュから）
+  ['settings', 'assignments', 'stamps'].forEach(function (k) { try { this.load(k); } catch (e) { /* noop */ } }, this);
   this.ensureHead_('students'); this.ensureHead_('bests'); this.ensureHead_('records');
 };
 SheetStore.prototype.studentFresh_ = function (id) {
@@ -2590,13 +2593,28 @@ SheetStore.prototype.studentFresh_ = function (id) {
   if (hit && hit._row) {
     var v = this.sheet('students').getRange(hit._row, 1, 1, cols.length).getValues()[0], o = { _row: hit._row };
     for (var j = 0; j < cols.length; j++) o[cols[j][0]] = fmtCell_(v[j], cols[j][0]);
-    if (String(o.cls).trim() && String(o.no).trim() && normStudent_(o).id === id) return (this.subStu_ = o);
+    if (String(o.cls).trim() && String(o.no).trim() && normStudent_(o).id === id) { this.subRaw_ = JSON.stringify(v); return (this.subStu_ = o); }
   }
   // 行がずれていた（並べかえ・削除など）ときは、名簿を全部読み直す
   this.fresh.students = 1; this.cache.students = null;
   list = this.getStudents();
-  for (var k = 0; k < list.length; k++) if (list[k].id === id) return (this.subStu_ = list[k]);
+  for (var k = 0; k < list.length; k++) if (list[k].id === id) {
+    this.subRaw_ = JSON.stringify(this.sheet('students').getRange(list[k]._row, 1, 1, cols.length).getValues()[0]);
+    return (this.subStu_ = list[k]);
+  }
   return null;
+};
+// ロックの中：本人の行が、ロックの外で読んだときから変わっていなければ、計算した内容を書く。変わっていたら false（もう一度計算する）
+SheetStore.prototype.commitSubmit_ = function () {
+  var o = this.stuPending_, cols = SHEETS.students.cols;
+  var now = this.sheet('students').getRange(o._row, 1, 1, cols.length).getValues()[0];
+  if (JSON.stringify(now) !== this.subRaw_) return false;
+  this.writeRow('students', o);
+  return true;
+};
+SheetStore.prototype.resetSubmit_ = function () {
+  this.subStu_ = null; this.subRaw_ = null; this.stuPending_ = null; this.defer_ = [];
+  this.cache.bests = null; this.fresh.bests = 1;
 };
 SheetStore.prototype.flushDeferred_ = function () {
   var d = this.defer_; this.defer_ = [];
@@ -2906,11 +2924,13 @@ SheetStore.prototype.getAudio = function (id) {
 };
 
 /* ---------- 署名など ---------- */
+var SECRET_MEMO_ = null;
 function secret_() {
+  if (SECRET_MEMO_) return SECRET_MEMO_;
   var p = PropertiesService.getScriptProperties();
   var s = p.getProperty('SECRET');
   if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); p.setProperty('SECRET', s); }
-  return s;
+  return (SECRET_MEMO_ = s);
 }
 var GAS_CTX = {
   now: function () { return new Date(); },
@@ -2967,11 +2987,33 @@ function doPost(e) {
   if (action === 'submit' && payload.audio) {
     try { Core.preSubmit(payload, new SheetStore({ request: true }), GAS_CTX); } catch (err) { /* 本処理でもう一度確認されます */ }
   }
-  var store, res, lockMs = 0;
-  // ふつうの提出：ロックの前に読めるものを読んでおき、ロックの中は本人の1行の読み書きだけにする
+  var store, res, lockMs = 0, held = 0;
+  // ふつうの提出：計算まではロックなしで行い、ロックの中は「本人の1行を読み直して、変わっていなければ書く」だけにする
   if (action === 'submit') {
     store = new SheetStore({ request: true, submit: true });
-    try { store.prepareSubmit_(); } catch (err) { return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' }); }
+    try {
+      store.prepareSubmit_();
+      res = Core.handle(action, payload, store, GAS_CTX);
+    } catch (err) { return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' }); }
+    if (res && res.ok && store.stuPending_) {
+      lock = LockService.getScriptLock();
+      var tw = Date.now();
+      if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
+      lockMs = Date.now() - tw; var th = Date.now();
+      try {
+        store.inLock_ = true;
+        if (!store.commitSubmit_()) { store.resetSubmit_(); res = Core.handle(action, payload, store, GAS_CTX); res._rerun = true; }   // その間に先生などが本人の行を変えていた（まれ）
+        SpreadsheetApp.flush(); store.publishCache_();
+      } catch (err) {
+        res = { ok: false, error: 'サーバーでエラーが発生しました：' + err.message };
+      } finally { lock.releaseLock(); held = Date.now() - th; }
+    }
+    if (res && res.ok && store.defer_.length) {
+      try { store.flushDeferred_(); SpreadsheetApp.flush(); store.publishCache_(); } catch (err) { res._deferErr = String(err.message || err).slice(0, 120); }
+    }
+    ridPut_(rid, res);
+    res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = lockMs; res._held = held;
+    return json_(res);
   }
   if (write) {
     lock = LockService.getScriptLock();
@@ -2991,10 +3033,6 @@ function doPost(e) {
     res = { ok: false, error: 'サーバーでエラーが発生しました：' + err.message };
   } finally {
     if (lock) lock.releaseLock();
-  }
-  // 提出：自己ベストと記録は、ロックのあとで書く（末尾に足すので、同時に書いてもぶつからない）
-  if (store.submit_ && store.defer_.length && res && res.ok) {
-    try { store.flushDeferred_(); SpreadsheetApp.flush(); store.publishCache_(); } catch (err) { /* 本人の累計は保存済み。記録の書き込みだけ失敗 */ res._deferErr = String(err.message || err).slice(0, 120); }
   }
   ridPut_(rid, res);
   res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = lockMs; // 処理時間・スプレッドシートを開いたか・順番待ちの時間（速さの確認用）
