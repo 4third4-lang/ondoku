@@ -1,6 +1,6 @@
 {
-  "name": "音読チャレンジ",
-  "short_name": "音読",
+  "name": "Let's Read Aloud!",
+  "short_name": "Let's Read Aloud!",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f4f6fa",
