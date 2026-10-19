@@ -815,6 +815,8 @@ tr.frow.drop-on td { background: #fff3bf !important; outline: 2px dashed #f59f00
 .phrase-note small { display: block; font-size: .8rem; color: #8a6a10; margin-top: 2px; }
 .phrase-note .phrase-word { display: inline-block; font-size: 1.15rem; background: #fff; border: 1px solid #f0cf63; border-radius: 8px; padding: 1px 10px; margin-left: 4px; letter-spacing: .02em; }
 #phraseNote2 { margin: 10px 0 0; }
+/* 英文を隠して（ぼかして）も、途中の合言葉は見えるようにする */
+.passage.blur .w.phrase, .passage.blur .w.phrase-label { filter: none; }
 
 </style>
 </head>
@@ -6490,7 +6492,7 @@ window.SAMPLE_ASSIGNMENTS = [
   function showCheatWarning(flag) {
     var msg = {
       tts: ['お手本の音声が流れていました', 'お手本の音声をマイクに聞かせて判定することはできません。<br><b>この音読は無効になりました。</b><br>自分の声で読み直しましょう。'],
-      phrase: ['合言葉が読まれていません', '英文の最初か最後に、🔑 の合言葉を声に出して言いましたか？<br>録音した音声や読み上げ音声には合言葉が入らないため、<b>この音読は無効になりました。</b><br>もう一度、合言葉も自分の声で読みましょう。'],
+      phrase: ['合言葉が読まれていません', '英文の途中の 🔑 のところで、合言葉を声に出して言いましたか？<br>録音した音声や読み上げ音声には合言葉が入らないため、<b>この音読は無効になりました。</b><br>もう一度、合言葉も自分の声で読みましょう。'],
       repeat: ['同じ言葉をくり返しています', '同じ単語や同じフレーズを、続けて5回以上言っていました。<br><b>この音読は無効になりました。</b><br>英文を最初から順番に読みましょう。'],
       short: ['読んだ量が少なすぎます', '英文の一部しか読まれていませんでした（英文の30%未満）。<br><b>この音読は無効になりました。</b><br>英文を最後まで読みましょう。'],
       offtext: ['課題の英文と違うようです', '読んだ英語の多くが、課題の英文と合っていませんでした。<br><b>この音読は無効になりました。</b><br>画面の英文を読みましょう。'],
@@ -6717,8 +6719,8 @@ window.SAMPLE_ASSIGNMENTS = [
       Speaker.stop();
       $('#resultArea').innerHTML = '';
       ttsDetected = false;
-      // 合言葉（毎回変わる）を英文の最初と最後に表示する（どちらか1回言えばよい）。ライブ中は合言葉なし
-      if (settings.phraseCheck && !isLiveHere()) { phrase = Scoring.makePhrase(opt.text); phraseAt = Scoring.PHRASE_ENDS; }
+      // 合言葉（毎回変わる）を英文の途中（🔑 の場所）に入れる。英文の上と下にも合言葉を表示し、英文を隠しても見えるようにする。ライブ中は合言葉なし
+      if (settings.phraseCheck && !isLiveHere()) { phrase = Scoring.makePhrase(opt.text); phraseAt = Scoring.phrasePosition(opt.text); }
       else { phrase = ''; phraseAt = 0; }
       lineIdx = 0;
       setPassage(display(previewTokens(), false));
@@ -6731,8 +6733,8 @@ window.SAMPLE_ASSIGNMENTS = [
         var pnote = function (id, when) {
           return '<div class="phrase-note" id="' + id + '">🔑 合言葉 <b class="phrase-word">' + esc(phrase) + '</b><small>' + when + '</small></div>';
         };
-        passage.insertAdjacentHTML('beforebegin', pnote('phraseNote', '読みはじめる前か、読み終わったあとに声に出して言おう（どちらか1回でOK）'));
-        passage.insertAdjacentHTML('afterend', pnote('phraseNote2', '読み終わったら、ここで言ってもOK（最初に言った人は言わなくてOK）'));
+        passage.insertAdjacentHTML('beforebegin', pnote('phraseNote', '英文の途中の 🔑 のところで、声に出して言おう'));
+        passage.insertAdjacentHTML('afterend', pnote('phraseNote2', '🔑 のところで言えたかな？（英文の途中で言います）'));
       }
       // 音声の保存（対応端末のみ）
       capture = null;
@@ -8254,7 +8256,7 @@ window.SAMPLE_ASSIGNMENTS = [
           '<label class="check"><input type="checkbox" id="sRank"' + (st.showRanking ? ' checked' : '') + '>生徒にランキングを表示する</label>' +
           '<label class="check"><input type="checkbox" id="sNick"' + (st.allowNick ? ' checked' : '') + '>生徒がニックネームを使えるようにする（ランキングの表示名）</label>' +
           '<h3 style="margin-top:16px">不正防止</h3>' +
-          '<label class="check"><input type="checkbox" id="sPhrase"' + (st.phraseCheck ? ' checked' : '') + '>🔑 合言葉チェック（英文の最初か最後に、毎回変わる合言葉を読ませる。確認できないと記録しない。ライブ中は使いません）</label>' +
+          '<label class="check"><input type="checkbox" id="sPhrase"' + (st.phraseCheck ? ' checked' : '') + '>🔑 合言葉チェック（英文の途中に毎回変わる合言葉を読ませる。確認できないと記録しない。ライブ中は使いません）</label>' +
           '<label class="check"><input type="checkbox" id="sAuto"' + (st.autoCheck !== false ? ' checked' : '') + '>🚫 自動で無効にする（同じ言葉を続けて5回以上くり返す・読んだ量が英文の30%未満・言った語の70%以上が英文と違う・正確さ0%）</label>' +
           '<label class="check"><input type="checkbox" id="sAudio"' + (st.saveAudio ? ' checked' : '') + '>🎙 音読の音声を保存し、先生画面で再生できるようにする</label>' +
           '<p class="muted" style="font-size:.85rem">お手本音声の検知（判定中にお手本が流れたら記録しない）は常に有効です。音声を保存する場合は、生徒と保護者に事前にお知らせください。</p>' +
