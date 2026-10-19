@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1f6f8b">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>音読チャレンジ</title>
+  <meta name="apple-mobile-web-app-title" content="Let&#39;s Read Aloud!">
+  <title>Let's Read Aloud!</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="manifest" href="manifest.json">
@@ -822,7 +823,7 @@ tr.frow.drop-on td { background: #fff3bf !important; outline: 2px dashed #f59f00
 </head>
 <body>
   <header class="topbar">
-    <a href="#/" class="brand"><img src="icon.svg" alt="" width="28" height="28"><span id="appTitle">音読チャレンジ</span></a>
+    <a href="#/" class="brand"><img src="icon.svg" alt="" width="28" height="28"><span id="appTitle">Let's Read Aloud!</span></a>
     <div class="topbar-right" id="topRight"></div>
   </header>
   <div id="demoBanner" class="demo-banner" hidden>デモモードで動いています（データはこの端末の中だけに保存されます）</div>
@@ -840,7 +841,7 @@ window.APP_CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbxTMgPOEbi0mV9QlAYHSIHJWHHrC1TxfIAniUNb-tNNimSvgx28VNP3vnuiwLzXQrwKNA/exec',
 
   // アプリ名（画面上部に表示されます。スプレッドシートの「設定」シートの値が優先されます）
-  APP_TITLE: '音読チャレンジ',
+  APP_TITLE: "Let's Read Aloud!",
 
   // 音声認識の言語（en-US：アメリカ英語 / en-GB：イギリス英語）
   SPEECH_LANG: 'en-US'
@@ -5450,7 +5451,7 @@ window.SAMPLE_ASSIGNMENTS = [
   });
 
   function setTitle(t) {
-    var title = t || CFG.APP_TITLE || '音読チャレンジ';
+    var title = t || CFG.APP_TITLE || "Let's Read Aloud!";
     document.getElementById('appTitle').textContent = title;
     document.title = title;
   }
@@ -8252,7 +8253,7 @@ window.SAMPLE_ASSIGNMENTS = [
         '<div style="margin-top:10px"><button class="btn-primary" id="pSave">変更する</button></div></div>';
       if (m.admin) {
         html += '<div class="card"><h2>アプリの設定 <span class="pill admin">管理者</span></h2>' +
-          '<label for="sTitle">アプリ名（空欄なら「' + esc(CFG.APP_TITLE || '音読チャレンジ') + '」）</label><input type="text" id="sTitle" maxlength="30" value="' + esc(st.appTitle) + '">' +
+          '<label for="sTitle">アプリ名（空欄なら「' + esc(CFG.APP_TITLE || "Let's Read Aloud!") + '」）</label><input type="text" id="sTitle" maxlength="30" value="' + esc(st.appTitle) + '">' +
           '<label class="check"><input type="checkbox" id="sRank"' + (st.showRanking ? ' checked' : '') + '>生徒にランキングを表示する</label>' +
           '<label class="check"><input type="checkbox" id="sNick"' + (st.allowNick ? ' checked' : '') + '>生徒がニックネームを使えるようにする（ランキングの表示名）</label>' +
           '<h3 style="margin-top:16px">不正防止</h3>' +
