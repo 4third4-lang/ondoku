@@ -247,8 +247,23 @@
     var mid = cands.filter(function (c, k) { return k >= Math.floor(cands.length / 4) && k <= Math.ceil(cands.length * 3 / 4); });
     return pick(mid.length ? mid : cands);
   }
+  // at：合言葉を入れる位置（トークンの番号）。PHRASE_ENDS（-1）のときは「英文の最初と最後」の両方に入れる
+  //     （生徒はどちらか1回言えばよい）。両はしの合言葉には ph:1（最初）／ph:2（最後）の印をつける
+  var PHRASE_ENDS = -1;
   function phraseTokens(text, phrase, at) {
     var tokens = tokenize(text);
+    function slot(no) {
+      var sp = function () { return { text: ' ', space: true, units: [], ph: no }; };
+      var out = [];
+      tokenize(phrase).filter(function (t) { return !t.space; }).forEach(function (t) {
+        t.phrase = true; t.ph = no; out.push(sp(), t);
+      });
+      return [{ text: '🔑', space: false, units: [], phraseLabel: true, ph: no }].concat(out);
+    }
+    if (at === PHRASE_ENDS) {
+      var pad = function (no) { return { text: ' ', space: true, units: [], ph: no }; };
+      return slot(1).concat([pad(1)], tokens, [pad(2)], slot(2));
+    }
     if (at === null || at === undefined || at < 0 || at > tokens.length) at = tokens.length;
     var sp = { text: ' ', space: true, units: [] };
     var pt = tokenize(phrase).filter(function (t) { return !t.space; }).map(function (t) { t.phrase = true; return t; });
@@ -294,13 +309,16 @@
     var unitOk = tokens.map(function () { return { all: 0, ok: 0 }; });
     A.forEach(function (a, k) { unitOk[a.ti].all++; if (matched[k]) unitOk[a.ti].ok++; });
 
-    var total = 0, correct = 0, pAll = 0, pOk = 0;
+    var total = 0, correct = 0, pAll = 0, pOk = 0, units = 0, hit = 0;
+    A.forEach(function (a, k) { if (!tokens[a.ti].phrase) { units++; if (matched[k]) hit++; } });
     var out = tokens.map(function (t, ti) {
-      if (t.space) return { text: t.text, status: 'space' };
-      if (t.phraseLabel) return { text: t.text, status: 'phrase-label' };
+      if (t.space) return t.ph ? { text: t.text, status: 'space', ph: t.ph } : { text: t.text, status: 'space' };
+      if (t.phraseLabel) return t.ph ? { text: t.text, status: 'phrase-label', ph: t.ph } : { text: t.text, status: 'phrase-label' };
       if (t.phrase) {
         pAll += unitOk[ti].all; pOk += unitOk[ti].ok;
-        return { text: t.text, status: unitOk[ti].ok === unitOk[ti].all ? 'phrase-ok' : 'phrase-ng' };
+        var po = { text: t.text, status: unitOk[ti].ok === unitOk[ti].all ? 'phrase-ok' : 'phrase-ng' };
+        if (t.ph) po.ph = t.ph;
+        return po;
       }
       if (t.ja) return { text: t.text, status: 'ja' };
       if (t.speaker) return { text: t.text, status: 'speaker' };
@@ -311,10 +329,64 @@
       return { text: t.text, status: ok ? 'ok' : 'ng', word: true };
     });
     var accuracy = total ? Math.round((correct / total) * 1000) / 10 : 0;
-    var res = { accuracy: accuracy, total: total, correct: correct, tokens: out };
+    // units：英文の単位の数、hit：そのうち読めた数、spoken：生徒が言った単位の数（聞き取れた合言葉の分を除く）
+    var res = { accuracy: accuracy, total: total, correct: correct, tokens: out, units: units, hit: hit, spoken: Math.max(0, m - pOk) };
     // 合言葉は1語でも聞き取れれば確認できたとみなす（聞き取りミスへの配慮）
     if (pAll) res.phrase = { ok: pOk >= 1, matched: pOk, total: pAll };
     return res;
+  }
+
+  // ---------------- 不正の自動チェック（はっきりしたものだけ。自動で無効にする） ----------------
+  //  repeat  … 同じ単語・同じフレーズ（1〜5語）を続けて5回以上くり返した（英文そのものにあるくり返しは除く）
+  //  short   … 言った量が、英文の量の30%未満
+  //  offtext … 言った語のうち、英文と合っているのが30%未満（まったく違う英文を読んだ）
+  //  zero    … 正確さ0%
+  var REPEAT_MIN = 5, SHORT_RATE = 0.3, OFFTEXT_RATE = 0.3, OFFTEXT_MIN = 5;
+  function unitsOf(text) {
+    var out = [];
+    String(text || '').split(/\s+/).forEach(function (w) { toUnits(w).forEach(function (u) { out.push(u); }); });
+    return out;
+  }
+  // arr の中で、i から n 語のまとまりが続けて何回出てくるか
+  function runAt(arr, i, n) {
+    var k = 1;
+    while (i + (k + 1) * n <= arr.length) {
+      var same = true;
+      for (var j = 0; j < n; j++) { if (arr[i + k * n + j] !== arr[i + j]) { same = false; break; } }
+      if (!same) break;
+      k++;
+    }
+    return k;
+  }
+  function hasRun(arr, gram, min) {
+    var n = gram.length;
+    for (var i = 0; i + n * min <= arr.length; i++) {
+      var ok = true;
+      for (var j = 0; j < n; j++) { if (arr[i + j] !== gram[j]) { ok = false; break; } }
+      if (ok && runAt(arr, i, n) >= min) return true;
+    }
+    return false;
+  }
+  function repeatedPhrase(transcript, text) {
+    var B = unitsOf(transcript), A = null;
+    for (var n = 1; n <= 5; n++) {
+      for (var i = 0; i + n * REPEAT_MIN <= B.length; i++) {
+        if (runAt(B, i, n) < REPEAT_MIN) continue;
+        var gram = B.slice(i, i + n);
+        if (!A) { A = []; tokenize(text).forEach(function (t) { t.units.forEach(function (u) { A.push(u); }); }); }
+        if (!hasRun(A, gram, REPEAT_MIN)) return gram.join(' ');
+      }
+    }
+    return '';
+  }
+  // r：score() や scoreWithPhrase() の結果
+  function cheatCheck(r, transcript, text) {
+    if (!r || !r.units) return '';
+    if (repeatedPhrase(transcript, text)) return 'repeat';
+    if (r.spoken < r.units * SHORT_RATE) return 'short';
+    if (r.spoken >= OFFTEXT_MIN && r.hit < r.spoken * OFFTEXT_RATE) return 'offtext';
+    if (!r.correct) return 'zero';
+    return '';
   }
 
   function countWords(text) {
@@ -328,7 +400,7 @@
     return out;
   }
   var api = { isJaLine: isJaLine, speakers: speakers, score: score, scoreWithPhrase: scoreWithPhrase, phraseTokens: phraseTokens,
-    makePhrase: makePhrase, phrasePosition: phrasePosition, tokenize: tokenize, englishOnly: englishOnly, toUnits: toUnits, countWords: countWords,
+    makePhrase: makePhrase, phrasePosition: phrasePosition, PHRASE_ENDS: PHRASE_ENDS, cheatCheck: cheatCheck, repeatedPhrase: repeatedPhrase, tokenize: tokenize, englishOnly: englishOnly, toUnits: toUnits, countWords: countWords,
     numberToWords: numberToWords };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Scoring = api;
@@ -989,6 +1061,7 @@
       showRanking: bool(store.getSetting('ランキングを表示')),
       appTitle: str(store.getSetting('アプリ名')),
       phraseCheck: boolDef(store.getSetting('合言葉チェック'), true),
+      autoCheck: boolDef(store.getSetting('自動無効チェック'), true),
       saveAudio: boolDef(store.getSetting('音声を保存'), true),
       autoStamps: stampRulesOn(store)
     };
@@ -1000,7 +1073,11 @@
     tts: { label: 'お手本音声を検知', definite: true },
     phrase: { label: '合言葉なし', definite: true },
     partial: { label: '合言葉が一部しか聞き取れない', definite: false },
-    speed: { label: '読む速さが不自然に速い', definite: false }
+    speed: { label: '読む速さが不自然に速い', definite: false },
+    repeat: { label: '同じ言葉のくり返し', definite: true },
+    short: { label: '読んだ量が少なすぎる', definite: true },
+    offtext: { label: '課題と違う英文', definite: true },
+    zero: { label: '正確さ0%', definite: true }
   };
   var AUTO_INVALID = '自動で無効';
 
@@ -1075,12 +1152,16 @@
     var transcript = str(p.transcript).slice(0, 6000);
     var cfg = settingsForClient(store);
     var hasPhrase = !!str(p.phrase);
-    var r = hasPhrase ? Sc.scoreWithPhrase(text, transcript, str(p.phrase).slice(0, 60), num(p.phraseAt)) : Sc.score(text, transcript);
+    var pAt = p.phraseAt === Sc.PHRASE_ENDS || String(p.phraseAt) === String(Sc.PHRASE_ENDS) ? Sc.PHRASE_ENDS : num(p.phraseAt);
+    var r = hasPhrase ? Sc.scoreWithPhrase(text, transcript, str(p.phrase).slice(0, 60), pAt) : Sc.score(text, transcript);
     var dur = Math.max(0, Math.min(3600, num(p.duration)));
+    // ライブ中の音読か（ライブ中は合言葉なし）
+    var liveNow = a ? liveRunning(store, s, now, a.id) : null;
 
-    // 不正防止：お手本音声の検知、合言葉の確認
-    var flag = (p.flag === 'tts' || p.flag === 'phrase') ? p.flag : '';
-    if (!flag && cfg.phraseCheck) {
+    // 不正防止：お手本音声の検知 → くり返し・少なすぎ・違う英文・0% → 合言葉の確認
+    var flag = p.flag === 'tts' ? 'tts' : '';
+    if (!flag && cfg.autoCheck) flag = Sc.cheatCheck(r, transcript, text);
+    if (!flag && cfg.phraseCheck && !liveNow) {
       if (!hasPhrase || !r.phrase || r.phrase.matched === 0) flag = 'phrase';   // 合言葉がまったくない → 録音などの可能性が高い
       // 合言葉は1語でも聞き取れれば合格（scoring.js）。'partial' は旧版との互換のために残しています
       else if (!r.phrase.ok) flag = 'partial';
@@ -1096,7 +1177,6 @@
     }
     // ---- ライブ中の音読：ライブのポイントだけに使う ----
     // 記録シート・累計単語数・級・課題のベスト・ランキング・ごほうびには入れない（スプレッドシートには何も書かない）
-    var liveNow = a ? liveRunning(store, s, now, a.id) : null;
     if (liveNow) {
       var liveResult = null;
       if (!flag && r.correct > 0) {
@@ -2089,6 +2169,7 @@
     if ('showRanking' in st) store.setSetting('ランキングを表示', st.showRanking ? 'TRUE' : 'FALSE');
     if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
     if ('phraseCheck' in st) store.setSetting('合言葉チェック', st.phraseCheck ? 'TRUE' : 'FALSE');
+    if ('autoCheck' in st) store.setSetting('自動無効チェック', st.autoCheck ? 'TRUE' : 'FALSE');
     if ('saveAudio' in st) store.setSetting('音声を保存', st.saveAudio ? 'TRUE' : 'FALSE');
     if ('autoStamps' in st) {
       var ids = [].concat(st.autoStamps || []).filter(function (x) { return STAMP_RULES.some(function (r) { return r.id === x; }); });
