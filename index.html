@@ -738,6 +738,79 @@ tr.frow.drop-on td { background: #fff3bf !important; outline: 2px dashed #f59f00
 .om-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: middle; border: 1px solid rgba(0,0,0,.15); }
 @media (max-width: 480px) { .om-lucky { grid-template-columns: 1fr; } .om-sentence .om-en { font-size: 1.5rem; } }
 
+/* ===== 生徒ホーム（1画面にまとめる） ===== */
+.due-alert { display: block; background: #ffe3e3; border: 2px solid #fa5252; color: #c92a2a; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; font-weight: 700; text-decoration: none; animation: duePulse 2s ease-in-out infinite; }
+.due-alert b { font-size: 1.1em; }
+@keyframes duePulse { 50% { box-shadow: 0 0 0 4px rgba(250,82,82,.18); } }
+.home-tasks { padding-top: 12px; padding-bottom: 10px; border: 2px solid var(--primary, #1f6f8b); }
+.home-tasks .card-title { gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.home-tasks .card-title h2 { margin-right: auto; font-size: 1.15rem; }
+.task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.task-item { display: flex; align-items: center; gap: 12px; padding: 8px 10px !important; border: 1px solid #e3e8ef; border-radius: 12px; background: #fff; }
+.task-item .main { flex: 1; min-width: 0; }
+.task-item .title { font-weight: 800; font-size: 1.02rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-item .sub { font-size: .82rem; color: var(--muted); }
+.task-item .go { color: #adb5bd; font-size: .8rem; }
+.due-box { flex: 0 0 84px; border-radius: 10px; padding: 6px 4px; text-align: center; color: #fff; line-height: 1.2; }
+.due-box b { display: block; font-size: 1.02rem; font-weight: 900; }
+.due-box small { display: block; font-size: .78rem; font-weight: 700; opacity: .95; }
+.due-red { background: #e03131; } .due-orange { background: #f76707; } .due-blue { background: #1c7ed6; } .due-none { background: #adb5bd; }
+.due-chip { display: inline-block; color: #fff; border-radius: 6px; padding: 0 6px; font-weight: 700; font-size: .8rem; }
+.due-chip.due-none { background: #e9ecef; color: #495057; }
+.tasks-more { display: block; text-align: center; font-weight: 700; font-size: .9rem; margin-top: 8px; }
+.tasks-done { text-align: center; padding: 10px; font-weight: 700; }
+.me-row { display: flex; gap: 12px; align-items: center; padding: 10px 14px; }
+.me-row .home-av { position: relative; flex: 0 0 auto; }
+.me-main { flex: 1; min-width: 0; }
+.me-name { font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-chip { display: inline-block; background: linear-gradient(135deg, #ffe066, #fab005); color: #5c3d00; font-weight: 900; border-radius: 999px; padding: 0 10px; font-size: .85rem; margin-left: 4px; }
+.me-row .bar { margin: 5px 0 4px; height: 8px; }
+.me-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .85rem; color: #495057; }
+.me-stats a { text-decoration: none; color: inherit; }
+.me-next { font-size: .75rem; color: var(--muted); }
+.entry-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.entry { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: #fff; border: 1px solid #e3e8ef; border-radius: 14px; padding: 10px 2px; text-decoration: none; color: inherit; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; min-height: 0; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.entry .ic { font-size: 1.6rem; line-height: 1.1; }
+.entry .new-dot { position: absolute; top: 4px; right: 4px; }
+.stamp-pop { max-width: 560px; }
+.stamp-pop .stamp-card { box-shadow: none; margin-bottom: 12px; }
+@media (min-width: 700px) {
+  .entry-grid { grid-template-columns: repeat(8, 1fr); }
+  .task-item .title { font-size: 1.1rem; }
+  .due-box { flex-basis: 100px; }
+}
+@media (max-width: 380px) { .entry { font-size: .7rem; } .entry .ic { font-size: 1.4rem; } .due-box { flex-basis: 74px; } }
+.due-box small { color: #fff !important; }
+.task-item .title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+.entry small { font-size: .7rem; color: var(--muted); font-weight: 700; }
+@media (min-width: 700px) {
+  .entry { padding: 16px 4px; font-size: .9rem; border-radius: 16px; }
+  .entry .ic { font-size: 2.2rem; }
+  .task-item { padding: 12px 14px !important; }
+  .due-box { flex-basis: 120px; padding: 10px 6px; }
+  .due-box b { font-size: 1.25rem; } .due-box small { font-size: .9rem; }
+  .task-item .title { font-size: 1.2rem; }
+  .me-row { padding: 14px 18px; } .me-name { font-size: 1.1rem; } .me-stats { font-size: 1rem; }
+  .home-tasks .card-title h2 { font-size: 1.35rem; }
+}
+@media (max-width: 699px) {
+  .home-tasks, .me-row { margin-bottom: 10px; }
+  .home-tasks { padding: 10px 12px 8px; }
+  .task-list { gap: 6px; }
+  .task-item { padding: 6px 8px !important; gap: 10px; }
+  .due-box { padding: 4px 3px; }
+  .due-box b { font-size: .95rem; }
+  .tasks-more { margin-top: 6px; font-size: .85rem; }
+  .me-row { padding: 8px 12px; }
+  .entry-grid { gap: 6px; }
+  .entry { padding: 7px 2px; border-radius: 12px; }
+  .entry .ic { font-size: 1.45rem; }
+}
+.due-alert { padding: 7px 12px; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.due-alert span { background: #e03131; color: #fff; border-radius: 6px; padding: 0 6px; margin-right: 4px; }
+@media (min-width: 700px) { .due-alert { font-size: 1.05rem; padding: 10px 16px; } }
+@media (max-width: 699px) { .due-alert { font-size: .85rem; margin-bottom: 8px; } .me-next { display: none; } }
+
 </style>
 </head>
 <body>
@@ -5596,43 +5669,51 @@ window.SAMPLE_ASSIGNMENTS = [
     bottomNav('home');
     var s = h.student, lv = s.level, pv = todayProverb(), rw = h.rewards || {};
     applyLook(rw);
-    var todo = h.assignments.filter(function (a) { return a.best === null; });
-    var html = '';
+    var html = '', pend = pendingTasks(h), urgent = pend.filter(function (a) { var d = dueInfo(a.due, h.today); return d && d.days <= 1; });
+    // 締切が今日・明日・すぎた課題があれば、いちばん上に赤い帯
+    if (urgent.length) {
+      var over = urgent.filter(function (a) { return dueInfo(a.due, h.today).days < 0; }).length, tdy = urgent.filter(function (a) { return dueInfo(a.due, h.today).days === 0; }).length, tmr = urgent.length - over - tdy;
+      html += '<a class="due-alert" href="#/a/' + encodeURIComponent(urgent[0].id) + '">⚠ ' +
+        '<span>締切に注意！</span> ' + [over ? 'すぎた <b>' + over + '</b>件' : '', tdy ? '今日 <b>' + tdy + '</b>件' : '', tmr ? '明日 <b>' + tmr + '</b>件' : ''].filter(Boolean).join('・') + ' →</a>';
+    }
     if (h.live) html += '<a class="live-banner" href="#/a/' + encodeURIComponent(h.live.aid) + '"><span class="live-dot"></span><b>ライブ開催中！</b> 「' + esc(h.live.title) + '」を読んでポイントをためよう →</a>';
-    html += '<div class="card level-card">' +
-      '<div class="level-badge"><small>いまの級</small>' + esc(lv.name) + '</div>' +
-      '<div class="level-info"><div class="home-me"><a href="#/avatar" class="home-av" title="着せ替え">' + avatarHTML(rw.av, 64) + '<span class="av-edit">👗</span></a><span><b>' + esc(s.name || s.nick || s.cls + ' ' + s.no + '番') + '</b> さん' +
-        (s.name ? ' <small class="muted">' + esc(s.cls + ' ' + s.no + '番') + (s.nick ? '・' + esc(s.nick) : '') + '</small>' : '') + '</span></div>' +
-      (lv.next ? '<div class="bar"><span style="width:' + Math.round(lv.progress * 100) + '%"></span></div>' +
-        '<small>' + esc(lv.next) + 'まで あと <b>' + n(lv.nextAt - s.totalWords) + '</b> 語</small>'
-        : '<div class="bar"><span style="width:100%"></span></div><small>最高位に到達！</small>') +
-      '</div></div>';
-    html += '<div class="stats">' +
-      '<div class="stat"><div class="v">' + n(s.todayWords) + '</div><div class="l">今日の単語数</div></div>' +
-      '<div class="stat"><div class="v">' + n(s.totalWords) + '</div><div class="l">累計の単語数</div></div>' +
-      '<div class="stat"><div class="v">' + n(s.streak) + '<small style="font-size:.9rem">日</small></div><div class="l">連続音読</div></div>' +
-      '<div class="stat"><a href="#/avatar/shop" style="text-decoration:none"><div class="v">' + n(rw.avail !== undefined ? rw.avail : rw.points) + '<small style="font-size:.8rem">pt</small></div><div class="l">🪙 使えるポイント</div></a></div>' +
-      '</div><div style="height:16px"></div>';
-    // いろいろな読み方への入り口
-    var nb = Object.keys(rw.badges || {}).length;
-    html += '<div class="quick-row">' +
-      '<a class="quick" href="#/lib"><span class="ic">📚</span>英文ライブラリ</a>' +
-      '<a class="quick" href="#/omikuji"><span class="ic">🎲</span>おみくじ英文</a>' +
-      '<a class="quick" href="#/rewards"><span class="ic">🏅</span>バッジ ' + nb + '<small>/' + BADGES.length + '</small></a>' +
-      '<a class="quick" href="#/avatar"><span class="ic">👗</span>着せ替え' + ((rw.newItems || []).length ? '<small class="new-dot">NEW</small>' : '') + '</a>' +
+    // ① 課題（締切が近い順に3件）
+    html += '<div class="card home-tasks"><div class="card-title"><h2>📝 課題</h2>' + (pend.length ? '<span class="pill todo">未達成 ' + pend.length + '</span>' : '') +
+      (h.assignments.length ? '<a class="btn btn-small" href="#/tasks">すべての課題 →</a>' : '') + '</div>';
+    if (!h.assignments.length) html += '<div class="empty">今は課題がありません。自主練で音読してみましょう！</div>';
+    else if (!pend.length) html += '<div class="tasks-done">🎉 課題はすべて達成しました！ <a href="#/tasks">課題の一覧を見る</a></div>';
+    else html += '<ul class="task-list">' + pend.slice(0, 3).map(function (a) { return taskItemHTML(a, h); }).join('') + '</ul>' +
+      (pend.length > 3 ? '<a class="tasks-more" href="#/tasks">ほかに ' + (pend.length - 3) + '件の課題があります →</a>' : '');
+    html += '</div>';
+    // ② 自分（級・単語数を1行に）
+    html += '<div class="card me-row">' +
+      '<a href="#/avatar" class="home-av" title="着せ替え">' + avatarHTML(rw.av, 52) + '<span class="av-edit">👗</span></a>' +
+      '<div class="me-main"><div class="me-name"><b>' + esc(s.name || s.nick || s.cls + ' ' + s.no + '番') + '</b> さん <span class="lv-chip">' + esc(lv.name) + '</span></div>' +
+      '<div class="bar"><span style="width:' + (lv.next ? Math.round(lv.progress * 100) : 100) + '%"></span></div>' +
+      '<div class="me-stats"><span>今日 <b>' + n(s.todayWords) + '</b>語</span><span>累計 <b>' + n(s.totalWords) + '</b>語</span><span>🔥 <b>' + n(s.streak) + '</b>日</span>' +
+      '<a href="#/avatar/shop">🪙 <b>' + n(rw.avail !== undefined ? rw.avail : rw.points) + '</b>pt</a></div>' +
+      '<div class="me-next">' + (lv.next ? esc(lv.next) + 'まで あと ' + n(lv.nextAt - s.totalWords) + ' 語' : '最高位に到達！') + '</div></div></div>';
+    // ③ 入り口（アイコン）
+    var nb = Object.keys(rw.badges || {}).length, card = (rw.days || 0) % 10, stampedToday = rw.stampedToday;
+    html += '<div class="entry-grid">' +
+      '<a class="entry" href="#/lib"><span class="ic">📚</span><span>ライブラリ</span></a>' +
+      '<a class="entry" href="#/omikuji"><span class="ic">🎲</span><span>おみくじ</span></a>' +
+      '<a class="entry" href="#/proverb"><span class="ic">🌱</span><span>ことわざ</span></a>' +
+      '<a class="entry" href="#/free"><span class="ic">🎤</span><span>自主練</span></a>' +
+      '<button class="entry" type="button" id="bStampCard"><span class="ic">🎫</span><span>スタンプ</span><small>' + (stampedToday ? '今日 ✅' : card + '/10') + '</small></button>' +
+      '<a class="entry" href="#/rewards"><span class="ic">🏅</span><span>バッジ</span><small>' + nb + '/' + BADGES.length + '</small></a>' +
+      '<a class="entry" href="#/avatar"><span class="ic">👗</span><span>着せ替え</span>' + ((rw.newItems || []).length ? '<small class="new-dot">NEW</small>' : '') + '</a>' +
+      '<a class="entry" href="#/rank"><span class="ic">🏆</span><span>ランキング</span></a>' +
       '</div>';
     var ob = outboxGet();
     if (ob.length) html += '<div class="notice">📦 まだ送れていない音読の記録が <b>' + ob.length + '件</b> この端末にあります。つながったら自動で送ります。 <button class="btn-small" id="bObSend">今すぐ送る</button></div>';
-    html += stampCardHTML(rw, h.today, s.lastDate);
-    html += '<div class="card proverb"><div class="card-title"><h2>🌱 今日のことわざ</h2>' +
-      '<a class="btn btn-small btn-primary" href="#/proverb">音読する</a></div>' +
-      '<div class="ja">' + esc(pv[1]) + '</div><div class="en">' + esc(pv[0]) + '</div></div>';
-    html += '<div class="card"><div class="card-title"><h2>📝 課題</h2>' + (todo.length ? '<span class="pill todo">未提出 ' + todo.length + '</span>' : '') + '</div>';
-    if (!h.assignments.length) html += '<div class="empty">今は課題がありません。自主練で音読してみましょう！</div>';
-    else html += studentAssignHTML(h);
-    html += '</div>';
     $app.innerHTML = html;
-    bindFolds($app, 'ondoku_fold_s');
+    $('#bStampCard').onclick = function () {
+      var el = document.createElement('div'); el.className = 'reward-overlay';
+      el.innerHTML = '<div class="reward-box stamp-pop">' + stampCardHTML(rw, h.today, s.lastDate) + '<button class="btn-primary btn-block" id="bStampClose">とじる</button></div>';
+      document.body.appendChild(el);
+      el.onclick = function (e) { if (e.target === el || e.target.id === 'bStampClose') el.remove(); };
+    };
     if ($('#bObSend')) $('#bObSend').onclick = function () { this.disabled = true; flushOutbox(); };
     if (ob.length) setTimeout(flushOutbox, 1500 + Math.floor(Math.random() * 4000));
     // はじめての人はアバターを選ぶ → 届いたスタンプ → 新しいアイテム の順にお知らせ
@@ -5652,6 +5733,46 @@ window.SAMPLE_ASSIGNMENTS = [
       var fresh = (rw.stamps || []).filter(function (x) { return x.n; });
       showRewardPopup(fresh, [], function () { call('seenStamps').catch(function () {}); if (state.home && state.home.rewards) state.home.rewards.newStamps = 0; itemsPopup(); });
     } else itemsPopup();
+  }
+
+  // ================= 課題の締切 =================
+  var WD = ['日', '月', '火', '水', '木', '金', '土'];
+  function dueInfo(due, today) {
+    if (!due) return null;
+    var d = Date.parse(String(due).slice(0, 10) + 'T00:00:00Z'), t = Date.parse(String(today).slice(0, 10) + 'T00:00:00Z');
+    if (isNaN(d) || isNaN(t)) return null;
+    var days = Math.round((d - t) / 86400000), wd = WD[new Date(d).getUTCDay()];
+    var label = days < 0 ? '締切すぎ' : days === 0 ? '今日まで！' : days === 1 ? '明日まで' : 'あと' + days + '日';
+    var cls = days <= 1 ? 'due-red' : days <= 3 ? 'due-orange' : 'due-blue';
+    return { days: days, label: label, cls: cls, date: fmtDay(due) + '（' + wd + '）' };
+  }
+  // 未達成の課題（締切が近い順。締切のない課題はあと）
+  function pendingTasks(h) {
+    return (h.assignments || []).filter(function (a) { return !aDone(a); }).sort(function (x, y) {
+      if (x.due && y.due) return x.due < y.due ? -1 : x.due > y.due ? 1 : 0;
+      if (x.due) return -1; if (y.due) return 1;
+      return (y.created || '').localeCompare(x.created || '');
+    });
+  }
+  function taskItemHTML(a, h) {
+    var d = dueInfo(a.due, h.today);
+    var st = a.master ? '🎓 ' + a.clearedSteps + '/' + a.types.length : a.best !== null ? a.best + '%' + (a.need > 1 ? '・合格' + (a.totalPasses || 0) + '/' + a.need : '') : '未提出';
+    return '<li><a class="item task-item" href="#/a/' + encodeURIComponent(a.id) + '">' +
+      '<div class="due-box ' + (d ? d.cls : 'due-none') + '">' + (d ? '<b>' + d.label + '</b><small>' + d.date + '</small>' : '<b>締切なし</b>') + '</div>' +
+      '<div class="main"><div class="title">' + (a.contest ? '🏆 ' : '') + esc(a.title) + '</div>' +
+      '<div class="sub">' + n(a.words) + '語・' + esc(st) + '</div></div><span class="go">▶</span></a></li>';
+  }
+  // すべての課題（フォルダごと）
+  async function viewTasks() {
+    bottomNav('home'); loading();
+    var h;
+    try { h = await cached('home'); } catch (e) { showError(e); return; }
+    state.home = h;
+    var pend = pendingTasks(h), done = h.assignments.filter(function (a) { return aDone(a); });
+    h = Object.assign({}, h, { assignments: pend.concat(done) });   // 未達成（締切が近い順）→ 達成ずみ の順
+    $app.innerHTML = '<a class="back" href="#/home">← ホーム</a><div class="card"><div class="card-title"><h2>📝 すべての課題</h2>' + (pend.length ? '<span class="pill todo">未達成 ' + pend.length + '</span>' : '') + '</div>' +
+      (h.assignments.length ? studentAssignHTML(h) : '<div class="empty">今は課題がありません。</div>') + '</div>';
+    bindFolds($app, 'ondoku_fold_s');
   }
 
   // ================= 課題フォルダ（生徒・先生共通） =================
@@ -5691,7 +5812,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var overdue = a.due && a.due < h.today && (a.master ? !a.masterCleared : !a.achieved);
       return '<li><a class="item" href="#/a/' + encodeURIComponent(a.id) + '"><div class="main">' +
         '<div class="title">' + (a.contest ? '<span class="pill contest">🏆 音読大会</span> ' : '') + esc(a.title) + '</div>' +
-        '<div class="sub">' + n(a.words) + '語' + (a.due ? '・締切 ' + fmtDay(a.due) : '') + (a.attempts ? '・' + a.attempts + '回挑戦' : '') +
+        '<div class="sub">' + n(a.words) + '語' + (a.due ? '・<span class="due-chip ' + (aDone(a) ? 'due-none' : dueInfo(a.due, h.today).cls) + '">締切 ' + dueInfo(a.due, h.today).date + (aDone(a) ? '' : '・' + dueInfo(a.due, h.today).label) + '</span>' : '') + (a.attempts ? '・' + a.attempts + '回挑戦' : '') +
         (!a.master && a.types && a.types.length > 1 ? '・' + a.types.map(function (t) { return '①②③④⑤'.charAt(t - 1); }).join('') : '') + '</div></div>' +
         (a.master
           ? (a.masterCleared ? '<span class="pill done">🏆 マスター達成</span>' : '<span class="pill master">🎓 マスター ' + a.clearedSteps + '/' + a.types.length + '</span>')
@@ -8642,6 +8763,7 @@ window.SAMPLE_ASSIGNMENTS = [
         case 'contest': return viewContest(parts[1]);
         case 'me': return viewMe();
         case 'home': return viewHome();
+        case 'tasks': return viewTasks();
         default: return go('#/home');
       }
     }
