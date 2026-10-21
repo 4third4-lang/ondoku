@@ -819,6 +819,28 @@ tr.frow.drop-on td { background: #fff3bf !important; outline: 2px dashed #f59f00
 /* 英文を隠して（ぼかして）も、途中の合言葉は見えるようにする */
 .passage.blur .w.phrase, .passage.blur .w.phrase-label { filter: none; }
 
+/* ライブラリのフォルダ */
+.lib-folders { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.lib-folder { border: 1px solid var(--line, #dde3ec); background: #fff; color: inherit; border-radius: 999px; padding: 6px 12px; font-size: .9rem; font-weight: 700; cursor: pointer; }
+.lib-folder small { font-weight: 600; opacity: .7; margin-left: 2px; }
+.lib-folder.active { background: var(--primary, #1f6f8b); border-color: var(--primary, #1f6f8b); color: #fff; }
+.lib-folder.add { border-style: dashed; color: var(--primary, #1f6f8b); background: transparent; }
+.lib-folder-tools { margin: -2px 0 10px; align-items: center; }
+.lib-move { align-items: center; }
+.lib-move select { width: auto; min-width: 160px; margin: 0; }
+.seg button.dim { opacity: .55; }
+/* ライブラリから出題 */
+.lib-pick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: #eef6f9; border: 1px solid #cfe3ea; border-radius: 12px; padding: 10px 12px; margin: 4px 0 12px; }
+.lib-pick-row .muted { font-size: .85rem; }
+.reward-box.lib-pick { max-width: 760px; width: calc(100vw - 32px); max-height: 86vh; overflow: auto; text-align: left; }
+.lib-pick .card-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.lib-pick .card-title h2 { margin: 0; }
+.lib-pick-list button.item { width: 100%; text-align: left; background: #fff; border: 1px solid var(--line, #dde3ec); font: inherit; color: inherit; cursor: pointer; }
+.lib-pick-list button.item:hover { border-color: var(--primary, #1f6f8b); }
+.lib-pick-list .go { color: var(--primary, #1f6f8b); font-weight: 800; white-space: nowrap; font-size: .85rem; }
+.lib-folder.active small { opacity: .9; }
+.lib-pick input[type=search] { margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: .95rem; min-height: 38px; }
+
 </style>
 </head>
 <body>
@@ -2595,13 +2617,66 @@ window.APP_CONFIG = {
   // ---- 英文ライブラリ（先生が追加したもの・非表示にしたもの） ----
   function libraryHidden(store) { return str(store.getSetting('ライブラリ非表示')).split(',').filter(Boolean); }
   function libPublic(x) { return { id: str(x.id), level: num(x.level) || 1, title: str(x.title), text: str(x.text), ja: str(x.ja), cat: '先生から' }; }
+  // ライブラリのフォルダ（1段のみ）。「設定」シートの「ライブラリフォルダ」に JSON で保存
+  //  { f: [{id, name}], m: { 英文のid: フォルダのid } }。m にない英文は「デフォルト」フォルダ
+  var LIB_FOLDER_MAX = 50;
+  function libFolders(store) {
+    var o = {};
+    try { o = JSON.parse(str(store.getSetting('ライブラリフォルダ')) || '{}') || {}; } catch (e) { o = {}; }
+    var f = (o.f || []).filter(function (x) { return x && x.id && x.name; }).map(function (x) { return { id: str(x.id), name: str(x.name) }; });
+    var ids = {}; f.forEach(function (x) { ids[x.id] = 1; });
+    var m = {}; Object.keys(o.m || {}).forEach(function (k) { if (ids[str(o.m[k])]) m[k] = str(o.m[k]); });
+    return { f: f, m: m };
+  }
+  function saveLibFolders(store, lf) { store.setSetting('ライブラリフォルダ', JSON.stringify({ f: lf.f, m: lf.m })); }
+  function libItemId(id) { return str(id).replace(/[^\w-]/g, '').slice(0, 40); }
   handlers.library = function (p, store, ctx) {
-    var s = currentStudent(p, store, ctx);
-    return { custom: (store.getLibrary ? store.getLibrary() : []).map(libPublic), hidden: libraryHidden(store), read: achOf(s).lib };
+    var s = currentStudent(p, store, ctx), lf = libFolders(store);
+    return { custom: (store.getLibrary ? store.getLibrary() : []).map(libPublic), hidden: libraryHidden(store), read: achOf(s).lib, folders: lf.f, folderOf: lf.m };
   };
   handlers.t_library = function (p, store, ctx) {
     currentTeacher(p, store, ctx);
-    return { custom: (store.getLibrary ? store.getLibrary() : []).map(function (x) { var o = libPublic(x); o.owner = str(x.owner); return o; }), hidden: libraryHidden(store) };
+    var lf = libFolders(store);
+    return { custom: (store.getLibrary ? store.getLibrary() : []).map(function (x) { var o = libPublic(x); o.owner = str(x.owner); return o; }), hidden: libraryHidden(store),
+      folders: lf.f, folderOf: lf.m };
+  };
+  // フォルダを作る・名前を変える
+  handlers.t_saveLibFolder = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var lf = libFolders(store), id = str(p.id), name = str(p.name).replace(/\s+/g, ' ').trim().slice(0, 30);
+    if (!name) throw err('フォルダの名前を入力してください。');
+    if (name === 'デフォルト') throw err('「デフォルト」は使えない名前です。');
+    if (lf.f.some(function (x) { return x.name === name && x.id !== id; })) throw err('同じ名前のフォルダがあります。');
+    if (id) {
+      var cur = lf.f.filter(function (x) { return x.id === id; })[0];
+      if (!cur) throw err('フォルダが見つかりません。');
+      cur.name = name;
+    } else {
+      if (lf.f.length >= LIB_FOLDER_MAX) throw err('フォルダは' + LIB_FOLDER_MAX + '個までです。');
+      id = 'lf' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+      lf.f.push({ id: id, name: name });
+    }
+    saveLibFolders(store, lf);
+    return { id: id, folders: lf.f, folderOf: lf.m };
+  };
+  // フォルダを消す（中の英文は「デフォルト」へもどる。英文そのものは消さない）
+  handlers.t_deleteLibFolder = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var lf = libFolders(store), id = str(p.id), moved = 0;
+    lf.f = lf.f.filter(function (x) { return x.id !== id; });
+    Object.keys(lf.m).forEach(function (k) { if (lf.m[k] === id) { delete lf.m[k]; moved++; } });
+    saveLibFolders(store, lf);
+    return { moved: moved, folders: lf.f, folderOf: lf.m };
+  };
+  // 英文をフォルダへ移す（folder が空なら「デフォルト」へ）
+  handlers.t_moveLibItems = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var lf = libFolders(store), to = str(p.folder);
+    if (to && !lf.f.some(function (x) { return x.id === to; })) throw err('フォルダが見つかりません。');
+    var ids = [].concat(p.ids || []).slice(0, 500).map(libItemId).filter(Boolean);
+    ids.forEach(function (k) { if (to) lf.m[k] = to; else delete lf.m[k]; });
+    saveLibFolders(store, lf);
+    return { moved: ids.length, folders: lf.f, folderOf: lf.m };
   };
   handlers.t_saveLibrary = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
@@ -2612,20 +2687,32 @@ window.APP_CONFIG = {
     if (text.length > 3000 || str(it.ja).length > 3000) throw err('ライブラリの英文・和訳は3000文字以内にしてください。');
     if (lv < 1 || lv > 4) lv = 1;
     var data = { level: lv, title: title, text: text, ja: str(it.ja) };
+    function setFolder(itemId) {
+      if (it.folder === undefined) return;
+      var lf = libFolders(store), to = str(it.folder);
+      if (to && !lf.f.some(function (x) { return x.id === to; })) to = '';
+      if ((lf.m[itemId] || '') === to) return;
+      if (to) lf.m[itemId] = to; else delete lf.m[itemId];
+      saveLibFolders(store, lf);
+    }
     if (it.id) {
       var cur = store.getLibrary().filter(function (x) { return str(x.id) === str(it.id); })[0];
       if (!cur) throw err('見つかりません。');
       store.updateLibrary(str(it.id), data);
+      setFolder(str(it.id));
       return { id: str(it.id) };
     }
     var id = 'c' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
     data.id = id; data.owner = me.id; data.created = ctx.now().toISOString();
     store.addLibrary(data);
+    setFolder(id);
     return { id: id };
   };
   handlers.t_deleteLibrary = function (p, store, ctx) {
     currentTeacher(p, store, ctx);
     store.deleteLibrary(str(p.id));
+    var lf = libFolders(store), k = libItemId(p.id);
+    if (lf.m[k]) { delete lf.m[k]; saveLibFolders(store, lf); }
     return {};
   };
   handlers.t_hideLibrary = function (p, store, ctx) {
@@ -3409,7 +3496,7 @@ window.APP_CONFIG = {
     return { mime: a.mime, b64: a.b64 };
   };
 
-  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1, t_saveFolder: 1, t_deleteFolder: 1, t_moveToFolder: 1,
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveLibFolder: 1, t_deleteLibFolder: 1, t_moveLibItems: 1, t_saveAssignment: 1, t_deleteAssignment: 1, t_saveFolder: 1, t_deleteFolder: 1, t_moveToFolder: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
     t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
@@ -6978,13 +7065,19 @@ window.SAMPLE_ASSIGNMENTS = [
 
   // ================= 生徒：英文ライブラリ =================
   var LV_NAME = window.LIBRARY_LEVELS || { 1: '中1', 2: '中2', 3: '中3', 4: '高校' };
+  // ライブラリの英文（最初から入っているもの＋先生が追加したもの）。folder：フォルダのid（''＝デフォルト）
+  function libItems(r, withHidden) {
+    var hidden = r.hidden || [], fo = r.folderOf || {};
+    return (window.LIBRARY || []).map(function (x) { return { id: x.id, level: x.lv, title: x.title, text: x.en, ja: x.ja, cat: x.cat, builtin: true }; })
+      .concat((r.custom || []).map(function (x) { return { id: x.id, level: x.level, title: x.title, text: x.text, ja: x.ja, cat: '先生から', builtin: false }; }))
+      .map(function (x) { x.folder = fo[x.id] || ''; x.hidden = hidden.indexOf(x.id) >= 0; return x; })
+      .filter(function (x) { return withHidden || !x.hidden; });
+  }
+  // フォルダの一覧（先頭は「デフォルト」）
+  function libFolderList(r) { return [{ id: '', name: 'デフォルト' }].concat(r.folders || []); }
   async function loadLibrary() {
     var r = await cached('library');
-    var hidden = r.hidden || [];
-    var items = (window.LIBRARY || []).filter(function (x) { return hidden.indexOf(x.id) < 0; })
-      .map(function (x) { return { id: x.id, level: x.lv, title: x.title, text: x.en, ja: x.ja, cat: x.cat }; })
-      .concat((r.custom || []).map(function (x) { return { id: x.id, level: x.level, title: x.title, text: x.text, ja: x.ja, cat: '先生から' }; }));
-    state.library = { items: items, read: r.read || [] };
+    state.library = { items: libItems(r, false), read: r.read || [], folders: libFolderList(r) };
     return state.library;
   }
   async function viewLibrary(level) {
@@ -6992,13 +7085,25 @@ window.SAMPLE_ASSIGNMENTS = [
     try {
       level = +level || prefs().libLevel || 1; setPref('libLevel', level);
       var L = await loadLibrary(), read = L.read;
+      // フォルダ（英文が1本以上あるものだけ）
+      var folders = L.folders.filter(function (f) { return L.items.some(function (x) { return x.folder === f.id; }); });
+      var fid = prefs().libFolder || '';
+      if (!folders.some(function (f) { return f.id === fid; })) fid = folders.length ? folders[0].id : '';
+      var inF = L.items.filter(function (x) { return x.folder === fid; });
       var html = '<div class="card"><div class="card-title"><h2>📚 英文ライブラリ</h2><span class="muted" style="font-size:.85rem">読んだ本数 ' + read.length + '</span></div>' +
-        '<p class="muted" style="margin:0 0 8px">好きな英文を選んで音読しよう。レベルは自由に選べます。</p><div class="seg lv-seg">' +
-        [1, 2, 3, 4].map(function (lv) {
-          var all = L.items.filter(function (x) { return x.level === lv; }), done = all.filter(function (x) { return read.indexOf(x.id) >= 0; }).length;
-          return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + ' <small>' + done + '/' + all.length + '</small></button>';
+        '<p class="muted" style="margin:0 0 8px">好きな英文を選んで音読しよう。レベルは自由に選べます。</p>';
+      if (folders.length > 1) {
+        html += '<div class="lib-folders" id="libFolders">' + folders.map(function (f) {
+          var all = L.items.filter(function (x) { return x.folder === f.id; }), done = all.filter(function (x) { return read.indexOf(x.id) >= 0; }).length;
+          return '<button type="button" data-f="' + esc(f.id) + '" class="lib-folder' + (f.id === fid ? ' active' : '') + '">📁 ' + esc(f.name) + ' <small>' + done + '/' + all.length + '</small></button>';
         }).join('') + '</div>';
-      var list = L.items.filter(function (x) { return x.level === level; });
+      }
+      html += '<div class="seg lv-seg">' +
+        [1, 2, 3, 4].map(function (lv) {
+          var all = inF.filter(function (x) { return x.level === lv; }), done = all.filter(function (x) { return read.indexOf(x.id) >= 0; }).length;
+          return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + (all.length ? '' : ' dim') + '">' + LV_NAME[lv] + ' <small>' + done + '/' + all.length + '</small></button>';
+        }).join('') + '</div>';
+      var list = inF.filter(function (x) { return x.level === level; });
       html += list.length ? '<ul class="list" style="margin-top:10px">' + list.map(function (x) {
         var done = read.indexOf(x.id) >= 0;
         return '<li><a class="item" href="#/libitem/' + encodeURIComponent(x.id) + '"><div class="main"><div class="title">' + esc(x.title) + '</div>' +
@@ -7008,6 +7113,16 @@ window.SAMPLE_ASSIGNMENTS = [
       html += '</div>';
       $app.innerHTML = html;
       $all('.lv-seg button').forEach(function (b) { b.onclick = function () { go('#/lib/' + b.dataset.lv); }; });
+      $all('#libFolders button').forEach(function (b) {
+        b.onclick = function () {
+          var f = b.dataset.f, items = L.items.filter(function (x) { return x.folder === f; });
+          setPref('libFolder', f);
+          // 今のレベルに英文がなければ、英文のある最初のレベルへ
+          var lv = level;
+          if (!items.some(function (x) { return x.level === lv; })) { lv = [1, 2, 3, 4].filter(function (k) { return items.some(function (x) { return x.level === k; }); })[0] || level; }
+          viewLibrary(lv);
+        };
+      });
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
   async function viewLibItem(id) {
@@ -7800,6 +7915,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var cls = splitCls(a.classes);
       var html = '<a class="back" href="' + (aid ? '#/t/results/' + encodeURIComponent(aid) : '#/t') + '">← もどる</a>';
       html += '<div class="card"><h2>' + (aid ? '課題を編集' : '新しい課題') + '</h2>' +
+        '<div class="lib-pick-row"><button class="btn-primary" type="button" id="eFromLib">📚 ライブラリから出題</button><span class="muted">ライブラリの英文を選ぶと、タイトル・英文・和訳が自動で入ります</span></div>' +
         '<label for="eTitle">タイトル</label><input type="text" id="eTitle" maxlength="80" value="' + esc(a.title) + '" placeholder="例：Unit 3 Part 1">' +
         '<label for="eFolder">フォルダ</label><div class="btn-row"><select id="eFolder" style="flex:1;min-width:200px"><option value="">🗂 その他（フォルダなし）</option>' + folderOptions(folderTree(o.folders || []), a.folder || '') + '</select>' +
         '<button class="btn-small" type="button" id="eNewFolder">＋ 新しいフォルダ</button></div>' +
@@ -7912,7 +8028,18 @@ window.SAMPLE_ASSIGNMENTS = [
         }
         syncTypes();
       }
-      ta.oninput = wc; $('#eJa').oninput = function () { syncTypes(); lenCheck(); }; $('#ePass').oninput = syncTypes; $('#ePassCount').oninput = syncTypes;
+      ta.oninput = wc; $('#eJa').oninput = function () { syncTypes(); lenCheck(); };
+      $('#eFromLib').onclick = function () {
+        openLibPicker(function (it) {
+          var filled = ta.value.trim() || $('#eJa').value.trim();
+          if (filled && !confirm('入力中の英文・和訳を、「' + it.title + '」の英文に置きかえますか？')) return false;
+          $('#eTitle').value = it.title;
+          ta.value = it.text; $('#eJa').value = it.ja || '';
+          ta.dispatchEvent(new Event('input')); $('#eJa').dispatchEvent(new Event('input'));
+          toast('「' + it.title + '」の英文を入れました。クラスや締切を決めて保存してください');
+          return true;
+        });
+      }; $('#ePass').oninput = syncTypes; $('#ePassCount').oninput = syncTypes;
       $('#eTrans').onclick = async function () {
         var btn = this, list = enSentences(ta.value);
         if (!list.length) { toast('先に英文を入力してください'); return; }
@@ -8296,17 +8423,69 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
   // ---- 英文ライブラリの管理 ----
+  // ライブラリから英文を選ぶ（課題の作成画面の「ライブラリから出題」）
+  async function openLibPicker(onPick) {
+    var r;
+    try { r = await cached('t_library'); } catch (e) { showError(e); return; }
+    var folders = libFolderList(r), all = libItems(r, true);
+    var fid = sessionStorage.getItem('tPickF') || '', level = +(sessionStorage.getItem('tPickLv') || 0), q = '';
+    if (!folders.some(function (f) { return f.id === fid; })) fid = '';
+    var el = document.createElement('div');
+    el.className = 'reward-overlay lib-pick-overlay';
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'ライブラリから出題');
+    document.body.appendChild(el);
+    function close() { el.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    el.onclick = function (e) { if (e.target === el) close(); };
+    function draw() {
+      var inF = all.filter(function (x) { return x.folder === fid; });
+      var list = inF.filter(function (x) { return (!level || x.level === level) && (!q || (x.title + ' ' + x.text + ' ' + (x.ja || '')).toLowerCase().indexOf(q) >= 0); });
+      el.innerHTML = '<div class="reward-box lib-pick"><div class="card-title"><h2>📚 ライブラリから出題</h2><button class="btn-small" type="button" id="lpClose">✕ とじる</button></div>' +
+        '<div class="lib-folders">' + folders.map(function (f) {
+          return '<button type="button" data-f="' + esc(f.id) + '" class="lib-folder' + (f.id === fid ? ' active' : '') + '">📁 ' + esc(f.name) + ' <small>' + all.filter(function (x) { return x.folder === f.id; }).length + '</small></button>';
+        }).join('') + '</div>' +
+        '<div class="btn-row" style="margin:6px 0"><div class="seg" id="lpLv">' + [0, 1, 2, 3, 4].map(function (lv) {
+          return '<button type="button" data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + (lv ? LV_NAME[lv] : 'すべて') + '</button>';
+        }).join('') + '</div><input type="search" id="lpQ" placeholder="🔍 タイトル・英文で検索" value="' + esc(q) + '" style="flex:1;min-width:160px"></div>' +
+        (list.length ? '<ul class="list lib-pick-list">' + list.map(function (x) {
+          return '<li><button type="button" class="item" data-id="' + esc(x.id) + '"><div class="main"><div class="title">' + esc(x.title) + (x.hidden ? ' <span class="pill gray">生徒には非表示</span>' : '') + '</div>' +
+            '<div class="sub"><span class="pill gray">' + LV_NAME[x.level] + '</span> ' + Scoring.countWords(x.text) + '語・' + esc(x.text.slice(0, 70)) + (x.text.length > 70 ? '…' : '') + '</div></div><span class="go">選ぶ ▶</span></button></li>';
+        }).join('') + '</ul>' : '<div class="empty">英文が見つかりません。</div>') + '</div>';
+      $('#lpClose', el).onclick = close;
+      $all('.lib-folder', el).forEach(function (b) { b.onclick = function () { fid = b.dataset.f; sessionStorage.setItem('tPickF', fid); draw(); }; });
+      $all('#lpLv button', el).forEach(function (b) { b.onclick = function () { level = +b.dataset.lv; sessionStorage.setItem('tPickLv', level); draw(); }; });
+      var qi = $('#lpQ', el);
+      qi.oninput = function () { q = qi.value.trim().toLowerCase(); var pos = qi.selectionStart; draw(); var n = $('#lpQ', el); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} };
+      $all('.lib-pick-list button.item', el).forEach(function (b) {
+        b.onclick = function () {
+          var it = all.filter(function (x) { return x.id === b.dataset.id; })[0];
+          if (it && onPick(it) !== false) close();
+        };
+      });
+    }
+    draw();
+  }
   async function viewTeacherLibrary(editId) {
     bottomNav(); $app.classList.add('wide'); loading();
     try {
-      var r = await cached('t_library'), hidden = r.hidden || [], custom = r.custom || [];
+      var r = await cached('t_library'), custom = r.custom || [];
+      var folders = libFolderList(r), fmap = {};
+      folders.forEach(function (f) { fmap[f.id] = f; });
       var level = +(sessionStorage.getItem('tLibLv') || 1);
-      var editing = editId === 'new' ? { id: '', level: level, title: '', text: '', ja: '' } : custom.filter(function (x) { return x.id === editId; })[0];
+      var fid = sessionStorage.getItem('tLibF') || '';
+      if (!fmap[fid]) fid = '';
+      var folderSel = function (id, sel) {
+        return '<select id="' + id + '">' + folders.map(function (f) { return '<option value="' + esc(f.id) + '"' + (f.id === sel ? ' selected' : '') + '>📁 ' + esc(f.name) + '</option>'; }).join('') + '</select>';
+      };
+      var editing = editId === 'new' ? { id: '', level: level, title: '', text: '', ja: '', folder: fid } : custom.filter(function (x) { return x.id === editId; })[0];
+      if (editing && editing.id) editing.folder = (r.folderOf || {})[editing.id] || '';
       var html = teacherTabs('library');
       if (editing) {
         html += '<div class="card"><h2>' + (editing.id ? '英文を編集' : '英文を追加') + '</h2>' +
           '<div class="form-row"><div><label for="lbTitle">タイトル</label><input type="text" id="lbTitle" maxlength="80" value="' + esc(editing.title) + '"></div>' +
-          '<div><label for="lbLv">レベル</label><select id="lbLv">' + [1, 2, 3, 4].map(function (lv) { return '<option value="' + lv + '"' + (lv === editing.level ? ' selected' : '') + '>' + LV_NAME[lv] + '</option>'; }).join('') + '</select></div></div>' +
+          '<div><label for="lbLv">レベル</label><select id="lbLv">' + [1, 2, 3, 4].map(function (lv) { return '<option value="' + lv + '"' + (lv === editing.level ? ' selected' : '') + '>' + LV_NAME[lv] + '</option>'; }).join('') + '</select></div>' +
+          '<div><label for="lbFolder">フォルダ</label>' + folderSel('lbFolder', editing.folder || '') + '</div></div>' +
           '<label for="lbText">英文</label><textarea id="lbText">' + esc(editing.text) + '</textarea>' +
           '<label for="lbJa">和訳（任意・英文と同じ数の文にすると、1文ずつ組で表示されます）</label><textarea id="lbJa" style="min-height:80px">' + esc(editing.ja) + '</textarea>' +
           '<p class="muted" style="font-size:.85rem">歌詞や市販の教材の文章など、著作権のある文章は入れないでください。</p>' +
@@ -8316,8 +8495,8 @@ window.SAMPLE_ASSIGNMENTS = [
         $('#lbSave').onclick = async function () {
           var btn = this; btn.disabled = true;
           try {
-            await call('t_saveLibrary', { item: { id: editing.id, level: +$('#lbLv').value, title: $('#lbTitle').value, text: $('#lbText').value, ja: $('#lbJa').value } });
-            sessionStorage.setItem('tLibLv', $('#lbLv').value); toast('保存しました'); go('#/t/library');
+            await call('t_saveLibrary', { item: { id: editing.id, level: +$('#lbLv').value, title: $('#lbTitle').value, text: $('#lbText').value, ja: $('#lbJa').value, folder: $('#lbFolder').value } });
+            sessionStorage.setItem('tLibLv', $('#lbLv').value); sessionStorage.setItem('tLibF', $('#lbFolder').value); toast('保存しました'); go('#/t/library');
           } catch (e) { $('#lbErr').textContent = e.message; btn.disabled = false; }
         };
         if ($('#lbDel')) $('#lbDel').onclick = async function () {
@@ -8326,23 +8505,59 @@ window.SAMPLE_ASSIGNMENTS = [
         };
         return;
       }
-      var items = (window.LIBRARY || []).map(function (x) { return { id: x.id, level: x.lv, title: x.title, text: x.en, cat: x.cat, builtin: true }; })
-        .concat(custom.map(function (x) { return { id: x.id, level: x.level, title: x.title, text: x.text, cat: '先生が追加', builtin: false }; }));
+      var all = libItems(r, true), inF = all.filter(function (x) { return x.folder === fid; });
+      var cur = fmap[fid];
       html += '<div class="card"><div class="card-title"><h2>📚 英文ライブラリ</h2><a class="btn btn-primary" href="#/t/library/new">＋ 英文を追加</a></div>' +
-        '<p class="muted" style="font-size:.88rem">生徒が自由に選んで読める英文です（おみくじ英文もここから出ます）。最初から' + (window.LIBRARY || []).length + '本入っています（すべてこのアプリ用に書いたオリジナルの文章です）。表示したくない英文は「非表示」にできます。</p>' +
+        '<p class="muted" style="font-size:.88rem">生徒が自由に選んで読める英文です（おみくじ英文もここから出ます）。最初から' + (window.LIBRARY || []).length + '本入っています（すべてこのアプリ用に書いたオリジナルの文章です）。表示したくない英文は「非表示」にできます。<br>' +
+        '📁 フォルダを作って英文を分けられます（最初から入っている英文は「デフォルト」にあります）。生徒の画面にも、同じフォルダで表示されます。</p>' +
+        '<div class="lib-folders" id="tLibF">' + folders.map(function (f) {
+          var n0 = all.filter(function (x) { return x.folder === f.id; }).length;
+          return '<button type="button" data-f="' + esc(f.id) + '" class="lib-folder' + (f.id === fid ? ' active' : '') + '">📁 ' + esc(f.name) + ' <small>' + n0 + '</small></button>';
+        }).join('') + '<button type="button" class="lib-folder add" id="tLibFNew">＋ フォルダを作る</button></div>' +
+        (fid ? '<div class="btn-row lib-folder-tools"><span class="muted">「' + esc(cur.name) + '」フォルダ：</span><button class="btn-small" id="tLibFRen">✏️ 名前を変える</button><button class="btn-small btn-danger" id="tLibFDel">🗑 フォルダを削除</button></div>' : '') +
         '<div class="seg" id="tLv">' + [1, 2, 3, 4].map(function (lv) {
-          return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + ' <small>' + items.filter(function (x) { return x.level === lv; }).length + '</small></button>';
-        }).join('') + '</div>' +
-        '<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>タイトル</th><th>種類</th><th class="num">語数</th><th>状態</th><th></th></tr></thead><tbody>' +
-        items.filter(function (x) { return x.level === level; }).map(function (x) {
-          var hid = hidden.indexOf(x.id) >= 0;
-          return '<tr><td>' + esc(x.title) + '<details><summary class="muted" style="font-size:.8rem">英文を見る</summary><small>' + esc(x.text) + '</small></details></td><td>' + esc(x.cat) + '</td><td class="num">' + Scoring.countWords(x.text) + '</td>' +
+          return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + ' <small>' + inF.filter(function (x) { return x.level === lv; }).length + '</small></button>';
+        }).join('') + '</div>';
+      var rows = inF.filter(function (x) { return x.level === level; });
+      html += '<div class="btn-row lib-move" style="margin-top:10px"><span class="muted">選んだ英文を</span>' +
+        '<select id="tLibMoveTo">' + folders.filter(function (f) { return f.id !== fid; }).map(function (f) { return '<option value="' + esc(f.id) + '">📁 ' + esc(f.name) + '</option>'; }).join('') + '</select>' +
+        '<button class="btn-small" id="tLibMove" disabled>へ移動</button><span class="muted" id="tLibSel"></span></div>';
+      html += rows.length ? '<div class="table-wrap" style="margin-top:6px"><table><thead><tr><th style="width:34px"><input type="checkbox" id="tLibAll" aria-label="すべて選ぶ"></th><th>タイトル</th><th>種類</th><th class="num">語数</th><th>状態</th><th></th></tr></thead><tbody>' +
+        rows.map(function (x) {
+          var hid = x.hidden;
+          return '<tr><td><input type="checkbox" class="tLibChk" value="' + esc(x.id) + '" aria-label="選ぶ"></td><td>' + esc(x.title) + '<details><summary class="muted" style="font-size:.8rem">英文を見る</summary><small>' + esc(x.text) + '</small></details></td><td>' + esc(x.builtin ? x.cat : '先生が追加') + '</td><td class="num">' + Scoring.countWords(x.text) + '</td>' +
             '<td>' + (hid ? '<span class="pill gray">非表示</span>' : '<span class="pill done">表示中</span>') + '</td>' +
             '<td><div class="btn-row" style="flex-wrap:nowrap">' + (x.builtin ? '' : '<a class="btn btn-small" href="#/t/library/' + encodeURIComponent(x.id) + '">編集</a>') +
             '<button class="btn-small" data-hide="' + esc(x.id) + '" data-on="' + (hid ? '0' : '1') + '">' + (hid ? '表示する' : '非表示') + '</button></div></td></tr>';
-        }).join('') + '</tbody></table></div></div>';
+        }).join('') + '</tbody></table></div>' : '<div class="empty">このフォルダの' + LV_NAME[level] + 'の英文はありません。</div>';
+      html += '</div>';
       $app.innerHTML = html;
       $all('#tLv button').forEach(function (b) { b.onclick = function () { sessionStorage.setItem('tLibLv', b.dataset.lv); viewTeacherLibrary(); }; });
+      $all('#tLibF button[data-f]').forEach(function (b) { b.onclick = function () { sessionStorage.setItem('tLibF', b.dataset.f); viewTeacherLibrary(); }; });
+      $('#tLibFNew').onclick = async function () {
+        var nm = prompt('新しいフォルダの名前（例：教科書 Unit 1、季節の英文）', '');
+        if (nm === null || !nm.trim()) return;
+        try { var res = await call('t_saveLibFolder', { name: nm }); sessionStorage.setItem('tLibF', res.id); toast('フォルダを作りました'); viewTeacherLibrary(); } catch (e) { showError(e); }
+      };
+      if ($('#tLibFRen')) $('#tLibFRen').onclick = async function () {
+        var nm = prompt('フォルダの新しい名前', cur.name);
+        if (nm === null || !nm.trim() || nm.trim() === cur.name) return;
+        try { await call('t_saveLibFolder', { id: fid, name: nm }); toast('名前を変えました'); viewTeacherLibrary(); } catch (e) { showError(e); }
+      };
+      if ($('#tLibFDel')) $('#tLibFDel').onclick = async function () {
+        var n0 = all.filter(function (x) { return x.folder === fid; }).length;
+        if (!confirm('「' + cur.name + '」フォルダを削除しますか？' + (n0 ? '\n中の英文（' + n0 + '本）は消えずに「デフォルト」へもどります。' : ''))) return;
+        try { await call('t_deleteLibFolder', { id: fid }); sessionStorage.setItem('tLibF', ''); toast('フォルダを削除しました'); viewTeacherLibrary(); } catch (e) { showError(e); }
+      };
+      function selected() { return $all('.tLibChk').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }); }
+      function updSel() { var n0 = selected().length; $('#tLibMove').disabled = !n0 || !$('#tLibMoveTo').value && $('#tLibMoveTo').options.length === 0; $('#tLibSel').textContent = n0 ? n0 + '本を選択中' : ''; }
+      $all('.tLibChk').forEach(function (c) { c.onchange = updSel; });
+      if ($('#tLibAll')) $('#tLibAll').onchange = function () { var on = this.checked; $all('.tLibChk').forEach(function (c) { c.checked = on; }); updSel(); };
+      $('#tLibMove').onclick = async function () {
+        var ids = selected(); if (!ids.length) return;
+        var to = $('#tLibMoveTo').value;
+        try { await call('t_moveLibItems', { ids: ids, folder: to }); toast(ids.length + '本を「' + fmap[to].name + '」へ移しました'); viewTeacherLibrary(); } catch (e) { showError(e); }
+      };
       $all('button[data-hide]').forEach(function (b) {
         b.onclick = async function () {
           try { await call('t_hideLibrary', { id: b.dataset.hide, hidden: b.dataset.on === '1' }); viewTeacherLibrary(); } catch (e) { showError(e); }
