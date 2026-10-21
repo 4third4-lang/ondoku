@@ -1567,13 +1567,66 @@
   // ---- 英文ライブラリ（先生が追加したもの・非表示にしたもの） ----
   function libraryHidden(store) { return str(store.getSetting('ライブラリ非表示')).split(',').filter(Boolean); }
   function libPublic(x) { return { id: str(x.id), level: num(x.level) || 1, title: str(x.title), text: str(x.text), ja: str(x.ja), cat: '先生から' }; }
+  // ライブラリのフォルダ（1段のみ）。「設定」シートの「ライブラリフォルダ」に JSON で保存
+  //  { f: [{id, name}], m: { 英文のid: フォルダのid } }。m にない英文は「デフォルト」フォルダ
+  var LIB_FOLDER_MAX = 50;
+  function libFolders(store) {
+    var o = {};
+    try { o = JSON.parse(str(store.getSetting('ライブラリフォルダ')) || '{}') || {}; } catch (e) { o = {}; }
+    var f = (o.f || []).filter(function (x) { return x && x.id && x.name; }).map(function (x) { return { id: str(x.id), name: str(x.name) }; });
+    var ids = {}; f.forEach(function (x) { ids[x.id] = 1; });
+    var m = {}; Object.keys(o.m || {}).forEach(function (k) { if (ids[str(o.m[k])]) m[k] = str(o.m[k]); });
+    return { f: f, m: m };
+  }
+  function saveLibFolders(store, lf) { store.setSetting('ライブラリフォルダ', JSON.stringify({ f: lf.f, m: lf.m })); }
+  function libItemId(id) { return str(id).replace(/[^\w-]/g, '').slice(0, 40); }
   handlers.library = function (p, store, ctx) {
-    var s = currentStudent(p, store, ctx);
-    return { custom: (store.getLibrary ? store.getLibrary() : []).map(libPublic), hidden: libraryHidden(store), read: achOf(s).lib };
+    var s = currentStudent(p, store, ctx), lf = libFolders(store);
+    return { custom: (store.getLibrary ? store.getLibrary() : []).map(libPublic), hidden: libraryHidden(store), read: achOf(s).lib, folders: lf.f, folderOf: lf.m };
   };
   handlers.t_library = function (p, store, ctx) {
     currentTeacher(p, store, ctx);
-    return { custom: (store.getLibrary ? store.getLibrary() : []).map(function (x) { var o = libPublic(x); o.owner = str(x.owner); return o; }), hidden: libraryHidden(store) };
+    var lf = libFolders(store);
+    return { custom: (store.getLibrary ? store.getLibrary() : []).map(function (x) { var o = libPublic(x); o.owner = str(x.owner); return o; }), hidden: libraryHidden(store),
+      folders: lf.f, folderOf: lf.m };
+  };
+  // フォルダを作る・名前を変える
+  handlers.t_saveLibFolder = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var lf = libFolders(store), id = str(p.id), name = str(p.name).replace(/\s+/g, ' ').trim().slice(0, 30);
+    if (!name) throw err('フォルダの名前を入力してください。');
+    if (name === 'デフォルト') throw err('「デフォルト」は使えない名前です。');
+    if (lf.f.some(function (x) { return x.name === name && x.id !== id; })) throw err('同じ名前のフォルダがあります。');
+    if (id) {
+      var cur = lf.f.filter(function (x) { return x.id === id; })[0];
+      if (!cur) throw err('フォルダが見つかりません。');
+      cur.name = name;
+    } else {
+      if (lf.f.length >= LIB_FOLDER_MAX) throw err('フォルダは' + LIB_FOLDER_MAX + '個までです。');
+      id = 'lf' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+      lf.f.push({ id: id, name: name });
+    }
+    saveLibFolders(store, lf);
+    return { id: id, folders: lf.f, folderOf: lf.m };
+  };
+  // フォルダを消す（中の英文は「デフォルト」へもどる。英文そのものは消さない）
+  handlers.t_deleteLibFolder = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var lf = libFolders(store), id = str(p.id), moved = 0;
+    lf.f = lf.f.filter(function (x) { return x.id !== id; });
+    Object.keys(lf.m).forEach(function (k) { if (lf.m[k] === id) { delete lf.m[k]; moved++; } });
+    saveLibFolders(store, lf);
+    return { moved: moved, folders: lf.f, folderOf: lf.m };
+  };
+  // 英文をフォルダへ移す（folder が空なら「デフォルト」へ）
+  handlers.t_moveLibItems = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var lf = libFolders(store), to = str(p.folder);
+    if (to && !lf.f.some(function (x) { return x.id === to; })) throw err('フォルダが見つかりません。');
+    var ids = [].concat(p.ids || []).slice(0, 500).map(libItemId).filter(Boolean);
+    ids.forEach(function (k) { if (to) lf.m[k] = to; else delete lf.m[k]; });
+    saveLibFolders(store, lf);
+    return { moved: ids.length, folders: lf.f, folderOf: lf.m };
   };
   handlers.t_saveLibrary = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
@@ -1584,20 +1637,32 @@
     if (text.length > 3000 || str(it.ja).length > 3000) throw err('ライブラリの英文・和訳は3000文字以内にしてください。');
     if (lv < 1 || lv > 4) lv = 1;
     var data = { level: lv, title: title, text: text, ja: str(it.ja) };
+    function setFolder(itemId) {
+      if (it.folder === undefined) return;
+      var lf = libFolders(store), to = str(it.folder);
+      if (to && !lf.f.some(function (x) { return x.id === to; })) to = '';
+      if ((lf.m[itemId] || '') === to) return;
+      if (to) lf.m[itemId] = to; else delete lf.m[itemId];
+      saveLibFolders(store, lf);
+    }
     if (it.id) {
       var cur = store.getLibrary().filter(function (x) { return str(x.id) === str(it.id); })[0];
       if (!cur) throw err('見つかりません。');
       store.updateLibrary(str(it.id), data);
+      setFolder(str(it.id));
       return { id: str(it.id) };
     }
     var id = 'c' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
     data.id = id; data.owner = me.id; data.created = ctx.now().toISOString();
     store.addLibrary(data);
+    setFolder(id);
     return { id: id };
   };
   handlers.t_deleteLibrary = function (p, store, ctx) {
     currentTeacher(p, store, ctx);
     store.deleteLibrary(str(p.id));
+    var lf = libFolders(store), k = libItemId(p.id);
+    if (lf.m[k]) { delete lf.m[k]; saveLibFolders(store, lf); }
     return {};
   };
   handlers.t_hideLibrary = function (p, store, ctx) {
@@ -2381,7 +2446,7 @@
     return { mime: a.mime, b64: a.b64 };
   };
 
-  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveAssignment: 1, t_deleteAssignment: 1, t_saveFolder: 1, t_deleteFolder: 1, t_moveToFolder: 1,
+  var WRITE_ACTIONS = { submit: 1, setNick: 1, setLook: 1, seenStamps: 1, setAvatar: 1, buyItem: 1, seenItems: 1, uploadAvatarPic: 1, t_reviewPic: 1, t_saveLibrary: 1, t_deleteLibrary: 1, t_hideLibrary: 1, t_saveLibFolder: 1, t_deleteLibFolder: 1, t_moveLibItems: 1, t_saveAssignment: 1, t_deleteAssignment: 1, t_saveFolder: 1, t_deleteFolder: 1, t_moveToFolder: 1,
     t_importStudents: 1, t_saveSettings: 1, t_reviewFlag: 1, t_changePassword: 1, t_saveTeacher: 1,
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
     t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
