@@ -3381,7 +3381,13 @@ function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 function doGet() {
-  return json_({ ok: true, message: '音読アプリのサーバーは動いています。' });
+  var o = { ok: true, message: '音読アプリのサーバーは動いています。' };
+  try {   // ランキングの表彰の動作確認用（今日の確認が済んだか・最後のエラー）
+    var c = sc_(), today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+    o.rankCheck = c && c.get('rkchk:' + today) ? 'done' : 'not yet';
+    var er = c && c.get('rkerr'); if (er) o.rankError = er;
+  } catch (e) { /* noop */ }
+  return json_(o);
 }
 // 同じ提出（同じ提出番号 rid）が何度届いても、1回だけ記録して同じ返事を返す（通信の自動再送で二重に数えないため）
 // Google 側の混雑（同時アクセスの上限など）によるエラーかどうか
@@ -3402,7 +3408,9 @@ function rankAwardsMaybe_() {
     Core.awardRankings(st, GAS_CTX);
     SpreadsheetApp.flush(); st.publishCache_();
     if (c) c.put(key, '1', 21600);
-  } catch (err) { /* 次のアクセスでもう一度ためす */ } finally { lock.releaseLock(); }
+  } catch (err) {   // 次のアクセスでもう一度ためす（エラーの内容は動作確認用に残す）
+    try { if (c) c.put('rkerr', String(err && err.message || err).slice(0, 300) + ' @' + new Date().toISOString(), 21600); } catch (e2) { /* noop */ }
+  } finally { lock.releaseLock(); }
 }
 function doPost(e) {
   var t0 = Date.now(), req;
