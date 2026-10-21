@@ -408,7 +408,7 @@
 
 /*
  * スタンプの一覧（このアプリ用のオリジナルデザイン）
- *  k：種類 st＝ゆるかわステッカー / hk＝先生のハンコ / pp＝キラキラ・ポップ / lv＝ライブ表彰
+ *  k：種類 st＝ゆるかわステッカー / hk＝先生のハンコ / pp＝キラキラ・ポップ / lv＝ライブ表彰 / rk＝ランキング表彰
  *  rules：自動で押すときの条件（この中からランダムに1つ選ばれます）
  *  絵は js/art.js の Art.design() で描きます。サーバー（Apps Script）にも同じ一覧が入ります。
  */
@@ -474,12 +474,33 @@
     { id: 'lv1', k: 'lv', rank: 1, t: '優勝!!', t2: 'CHAMPION', live: 'rank1' },
     { id: 'lv2', k: 'lv', rank: 2, t: '準優勝!', t2: 'Fantastic!', live: 'rank2' },
     { id: 'lv3', k: 'lv', rank: 3, t: '3位入賞!', t2: 'Great job!', live: 'rank3' },
-    { id: 'lv10', k: 'lv', rank: 10, t: 'TOP 10!', t2: '入賞おめでとう', live: 'top10' }
+    { id: 'lv10', k: 'lv', rank: 10, t: 'TOP 10!', t2: '入賞おめでとう', live: 'top10' },
+    // ---- ランキングの表彰（デイリー・ウィークリー・マンスリー・自主練。自動で届きます） ----
+    { id: 'rkd1', k: 'rk', rank: 1, t: '1位!!', t2: 'DAILY No.1', rk: 'd' },
+    { id: 'rkd2', k: 'rk', rank: 2, t: '2位!', t2: 'デイリー', rk: 'd' },
+    { id: 'rkd3', k: 'rk', rank: 3, t: '3位!', t2: 'デイリー', rk: 'd' },
+    { id: 'rkd10', k: 'rk', rank: 10, t: 'TOP 10!', t2: 'デイリー', rk: 'd' },
+    { id: 'rkd20', k: 'rk', rank: 20, t: 'TOP 20!', t2: 'デイリー', rk: 'd' },
+    { id: 'rkw1', k: 'rk', rank: 1, t: '1位!!', t2: 'WEEKLY No.1', rk: 'w' },
+    { id: 'rkw2', k: 'rk', rank: 2, t: '2位!', t2: 'ウィークリー', rk: 'w' },
+    { id: 'rkw3', k: 'rk', rank: 3, t: '3位!', t2: 'ウィークリー', rk: 'w' },
+    { id: 'rkw10', k: 'rk', rank: 10, t: 'TOP 10!', t2: 'ウィークリー', rk: 'w' },
+    { id: 'rkw20', k: 'rk', rank: 20, t: 'TOP 20!', t2: 'ウィークリー', rk: 'w' },
+    { id: 'rkm1', k: 'rk', rank: 1, t: '1位!!', t2: 'MONTHLY No.1', rk: 'm' },
+    { id: 'rkm2', k: 'rk', rank: 2, t: '2位!', t2: 'マンスリー', rk: 'm' },
+    { id: 'rkm3', k: 'rk', rank: 3, t: '3位!', t2: 'マンスリー', rk: 'm' },
+    { id: 'rkm10', k: 'rk', rank: 10, t: 'TOP 10!', t2: 'マンスリー', rk: 'm' },
+    { id: 'rkm20', k: 'rk', rank: 20, t: 'TOP 20!', t2: 'マンスリー', rk: 'm' },
+    { id: 'rks1', k: 'rk', rank: 1, t: '1位!!', t2: '自主練 No.1', rk: 's' },
+    { id: 'rks2', k: 'rk', rank: 2, t: '2位!', t2: '自主練', rk: 's' },
+    { id: 'rks3', k: 'rk', rank: 3, t: '3位!', t2: '自主練', rk: 's' },
+    { id: 'rks10', k: 'rk', rank: 10, t: 'TOP 10!', t2: '自主練', rk: 's' },
+    { id: 'rks20', k: 'rk', rank: 20, t: 'TOP 20!', t2: '自主練', rk: 's' }
   ];
   var byId = {};
   L.forEach(function (d) { byId[d.id] = d; });
   function pool(rule) { return L.filter(function (d) { return (d.rules || []).indexOf(rule) >= 0; }); }
-  var KINDS = { st: 'ゆるかわ', hk: 'ハンコ', pp: 'キラキラ', lv: 'ライブ表彰' };
+  var KINDS = { st: 'ゆるかわ', hk: 'ハンコ', pp: 'キラキラ', lv: 'ライブ表彰', rk: 'ランキング表彰' };
   root.StampSet = { list: L, byId: byId, pool: pool, KINDS: KINDS };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
@@ -771,7 +792,7 @@
   function rewardsPublic(ach, s, today, store) {
     var lv = levelOf(num(s.totalWords)), unl = unlockedItems(ach, s);
     return { points: ach.p, badges: ach.b, days: ach.d, stampedToday: ach.ld === today, theme: ach.th || 'blue', icon: ach.ic || '',
-      weekDays: ach.wk === weekStart(today) ? num(ach.wd) : 0, read: ach.lib, counts: ach.c,
+      weekDays: ach.wk === weekStart(today) ? num(ach.wd) : 0, read: ach.lib, counts: ach.c, rankAwards: (ach.rk || []).slice(-10),
       stamps: ach.st.slice(-40), newStamps: ach.st.filter(function (x) { return x.n; }).length,
       icons: iconsUnlocked(lv.index, ach.d), levelIndex: lv.index, stampImgs: stampImgs(store, ach.st.slice(-40)),
       av: avatarOf(ach, 'self'), own: ach.own, picRejected: !!ach.pr, lastMk: ach.mkl || null, pk: ach.pk && ach.pk.st !== 'x' ? ach.pk : null, unlocked: unl, spent: num(ach.ps), avail: availPoints(ach),
@@ -817,7 +838,7 @@
     }
     if (key.indexOf('l:') === 0) return LIVE_STAMPS[key.slice(2)] || null;
     if (key.indexOf('g:') === 0) return SS().byId[key.slice(2)] || null;
-    if (key === 'rand:') return pickDesign(SS().list.filter(function (d) { return d.k !== 'lv'; }));
+    if (key === 'rand:') return pickDesign(SS().list.filter(function (d) { return d.k !== 'lv' && d.k !== 'rk'; }));
     return null;
   }
   // 画像スタンプの絵（表示に使われる分だけ送る）
@@ -1062,6 +1083,7 @@
       appTitle: str(store.getSetting('アプリ名')),
       phraseCheck: boolDef(store.getSetting('合言葉チェック'), true),
       autoCheck: boolDef(store.getSetting('自動無効チェック'), true),
+      rankAward: rankSettings(store),
       saveAudio: boolDef(store.getSetting('音声を保存'), true),
       autoStamps: stampRulesOn(store)
     };
@@ -1357,34 +1379,166 @@
     return '吉';
   }
 
+  // ---------------- ランキング（デイリー・ウィークリー・マンスリー・自主練・累計）と表彰 ----------------
+  //  自主練：課題以外の音読（自主練・ライブラリ・ことわざ・おみくじ・リピート）を週ごとに数える
+  //  表彰：期間が終わると、全体（全クラス）の上位20人に、順位に応じたボーナスポイントとスタンプを自動で配る
+  var RANK_TYPES = {
+    day: { key: 'd', name: 'デイリー', icon: '☀️' },
+    week: { key: 'w', name: 'ウィークリー', icon: '📅' },
+    month: { key: 'm', name: 'マンスリー', icon: '🗓' },
+    self: { key: 's', name: '自主練', icon: '💪' },
+    total: { key: 't', name: '累計', icon: '📚' }
+  };
+  var RANK_AWARD_TYPES = ['day', 'week', 'month', 'self'];
+  var RANK_TIERS = ['1位', '2位', '3位', '4〜10位', '11〜20位'];
+  var RANK_DEF_PTS = { day: [20, 15, 10, 5, 3], week: [60, 50, 40, 20, 10], month: [150, 120, 100, 50, 30], self: [60, 50, 40, 20, 10] };
+  var RANK_AWARD_TOP = 20;
+  function nextMonth(m) { var y = +m.slice(0, 4), mo = +m.slice(5, 7) + 1; if (mo > 12) { mo = 1; y++; } return y + '-' + ('0' + mo).slice(-2) + '-01'; }
+  // 期間（開始日・終了日。どちらも含む）
+  function rankPeriod(type, date) {
+    if (type === 'day') return { start: date, end: date };
+    if (type === 'week' || type === 'self') { var w = weekStart(date); return { start: w, end: addDays(w, 6) }; }
+    if (type === 'month') { var m = monthStart(date); return { start: m, end: addDays(nextMonth(m), -1) }; }
+    return { start: '', end: '' };
+  }
+  function prevPeriodStart(type, start) {
+    if (type === 'day') return addDays(start, -1);
+    if (type === 'month') return monthStart(addDays(start, -1));
+    return addDays(start, -7);
+  }
+  function rankTier(rank) { return rank === 1 ? 0 : rank === 2 ? 1 : rank === 3 ? 2 : rank <= 10 ? 3 : 4; }
+  function rankStampId(type, rank) { return 'rk' + RANK_TYPES[type].key + ['1', '2', '3', '10', '20'][rankTier(rank)]; }
+  // 表彰の設定（「設定」シートの「ランキング表彰」に JSON で保存）
+  function rankSettings(store) {
+    var o = jsonObj(store.getSetting('ランキング表彰')), out = { on: o.on !== false, types: {}, pts: {}, top: RANK_AWARD_TOP };
+    RANK_AWARD_TYPES.forEach(function (t) {
+      out.types[t] = !(o.types && o.types[t] === false);
+      var src = (o.pts && o.pts[t]) || [];
+      out.pts[t] = RANK_DEF_PTS[t].map(function (d, i) { var v = src[i]; return v === undefined || v === null || v === '' ? d : Math.max(0, Math.min(10000, Math.round(num(v)))); });
+    });
+    return out;
+  }
+  // 期間ごとの読めた語数（無効になった音読は0語なので数えない）
+  function rankScores(store, type, per, records) {
+    var score = {};
+    if (type === 'total') { store.getStudents().forEach(function (x) { score[x.id] = num(x.totalWords); }); return score; }
+    (records || store.getRecordsSince(per.start)).forEach(function (r) {
+      var d = str(r.date); if (d < per.start || d > per.end) return;
+      if (type === 'self' && str(r.aid)) return;
+      var c = num(r.correct); if (c > 0) score[r.sid] = (score[r.sid] || 0) + c;
+    });
+    return score;
+  }
+  // 語数の多い順（同じ語数は同じ順位）。0語の人は入れない
+  function rankOrder(students, score) {
+    var list = students.map(function (x) { return { s: x, words: score[x.id] || 0 }; }).filter(function (x) { return x.words > 0; })
+      .sort(function (a, b) { return b.words - a.words || (a.s.cls + '|' + a.s.no).localeCompare(b.s.cls + '|' + b.s.no); });
+    var rank = 0, prev = -1;
+    list.forEach(function (x, i) { if (x.words !== prev) { rank = i + 1; prev = x.words; } x.rank = rank; });
+    return list;
+  }
+  function md(d) { return +d.slice(5, 7) + '/' + +d.slice(8, 10); }
+  function periodLabel(type, per) {
+    if (type === 'day') return md(per.start);
+    if (type === 'month') return +per.start.slice(5, 7) + '月';
+    if (type === 'total') return '';
+    return md(per.start) + '〜' + md(per.end);
+  }
+  // 期間が終わったランキングを表彰する（Apps Script では1日1回、ロックの中で呼ばれる）
+  function awardRankings(store, ctx) {
+    var cfg = rankSettings(store), today = jstDate(ctx.now());
+    var state = jsonObj(store.getSetting('ランキング表彰済み')), changed = false, todo = [];
+    RANK_AWARD_TYPES.forEach(function (type) {
+      var latest = prevPeriodStart(type, rankPeriod(type, today).start);   // 直近に終わった期間の開始日
+      var last = str(state[type]);
+      if (!last || !cfg.on || !cfg.types[type]) {   // はじめて・表彰しない設定のとき：さかのぼっては配らない
+        if (last !== latest) { state[type] = latest; changed = true; }
+        return;
+      }
+      var list = [], pp = latest, cap = { day: 7, week: 4, self: 4, month: 2 }[type];
+      while (pp > last && list.length < cap) { list.unshift(pp); pp = prevPeriodStart(type, pp); }
+      list.forEach(function (st) { todo.push({ type: type, start: st }); });
+      if (last !== latest) { state[type] = latest; changed = true; }
+    });
+    var total = 0;
+    if (todo.length) {
+      var since = todo.reduce(function (m, t) { return t.start < m ? t.start : m; }, today);
+      var recs = store.getRecordsSince(since), students = store.getStudents(), ups = {}, results = jsonObj(store.getSetting('ランキング表彰結果'));
+      todo.forEach(function (t) {
+        var per = rankPeriod(t.type, t.start), order = rankOrder(students, rankScores(store, t.type, per, recs));
+        var label = RANK_TYPES[t.type].name + '（' + periodLabel(t.type, per) + '）', res = [];
+        order.filter(function (x) { return x.rank <= RANK_AWARD_TOP; }).forEach(function (x) {
+          var pts = cfg.pts[t.type][rankTier(x.rank)], s = x.s, g = rankStampId(t.type, x.rank), d = SS().byId[g] || {};
+          s.ach = pushStamp(s, { g: g, t: str(d.t) }, 'rank', today, label + ' ' + x.rank + '位' + (pts ? '・+' + pts + 'pt' : ''));
+          var ach = achOf(s);
+          ach.p = num(ach.p) + pts;
+          ach.rk = (ach.rk || []).concat([{ k: t.type, p: t.start, r: x.rank, w: x.words, pt: pts }]).slice(-30);
+          s.ach = JSON.stringify(ach);
+          ups[s.id] = { id: s.id, f: { ach: s.ach } };
+          res.push({ sid: s.id, r: x.rank, w: x.words, pt: pts });
+          total++;
+        });
+        results[t.type] = { p: t.start, e: per.end, list: res, at: ctx.now().toISOString() };
+      });
+      updateStudents(store, Object.keys(ups).map(function (k) { return ups[k]; }));
+      store.setSetting('ランキング表彰結果', JSON.stringify(results));
+    }
+    if (changed) store.setSetting('ランキング表彰済み', JSON.stringify(state));
+    return { awarded: total, periods: todo.length };
+  }
+  // ランキングの表示用データ
+  //  scopeCls：そのクラスだけ（''なら全体）、me：生徒本人のid、forTeacher：先生用（本名も入れる）
+  function rankingData(store, ctx, type, scopeCls, me, forTeacher, limit) {
+    if (!RANK_TYPES[type]) type = 'week';
+    var today = jstDate(ctx.now()), per = rankPeriod(type, today), cfg = rankSettings(store);
+    var allowNick = bool(store.getSetting('ニックネームを使う'));
+    var students = store.getStudents(), all = rankOrder(students, rankScores(store, type, per));
+    var award = type !== 'total' && cfg.on && cfg.types[type];
+    var list = scopeCls ? all.filter(function (x) { return x.s.cls === scopeCls; }) : all.slice();
+    var rank = 0, prev = -1;
+    list.forEach(function (x, i) { if (x.words !== prev) { rank = i + 1; prev = x.words; } x.lr = rank; });
+    var mine = null;
+    function row(x) {
+      var o = { rank: x.lr, g: x.rank, name: displayName(x.s, allowNick), words: x.words, level: levelOf(num(x.s.totalWords)).name,
+        av: avatarOf(achOf(x.s), forTeacher ? 'teacher' : (x.s.id === me ? 'self' : 'others')), bonus: award && x.rank <= RANK_AWARD_TOP };
+      if (forTeacher) { o.real = str(x.s.name); o.cls = x.s.cls; o.no = x.s.no; o.sid = x.s.id; }
+      if (me && x.s.id === me) o.me = true;
+      return o;
+    }
+    list.forEach(function (x) { if (me && x.s.id === me) mine = { rank: x.lr, g: x.rank, words: x.words, bonus: award && x.rank <= RANK_AWARD_TOP }; });
+    var rows = (limit ? list.slice(0, limit) : list).map(row);
+    // 前回の表彰
+    var last = null, rs = jsonObj(store.getSetting('ランキング表彰結果'))[type];
+    if (rs && rs.list) {
+      var byId = {}; students.forEach(function (x) { byId[x.id] = x; });
+      last = { label: periodLabel(type, { start: str(rs.p), end: str(rs.e) }), list: rs.list.map(function (w) {
+        var x = byId[w.sid]; if (!x) return null;
+        var o = { rank: w.r, name: displayName(x, allowNick), words: w.w, pts: w.pt };
+        if (forTeacher) { o.real = str(x.name); o.cls = x.cls; o.no = x.no; }
+        if (me && w.sid === me) o.me = true;
+        return o;
+      }).filter(Boolean) };
+    }
+    return { type: type, name: RANK_TYPES[type].name, period: { start: per.start, end: per.end, label: periodLabel(type, per) }, today: today,
+      list: rows, count: list.length, mine: mine, award: award ? { top: RANK_AWARD_TOP, pts: cfg.pts[type], tiers: RANK_TIERS } : null, last: last };
+  }
   handlers.ranking = function (p, store, ctx) {
     var s = currentStudent(p, store, ctx);
     if (!bool(store.getSetting('ランキングを表示'))) throw err('ランキングは先生が非表示にしています。');
-    var allowNick = bool(store.getSetting('ニックネームを使う'));
-    var today = jstDate(ctx.now());
-    var period = p.period === 'week' || p.period === 'month' ? p.period : 'total';
+    var type = p.period === 'day' || p.period === 'week' || p.period === 'month' || p.period === 'self' || p.period === 'total' ? p.period : 'week';
     var scope = p.scope === 'all' ? 'all' : 'class';
-    var students = store.getStudents().filter(function (x) { return scope === 'all' || x.cls === s.cls; });
-    var score = {};
-    if (period === 'total') {
-      students.forEach(function (x) { score[x.id] = num(x.totalWords); });
-    } else {
-      var since = period === 'week' ? weekStart(today) : monthStart(today);
-      store.getRecordsSince(since).forEach(function (r) { score[r.sid] = (score[r.sid] || 0) + num(r.correct); });
-    }
-    var list = students.map(function (x) {
-      return { id: x.id, name: displayName(x, allowNick), words: score[x.id] || 0, level: levelOf(num(x.totalWords)).name, av: avatarOf(achOf(x), x.id === s.id ? 'self' : 'others') };
-    }).sort(function (a, b) { return b.words - a.words; });
-    var rank = 0, prev = -1, mine = null;
-    list.forEach(function (x, i) {
-      if (x.words !== prev) { rank = i + 1; prev = x.words; }
-      x.rank = rank;
-      x.me = x.id === s.id;
-      if (x.me) mine = { rank: x.rank, words: x.words };
-    });
-    var top = list.slice(0, 30).map(function (x) { return { rank: x.rank, name: x.name, words: x.words, level: x.level, me: x.me, av: x.av }; });
-    if (mine) mine.av = avatarOf(achOf(s), 'self');
-    return { list: top, mine: mine, count: list.length, period: period, scope: scope };
+    var d = rankingData(store, ctx, type, scope === 'all' ? '' : s.cls, s.id, false, 30);
+    d.period.type = type; d.scope = scope;
+    if (d.mine) d.mine.av = avatarOf(achOf(s), 'self');
+    return d;
+  };
+  handlers.t_ranking = function (p, store, ctx) {
+    currentTeacher(p, store, ctx);
+    var type = RANK_TYPES[p.type] ? p.type : 'week', limit = Math.max(0, Math.min(500, Math.round(num(p.limit))));
+    var d = rankingData(store, ctx, type, str(p.cls), '', true, limit);
+    d.classes = classList(store).map(function (c) { return c.name; });
+    d.settings = rankSettings(store);
+    return d;
   };
 
   handlers.contest = function (p, store, ctx) {
@@ -2235,6 +2389,14 @@
     if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
     if ('phraseCheck' in st) store.setSetting('合言葉チェック', st.phraseCheck ? 'TRUE' : 'FALSE');
     if ('autoCheck' in st) store.setSetting('自動無効チェック', st.autoCheck ? 'TRUE' : 'FALSE');
+    if (st.rankAward && typeof st.rankAward === 'object') {
+      var ra = st.rankAward, cur = rankSettings(store), outR = { on: ra.on !== false, types: {}, pts: {} };
+      RANK_AWARD_TYPES.forEach(function (t) {
+        outR.types[t] = !(ra.types && ra.types[t] === false);
+        outR.pts[t] = cur.pts[t].map(function (d, i) { var v = ra.pts && ra.pts[t] ? ra.pts[t][i] : undefined; return v === undefined || v === '' || v === null ? d : Math.max(0, Math.min(10000, Math.round(num(v)))); });
+      });
+      store.setSetting('ランキング表彰', JSON.stringify(outR));
+    }
     if ('saveAudio' in st) store.setSetting('音声を保存', st.saveAudio ? 'TRUE' : 'FALSE');
     if ('autoStamps' in st) {
       var ids = [].concat(st.autoStamps || []).filter(function (x) { return STAMP_RULES.some(function (r) { return r.id === x; }); });
@@ -2465,7 +2627,7 @@
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, preSubmit: preSubmit, isLiveSubmit: isLiveSubmit, FORTUNE_ODDS: FORTUNE_ODDS,
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, awardRankings: awardRankings, RANK_TYPES: RANK_TYPES, RANK_TIERS: RANK_TIERS, RANK_DEF_PTS: RANK_DEF_PTS, preSubmit: preSubmit, isLiveSubmit: isLiveSubmit, FORTUNE_ODDS: FORTUNE_ODDS,
     FOLDER_DEPTH: FOLDER_DEPTH, BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
@@ -3227,12 +3389,28 @@ function busyErr_(msg) { return /同時呼び出し|too many|simultaneous|Servic
 function ridKey_(rid) { return 'rs:' + String(rid).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40); }
 function ridGet_(rid) { if (!rid) return null; try { var c = sc_(), v = c && c.get(ridKey_(rid)); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function ridPut_(rid, res) { if (!rid || !res || !res.ok) return; try { var c = sc_(); if (c) c.put(ridKey_(rid), JSON.stringify(res), 21600); } catch (e) { /* 大きすぎるときは、生徒データの記録（ach.rq）で二重記録を防ぐ */ } }
+// ランキングの表彰：期間（日・週・月）が終わったら、その日の最初のアクセスのときに自動で配る（1日1回・ロックの中で）
+var RANK_CHECK_ACTIONS_ = { home: 1, t_overview: 1, ranking: 1, t_ranking: 1 };
+function rankAwardsMaybe_() {
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'), key = 'rkchk:' + today, c = null;
+  try { c = sc_(); if (c && c.get(key)) return; } catch (e) { /* noop */ }
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1500)) return;   // ほかの処理の最中 → 今回は見送る（次のアクセスでもう一度）
+  try {
+    if (c && c.get(key)) return;
+    var st = new SheetStore({ fresh: true, request: true });
+    Core.awardRankings(st, GAS_CTX);
+    SpreadsheetApp.flush(); st.publishCache_();
+    if (c) c.put(key, '1', 21600);
+  } catch (err) { /* 次のアクセスでもう一度ためす */ } finally { lock.releaseLock(); }
+}
 function doPost(e) {
   var t0 = Date.now(), req;
   try { req = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'リクエストが正しくありません。' }); }
   var action = String(req.action || ''), payload = req.payload || {};
   var lock = null, write = !!Core.WRITE_ACTIONS[action];
   if (payload && typeof payload === 'object') delete payload._audioId;
+  if (RANK_CHECK_ACTIONS_[action]) rankAwardsMaybe_();
   var rid = action === 'submit' && payload.rid ? String(payload.rid) : '';
   if (rid) {
     var prev = ridGet_(rid);
