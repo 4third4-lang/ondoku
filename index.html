@@ -869,6 +869,11 @@ body.rank-board-on .topbar, body.rank-board-on .bottom-nav, body.rank-board-on .
 .rank-board .rank-row { font-size: 1.35rem; padding: 10px 6px; }
 .rank-board .rank-no { font-size: 1.5rem; min-width: 2.2em; }
 @media (max-width: 800px) { .rank-board-list { grid-template-columns: 1fr; } }
+.lib-folders.sub { margin-top: -4px; padding-left: 8px; border-left: 3px solid var(--primary-soft); align-items: center; }
+.lib-sub-label { font-size: .8rem; color: var(--muted); margin-right: 2px; }
+.lib-fmove { display: inline-flex; gap: 4px; align-items: center; }
+.lib-fmove select { width: auto; min-width: 150px; margin: 0; padding: 4px 8px; }
+.lib-folder.open { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
 
 </style>
 </head>
@@ -2418,7 +2423,7 @@ window.APP_CONFIG = {
       var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(ruleId), ach)) || { a: rule.a, t: rule.t };
       e.r = ruleId;
       var rec = {}; for (var k in e) rec[k] = e[k];
-      rec.d = today; if (!p.ackStamps) rec.n = 1;   // 画面がすぐポップアップで見せる提出は、はじめから「見た」にする（あとで別に送らなくてよい）
+      rec.d = today; rec.n = 1;
       ach.st.push(rec); newStamps.push(e);
     }
     stamp('first', 'first', firstEver && r.correct > 0);
@@ -2446,7 +2451,7 @@ window.APP_CONFIG = {
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
       newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store),
-      pointsGained: gain + bonus, fortune: fortune || undefined, stampsSeen: !!p.ackStamps
+      pointsGained: gain + bonus, fortune: fortune || undefined
     };
   };
   // おみくじの運勢（正確さが高いほど大吉・中吉が出やすい）
@@ -2800,17 +2805,24 @@ window.APP_CONFIG = {
   // ---- 英文ライブラリ（先生が追加したもの・非表示にしたもの） ----
   function libraryHidden(store) { return str(store.getSetting('ライブラリ非表示')).split(',').filter(Boolean); }
   function libPublic(x) { return { id: str(x.id), level: num(x.level) || 1, title: str(x.title), text: str(x.text), ja: str(x.ja), cat: '先生から' }; }
-  // ライブラリのフォルダ（1段のみ）。「設定」シートの「ライブラリフォルダ」に JSON で保存
-  //  { f: [{id, name}], m: { 英文のid: フォルダのid } }。m にない英文は「デフォルト」フォルダ
-  var LIB_FOLDER_MAX = 50;
+  // ライブラリのフォルダ（合計3階層まで）。「設定」シートの「ライブラリフォルダ」に JSON で保存
+  //  { f: [{id, name, parent}], m: { 英文のid: フォルダのid } }。m にない英文は「デフォルト」フォルダ
+  var LIB_FOLDER_MAX = 100, LIB_DEPTH = 3;
+  var LIB_DEPTH_MSG = 'ライブラリのフォルダは、合計3階層までしか作れません。';
   function libFolders(store) {
     var o = {};
     try { o = JSON.parse(str(store.getSetting('ライブラリフォルダ')) || '{}') || {}; } catch (e) { o = {}; }
-    var f = (o.f || []).filter(function (x) { return x && x.id && x.name; }).map(function (x) { return { id: str(x.id), name: str(x.name) }; });
+    var f = (o.f || []).filter(function (x) { return x && x.id && x.name; }).map(function (x) { return { id: str(x.id), name: str(x.name), parent: str(x.parent) }; });
     var ids = {}; f.forEach(function (x) { ids[x.id] = 1; });
+    f.forEach(function (x) { if (x.parent && (!ids[x.parent] || x.parent === x.id)) x.parent = ''; });
     var m = {}; Object.keys(o.m || {}).forEach(function (k) { if (ids[str(o.m[k])]) m[k] = str(o.m[k]); });
     return { f: f, m: m };
   }
+  function lfMap(lf) { var m = {}; lf.f.forEach(function (x) { m[x.id] = x; }); return m; }
+  function lfDepth(m, id) { var d = 0, seen = {}; while (id && m[id] && !seen[id]) { seen[id] = 1; d++; id = m[id].parent; } return d; }
+  function lfHeight(lf, id) { return 1 + lf.f.filter(function (x) { return x.parent === id; }).reduce(function (mx, k) { return Math.max(mx, lfHeight(lf, k.id)); }, 0); }
+  function lfUnder(m, id, anc) { var seen = {}; while (id && m[id] && !seen[id]) { if (id === anc) return true; seen[id] = 1; id = m[id].parent; } return false; }
+  function lfNameTaken(lf, name, parent, except) { return lf.f.some(function (x) { return x.name === name && x.parent === parent && x.id !== except; }); }
   function saveLibFolders(store, lf) { store.setSetting('ライブラリフォルダ', JSON.stringify({ f: lf.f, m: lf.m })); }
   function libItemId(id) { return str(id).replace(/[^\w-]/g, '').slice(0, 40); }
   handlers.library = function (p, store, ctx) {
@@ -2823,33 +2835,49 @@ window.APP_CONFIG = {
     return { custom: (store.getLibrary ? store.getLibrary() : []).map(function (x) { var o = libPublic(x); o.owner = str(x.owner); return o; }), hidden: libraryHidden(store),
       folders: lf.f, folderOf: lf.m };
   };
-  // フォルダを作る・名前を変える
+  // フォルダを作る・名前を変える・場所を移す（parent：親フォルダ。''＝いちばん上）
   handlers.t_saveLibFolder = function (p, store, ctx) {
     currentTeacher(p, store, ctx);
-    var lf = libFolders(store), id = str(p.id), name = str(p.name).replace(/\s+/g, ' ').trim().slice(0, 30);
+    var lf = libFolders(store), m = lfMap(lf), id = str(p.id), name = str(p.name).replace(/\s+/g, ' ').trim().slice(0, 30);
+    var cur = id ? m[id] : null;
+    if (id && !cur) throw err('フォルダが見つかりません。');
+    var parent = p.parent === undefined ? (cur ? cur.parent : '') : str(p.parent);
+    if (parent && !m[parent]) throw err('親のフォルダが見つかりません。');
+    if (!name) name = cur ? cur.name : '';
     if (!name) throw err('フォルダの名前を入力してください。');
     if (name === 'デフォルト') throw err('「デフォルト」は使えない名前です。');
-    if (lf.f.some(function (x) { return x.name === name && x.id !== id; })) throw err('同じ名前のフォルダがあります。');
-    if (id) {
-      var cur = lf.f.filter(function (x) { return x.id === id; })[0];
-      if (!cur) throw err('フォルダが見つかりません。');
+    if (lfNameTaken(lf, name, parent, id)) throw err('同じ場所に、同じ名前のフォルダがあります。');
+    if (cur) {
+      if (parent !== cur.parent) {
+        if (parent === id || lfUnder(m, parent, id)) throw err('フォルダを、そのフォルダ自身の中には移動できません。');
+        if (lfDepth(m, parent) + lfHeight(lf, id) > LIB_DEPTH) throw err(LIB_DEPTH_MSG);
+        cur.parent = parent;
+      }
       cur.name = name;
     } else {
       if (lf.f.length >= LIB_FOLDER_MAX) throw err('フォルダは' + LIB_FOLDER_MAX + '個までです。');
+      if (lfDepth(m, parent) + 1 > LIB_DEPTH) throw err(LIB_DEPTH_MSG);
       id = 'lf' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
-      lf.f.push({ id: id, name: name });
+      lf.f.push({ id: id, name: name, parent: parent });
     }
     saveLibFolders(store, lf);
     return { id: id, folders: lf.f, folderOf: lf.m };
   };
-  // フォルダを消す（中の英文は「デフォルト」へもどる。英文そのものは消さない）
+  // フォルダを消す（英文そのものは消さない。中の英文とフォルダは、1つ上のフォルダへ（いちばん上なら英文は「デフォルト」へ））
   handlers.t_deleteLibFolder = function (p, store, ctx) {
     currentTeacher(p, store, ctx);
-    var lf = libFolders(store), id = str(p.id), moved = 0;
+    var lf = libFolders(store), m = lfMap(lf), id = str(p.id), f = m[id], moved = 0, movedF = 0;
+    if (!f) throw err('フォルダが見つかりません。');
+    var up = f.parent;
     lf.f = lf.f.filter(function (x) { return x.id !== id; });
-    Object.keys(lf.m).forEach(function (k) { if (lf.m[k] === id) { delete lf.m[k]; moved++; } });
+    lf.f.forEach(function (x) {
+      if (x.parent !== id) return;
+      x.parent = up; movedF++;
+      if (lfNameTaken(lf, x.name, up, x.id)) x.name = (x.name + '（' + f.name + '）').slice(0, 30);
+    });
+    Object.keys(lf.m).forEach(function (k) { if (lf.m[k] === id) { if (up) lf.m[k] = up; else delete lf.m[k]; moved++; } });
     saveLibFolders(store, lf);
-    return { moved: moved, folders: lf.f, folderOf: lf.m };
+    return { moved: moved, movedFolders: movedF, folders: lf.f, folderOf: lf.m };
   };
   // 英文をフォルダへ移す（folder が空なら「デフォルト」へ）
   handlers.t_moveLibItems = function (p, store, ctx) {
@@ -5267,7 +5295,7 @@ window.SAMPLE_ASSIGNMENTS = [
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
   // 待ち時間を少しずつばらけさせる（全員が同じ間隔で送り直して、また混み合うのを防ぐ）
-  function backoff(i) { return 1500 * (i + 1) + Math.floor(Math.random() * 4000 * (i + 1)); }   // 1回目 1.5〜5.5秒、2回目 3〜11秒 …
+  function backoff(i) { return 700 * (i + 1) + Math.floor(Math.random() * 1500); }
   async function callRemote(action, payload) {
     var body = JSON.stringify({ action: action, payload: payload });
     var lastErr, tries = action === 'submit' ? 4 : 3;
@@ -5609,12 +5637,12 @@ window.SAMPLE_ASSIGNMENTS = [
       if (/ログイン/.test(msg) && /有効期限|ログインしてください/.test(msg)) { logout(true); }
       var er = new Error(msg); er.net = !!(res && (res.net || res.busy)); throw er;
     }
-    delete res._ms; delete res._sheet; delete res._live; delete res._dup; delete res._wait; delete res._deferErr; delete res._skip; delete res._held; // サーバーの処理時間（確認用）は画面では使わない
+    delete res._ms; delete res._sheet; delete res._live; delete res._dup; delete res._wait; delete res._deferErr; // サーバーの処理時間（確認用）は画面では使わない
     noteImgs(res);
     // データを変える操作のあとは、保存しておいた前回のデータを捨てる（古い内容を見せないため）
     if (window.Core && Core.WRITE_ACTIONS[action] && action !== 'teacherLogin' && state.session) {
       cclear(whoKey() + ':');
-      if (action === 'submit') setTimeout(function () { fetchFresh('home', {}).catch(function () {}); }, 1000 + Math.floor(Math.random() * 3000)); // ホームを先に読んでおく（全員が同時にならないよう、時間をずらす）
+      if (action === 'submit') setTimeout(function () { fetchFresh('home', {}).catch(function () {}); }, 400); // ホームを先に読んでおく
     }
     return res;
   }
@@ -5627,7 +5655,7 @@ window.SAMPLE_ASSIGNMENTS = [
   function outboxGet() { var k = outboxKey(); if (!k) return []; try { return JSON.parse(localStorage.getItem(k) || '[]') || []; } catch (e) { return []; } }
   function outboxSet(list) { var k = outboxKey(); if (!k) return false; try { if (list.length) localStorage.setItem(k, JSON.stringify(list)); else localStorage.removeItem(k); return true; } catch (e) { return false; } }
   function outboxAdd(payload, title) {
-    var p = {}; for (var k in payload) if (k !== 'audio' && k !== 'token' && k !== 'ackStamps') p[k] = payload[k];   // 録音は大きいので取っておかない
+    var p = {}; for (var k in payload) if (k !== 'audio' && k !== 'token') p[k] = payload[k];   // 録音は大きいので取っておかない
     var list = outboxGet().filter(function (x) { return x.p.rid !== p.rid; });
     list.push({ p: p, title: title || '', at: Date.now() });
     return outboxSet(list.slice(-20));
@@ -7084,7 +7112,7 @@ window.SAMPLE_ASSIGNMENTS = [
       passage.classList.remove('mode-trans', 'mode-shuffle', 'mode-nospace');
       var payload = { rid: newRid(), aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur,
         phrase: phrase, phraseAt: phraseAt, flag: flag, type: type,
-        recite: reciteOk && passage.classList.contains('blur'), libId: opt.libId || '', fortune: opt.fortune || '', ackStamps: true };
+        recite: reciteOk && passage.classList.contains('blur'), libId: opt.libId || '', fortune: opt.fortune || '' };
       var liveHere = isLiveHere();   // ライブ中は録音を送らない（速く届くように）
       if (audio && settings.saveAudio && !liveHere) payload.audio = audio;
       if (flag) {
@@ -7116,7 +7144,7 @@ window.SAMPLE_ASSIGNMENTS = [
           if (r.progress && opt.onProgress) opt.onProgress(r.progress, r);
           if (state.home) { state.home.student = r.student; if (r.rewards) state.home.rewards = r.rewards; }
           if (r.rewards) applyLook(r.rewards);
-          var popup = function () { showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length && !r.stampsSeen) call('seenStamps').catch(function () {}); }); };
+          var popup = function () { showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); }); };
           if (opt.deferRewards && opt.onDone) opt.onDone(r, popup);   // おみくじ：引いたあとでバッジなどを出す
           else { if (opt.onDone) opt.onDone(r); popup(); }
         }
@@ -7269,9 +7297,37 @@ window.SAMPLE_ASSIGNMENTS = [
   }
   // フォルダの一覧（先頭は「デフォルト」）
   function libFolderList(r) { return [{ id: '', name: 'デフォルト' }].concat(r.folders || []); }
+  // ライブラリのフォルダの木（「デフォルト」は id ''。デフォルトの中にはフォルダを作らない）
+  var LIB_DEPTH = 3;
+  function libTree(r) { return folderTree((r.folders || []).map(function (f) { return { id: f.id, name: f.name, parent: f.parent || '' }; })); }
+  function libSubIds(tree, id) { var out = [id]; (tree.kids[id] || []).forEach(function (k) { out = out.concat(libSubIds(tree, k.id)); }); return out; }
+  function libPathIds(tree, id) { var out = [], seen = {}; while (id && tree.byId[id] && !seen[id]) { seen[id] = 1; out.unshift(id); id = tree.byId[id].parent; } return out; }
+  function libDepth(tree, id) { return libPathIds(tree, id).length; }
+  function libName(tree, id) { return id && tree.byId[id] ? tree.byId[id].name : 'デフォルト'; }
+  function libFullName(tree, id) { return id ? folderPath(tree, id).join(' › ') : 'デフォルト'; }
+  // フォルダを選ぶボタンの行（いちばん上の行と、選んだフォルダの下の階層の行）
+  //  opt.count(id)：そのフォルダ（下の階層も含む）の英文の数、opt.label(id)：数の表示、opt.hideEmpty：英文のないフォルダは出さない、opt.addTop：いちばん上の行の最後に入れるHTML
+  function libNavHTML(tree, sel, opt) {
+    var path = sel ? libPathIds(tree, sel) : [''];
+    if (!path.length) path = [''];
+    var btn = function (f, active) {
+      return '<button type="button" data-f="' + esc(f.id) + '" class="lib-folder' + (active ? (f.id === (sel || '') ? ' active' : ' open') : '') + '">' + (active && f.id !== (sel || '') ? '📂 ' : '📁 ') + esc(f.name) + ' <small>' + (opt.label ? opt.label(f.id) : opt.count(f.id)) + '</small></button>';
+    };
+    var keep = function (f) { return !opt.hideEmpty || opt.count(f.id) > 0; };
+    var html = '<div class="lib-folders">' + [{ id: '', name: 'デフォルト' }].concat(tree.kids[''] || []).filter(function (f) { return f.id === path[0] || keep(f); })
+      .map(function (f) { return btn(f, f.id === path[0]); }).join('') + (opt.addTop || '') + '</div>';
+    path.forEach(function (pid, i) {
+      if (!pid) return;
+      var kids = (tree.kids[pid] || []).filter(function (f) { return f.id === path[i + 1] || keep(f); });
+      if (!kids.length) return;
+      html += '<div class="lib-folders sub" style="margin-left:' + (i + 1) * 14 + 'px"><span class="lib-sub-label">└ ' + esc(tree.byId[pid].name) + ' の中：</span>' +
+        kids.map(function (f) { return btn(f, f.id === path[i + 1]); }).join('') + '</div>';
+    });
+    return html;
+  }
   async function loadLibrary() {
     var r = await cached('library');
-    state.library = { items: libItems(r, false), read: r.read || [], folders: libFolderList(r) };
+    state.library = { items: libItems(r, false), read: r.read || [], folders: libFolderList(r), tree: libTree(r) };
     return state.library;
   }
   async function viewLibrary(level) {
@@ -7279,18 +7335,23 @@ window.SAMPLE_ASSIGNMENTS = [
     try {
       level = +level || prefs().libLevel || 1; setPref('libLevel', level);
       var L = await loadLibrary(), read = L.read;
-      // フォルダ（英文が1本以上あるものだけ）
-      var folders = L.folders.filter(function (f) { return L.items.some(function (x) { return x.folder === f.id; }); });
+      // フォルダ（英文が1本以上あるものだけ表示）
+      var tree = L.tree, cnt = function (id) { var ids = libSubIds(tree, id); return L.items.filter(function (x) { return ids.indexOf(x.folder) >= 0 && (id || x.folder === ''); }).length; };
       var fid = prefs().libFolder || '';
-      if (!folders.some(function (f) { return f.id === fid; })) fid = folders.length ? folders[0].id : '';
+      if (fid && !tree.byId[fid]) fid = '';
+      if (!cnt(fid)) {   // 英文のないフォルダ → 英文のある最初のフォルダ
+        var firstF = [''].concat((tree.kids[''] || []).map(function (f) { return f.id; })).filter(function (id) { return cnt(id) > 0; })[0];
+        fid = firstF || '';
+      }
       var inF = L.items.filter(function (x) { return x.folder === fid; });
+      var hasFolders = (tree.kids[''] || []).some(function (f) { return cnt(f.id) > 0; });
       var html = '<div class="card"><div class="card-title"><h2>📚 英文ライブラリ</h2><span class="muted" style="font-size:.85rem">読んだ本数 ' + read.length + '</span></div>' +
         '<p class="muted" style="margin:0 0 8px">好きな英文を選んで音読しよう。レベルは自由に選べます。</p>';
-      if (folders.length > 1) {
-        html += '<div class="lib-folders" id="libFolders">' + folders.map(function (f) {
-          var all = L.items.filter(function (x) { return x.folder === f.id; }), done = all.filter(function (x) { return read.indexOf(x.id) >= 0; }).length;
-          return '<button type="button" data-f="' + esc(f.id) + '" class="lib-folder' + (f.id === fid ? ' active' : '') + '">📁 ' + esc(f.name) + ' <small>' + done + '/' + all.length + '</small></button>';
-        }).join('') + '</div>';
+      if (hasFolders) {
+        html += '<div id="libFolders">' + libNavHTML(tree, fid, { count: cnt, hideEmpty: true, label: function (id) {
+          var ids = libSubIds(tree, id), all = L.items.filter(function (x) { return ids.indexOf(x.folder) >= 0 && (id || x.folder === ''); });
+          return all.filter(function (x) { return read.indexOf(x.id) >= 0; }).length + '/' + all.length;
+        } }) + '</div>';
       }
       html += '<div class="seg lv-seg">' +
         [1, 2, 3, 4].map(function (lv) {
@@ -7298,7 +7359,8 @@ window.SAMPLE_ASSIGNMENTS = [
           return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + (all.length ? '' : ' dim') + '">' + LV_NAME[lv] + ' <small>' + done + '/' + all.length + '</small></button>';
         }).join('') + '</div>';
       var list = inF.filter(function (x) { return x.level === level; });
-      html += list.length ? '<ul class="list" style="margin-top:10px">' + list.map(function (x) {
+      if (!inF.length && (tree.kids[fid] || []).length) html += '<div class="empty">📁 上の「' + esc(libName(tree, fid)) + ' の中」のフォルダを選んでね。</div>';
+      else html += list.length ? '<ul class="list" style="margin-top:10px">' + list.map(function (x) {
         var done = read.indexOf(x.id) >= 0;
         return '<li><a class="item" href="#/libitem/' + encodeURIComponent(x.id) + '"><div class="main"><div class="title">' + esc(x.title) + '</div>' +
           '<div class="sub"><span class="pill gray">' + esc(x.cat) + '</span> ' + Scoring.countWords(x.text) + '語</div></div>' +
@@ -7310,6 +7372,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $all('#libFolders button').forEach(function (b) {
         b.onclick = function () {
           var f = b.dataset.f, items = L.items.filter(function (x) { return x.folder === f; });
+          if (!items.length) { var sub = libSubIds(tree, f).slice(1).filter(function (id) { return L.items.some(function (x) { return x.folder === id; }); })[0]; if (sub) { f = sub; items = L.items.filter(function (x) { return x.folder === f; }); } }
           setPref('libFolder', f);
           // 今のレベルに英文がなければ、英文のある最初のレベルへ
           var lv = level;
@@ -7539,7 +7602,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#rpResult').innerHTML = '<div class="card result"><div class="muted">判定中…</div></div>';
       try {
         var r = await call('submit', { text: text, kind: 'repeat', transcript: transcript, duration: totalDur, phrase: phrase,
-          phraseAt: phrase ? Scoring.tokenize(text).length : 0, flag: tts ? 'tts' : '', type: 1, ackStamps: true });
+          phraseAt: phrase ? Scoring.tokenize(text).length : 0, flag: tts ? 'tts' : '', type: 1 });
         if (r.flagged) {
           if (r.definite) showCheatWarning(r.flagged);
           $('#rpResult').innerHTML = '<div class="card result">' + (r.definite ? '<div class="cheat-inline">⚠️ この音読は無効になりました</div>' : '<div class="pending-title">🔍 先生が確認します</div>') + '</div>';
@@ -7553,7 +7616,7 @@ window.SAMPLE_ASSIGNMENTS = [
           '<div class="muted">✅ 記録しました（+' + r.result.correct + '語）</div>' +
           '<div class="btn-row" style="justify-content:center;margin-top:10px"><a class="btn btn-primary" href="' + esc(c.back || '#/home') + '">もとの画面へ</a><a class="btn" href="#/home">ホーム</a></div></div>';
         $('#rpResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length && !r.stampsSeen) call('seenStamps').catch(function () {}); });
+        showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); });
       } catch (e) { showError(e); $('#rpResult').innerHTML = ''; done = false; }
     }
     draw();
@@ -8724,9 +8787,10 @@ window.SAMPLE_ASSIGNMENTS = [
   async function openLibPicker(onPick) {
     var r;
     try { r = await cached('t_library'); } catch (e) { showError(e); return; }
-    var folders = libFolderList(r), all = libItems(r, true);
+    var tree = libTree(r), all = libItems(r, true);
     var fid = sessionStorage.getItem('tPickF') || '', level = +(sessionStorage.getItem('tPickLv') || 0), q = '';
-    if (!folders.some(function (f) { return f.id === fid; })) fid = '';
+    if (fid && !tree.byId[fid]) fid = '';
+    var cnt = function (id) { var ids = libSubIds(tree, id); return all.filter(function (x) { return ids.indexOf(x.folder) >= 0 && (id || x.folder === ''); }).length; };
     var el = document.createElement('div');
     el.className = 'reward-overlay lib-pick-overlay';
     el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'ライブラリから出題');
@@ -8739,9 +8803,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var inF = all.filter(function (x) { return x.folder === fid; });
       var list = inF.filter(function (x) { return (!level || x.level === level) && (!q || (x.title + ' ' + x.text + ' ' + (x.ja || '')).toLowerCase().indexOf(q) >= 0); });
       el.innerHTML = '<div class="reward-box lib-pick"><div class="card-title"><h2>📚 ライブラリから出題</h2><button class="btn-small" type="button" id="lpClose">✕ とじる</button></div>' +
-        '<div class="lib-folders">' + folders.map(function (f) {
-          return '<button type="button" data-f="' + esc(f.id) + '" class="lib-folder' + (f.id === fid ? ' active' : '') + '">📁 ' + esc(f.name) + ' <small>' + all.filter(function (x) { return x.folder === f.id; }).length + '</small></button>';
-        }).join('') + '</div>' +
+        libNavHTML(tree, fid, { count: cnt }) +
         '<div class="btn-row" style="margin:6px 0"><div class="seg" id="lpLv">' + [0, 1, 2, 3, 4].map(function (lv) {
           return '<button type="button" data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + (lv ? LV_NAME[lv] : 'すべて') + '</button>';
         }).join('') + '</div><input type="search" id="lpQ" placeholder="🔍 タイトル・英文で検索" value="' + esc(q) + '" style="flex:1;min-width:160px"></div>' +
@@ -8767,13 +8829,12 @@ window.SAMPLE_ASSIGNMENTS = [
     bottomNav(); $app.classList.add('wide'); loading();
     try {
       var r = await cached('t_library'), custom = r.custom || [];
-      var folders = libFolderList(r), fmap = {};
-      folders.forEach(function (f) { fmap[f.id] = f; });
+      var tree = libTree(r);
       var level = +(sessionStorage.getItem('tLibLv') || 1);
       var fid = sessionStorage.getItem('tLibF') || '';
-      if (!fmap[fid]) fid = '';
-      var folderSel = function (id, sel) {
-        return '<select id="' + id + '">' + folders.map(function (f) { return '<option value="' + esc(f.id) + '"' + (f.id === sel ? ' selected' : '') + '>📁 ' + esc(f.name) + '</option>'; }).join('') + '</select>';
+      if (fid && !tree.byId[fid]) fid = '';
+      var folderSel = function (id, sel, skip) {
+        return '<select id="' + id + '"><option value=""' + (sel === '' ? ' selected' : '') + '>📁 デフォルト</option>' + folderOptions(tree, sel, {}).replace(skip ? new RegExp('<option value="' + skip + '"[^>]*>[^<]*</option>') : /^$/, '') + '</select>';
       };
       var editing = editId === 'new' ? { id: '', level: level, title: '', text: '', ja: '', folder: fid } : custom.filter(function (x) { return x.id === editId; })[0];
       if (editing && editing.id) editing.folder = (r.folderOf || {})[editing.id] || '';
@@ -8803,23 +8864,26 @@ window.SAMPLE_ASSIGNMENTS = [
         return;
       }
       var all = libItems(r, true), inF = all.filter(function (x) { return x.folder === fid; });
-      var cur = fmap[fid];
+      var cur = fid ? tree.byId[fid] : null, depth = fid ? libDepth(tree, fid) : 0, height = fid ? folderHeightC(tree, fid) : 0;
+      var cnt = function (id) { var ids = libSubIds(tree, id); return all.filter(function (x) { return ids.indexOf(x.folder) >= 0 && (id || x.folder === ''); }).length; };
       html += '<div class="card"><div class="card-title"><h2>📚 英文ライブラリ</h2><a class="btn btn-primary" href="#/t/library/new">＋ 英文を追加</a></div>' +
         '<p class="muted" style="font-size:.88rem">生徒が自由に選んで読める英文です（おみくじ英文もここから出ます）。最初から' + (window.LIBRARY || []).length + '本入っています（すべてこのアプリ用に書いたオリジナルの文章です）。表示したくない英文は「非表示」にできます。<br>' +
-        '📁 フォルダを作って英文を分けられます（最初から入っている英文は「デフォルト」にあります）。生徒の画面にも、同じフォルダで表示されます。</p>' +
-        '<div class="lib-folders" id="tLibF">' + folders.map(function (f) {
-          var n0 = all.filter(function (x) { return x.folder === f.id; }).length;
-          return '<button type="button" data-f="' + esc(f.id) + '" class="lib-folder' + (f.id === fid ? ' active' : '') + '">📁 ' + esc(f.name) + ' <small>' + n0 + '</small></button>';
-        }).join('') + '<button type="button" class="lib-folder add" id="tLibFNew">＋ フォルダを作る</button></div>' +
-        (fid ? '<div class="btn-row lib-folder-tools"><span class="muted">「' + esc(cur.name) + '」フォルダ：</span><button class="btn-small" id="tLibFRen">✏️ 名前を変える</button><button class="btn-small btn-danger" id="tLibFDel">🗑 フォルダを削除</button></div>' : '') +
+        '📁 フォルダを作って英文を分けられます（合計3階層まで。最初から入っている英文は「デフォルト」にあります）。生徒の画面にも、同じフォルダで表示されます。</p>' +
+        '<div id="tLibF">' + libNavHTML(tree, fid, { count: cnt, addTop: '<button type="button" class="lib-folder add" id="tLibFNew">＋ フォルダを作る</button>' }) + '</div>' +
+        (fid ? '<div class="btn-row lib-folder-tools"><span class="muted">「' + esc(libFullName(tree, fid)) + '」：</span>' +
+          (depth < LIB_DEPTH ? '<button class="btn-small" id="tLibFSub">＋ この中にフォルダ</button>' : '') +
+          '<button class="btn-small" id="tLibFRen">✏️ 名前を変える</button>' +
+          '<span class="lib-fmove"><select id="tLibFTo" aria-label="フォルダの移動先"><option value="">（いちばん上へ）</option>' + folderOptions(tree, cur.parent, { skip: fid, maxDepth: LIB_DEPTH - height }) + '</select><button class="btn-small" id="tLibFMove">📂 へ移動</button></span>' +
+          '<button class="btn-small btn-danger" id="tLibFDel">🗑 フォルダを削除</button></div>' : '') +
         '<div class="seg" id="tLv">' + [1, 2, 3, 4].map(function (lv) {
           return '<button data-lv="' + lv + '" class="' + (lv === level ? 'active' : '') + '">' + LV_NAME[lv] + ' <small>' + inF.filter(function (x) { return x.level === lv; }).length + '</small></button>';
         }).join('') + '</div>';
       var rows = inF.filter(function (x) { return x.level === level; });
       html += '<div class="btn-row lib-move" style="margin-top:10px"><span class="muted">選んだ英文を</span>' +
-        '<select id="tLibMoveTo">' + folders.filter(function (f) { return f.id !== fid; }).map(function (f) { return '<option value="' + esc(f.id) + '">📁 ' + esc(f.name) + '</option>'; }).join('') + '</select>' +
+        (fid ? folderSel('tLibMoveTo', '', fid) : '<select id="tLibMoveTo">' + folderOptions(tree, '', {}) + '</select>') +
         '<button class="btn-small" id="tLibMove" disabled>へ移動</button><span class="muted" id="tLibSel"></span></div>';
-      html += rows.length ? '<div class="table-wrap" style="margin-top:6px"><table><thead><tr><th style="width:34px"><input type="checkbox" id="tLibAll" aria-label="すべて選ぶ"></th><th>タイトル</th><th>種類</th><th class="num">語数</th><th>状態</th><th></th></tr></thead><tbody>' +
+      if (!inF.length && (tree.kids[fid] || []).length && fid) html += '<div class="empty">このフォルダには英文が直接入っていません。上の「' + esc(cur.name) + ' の中」のフォルダを選んでください。</div>';
+      else html += rows.length ? '<div class="table-wrap" style="margin-top:6px"><table><thead><tr><th style="width:34px"><input type="checkbox" id="tLibAll" aria-label="すべて選ぶ"></th><th>タイトル</th><th>種類</th><th class="num">語数</th><th>状態</th><th></th></tr></thead><tbody>' +
         rows.map(function (x) {
           var hid = x.hidden;
           return '<tr><td><input type="checkbox" class="tLibChk" value="' + esc(x.id) + '" aria-label="選ぶ"></td><td>' + esc(x.title) + '<details><summary class="muted" style="font-size:.8rem">英文を見る</summary><small>' + esc(x.text) + '</small></details></td><td>' + esc(x.builtin ? x.cat : '先生が追加') + '</td><td class="num">' + Scoring.countWords(x.text) + '</td>' +
@@ -8831,10 +8895,17 @@ window.SAMPLE_ASSIGNMENTS = [
       $app.innerHTML = html;
       $all('#tLv button').forEach(function (b) { b.onclick = function () { sessionStorage.setItem('tLibLv', b.dataset.lv); viewTeacherLibrary(); }; });
       $all('#tLibF button[data-f]').forEach(function (b) { b.onclick = function () { sessionStorage.setItem('tLibF', b.dataset.f); viewTeacherLibrary(); }; });
-      $('#tLibFNew').onclick = async function () {
-        var nm = prompt('新しいフォルダの名前（例：教科書 Unit 1、季節の英文）', '');
+      async function newFolder(parent) {
+        var nm = prompt(parent ? '「' + libFullName(tree, parent) + '」の中に作るフォルダの名前' : '新しいフォルダの名前（例：教科書、季節の英文）', '');
         if (nm === null || !nm.trim()) return;
-        try { var res = await call('t_saveLibFolder', { name: nm }); sessionStorage.setItem('tLibF', res.id); toast('フォルダを作りました'); viewTeacherLibrary(); } catch (e) { showError(e); }
+        try { var res = await call('t_saveLibFolder', { name: nm, parent: parent }); sessionStorage.setItem('tLibF', res.id); toast('フォルダを作りました'); viewTeacherLibrary(); } catch (e) { showError(e); }
+      }
+      $('#tLibFNew').onclick = function () { newFolder(''); };
+      if ($('#tLibFSub')) $('#tLibFSub').onclick = function () { newFolder(fid); };
+      if ($('#tLibFMove')) $('#tLibFMove').onclick = async function () {
+        var to = $('#tLibFTo').value;
+        if (to === cur.parent) { toast('いまと同じ場所です'); return; }
+        try { await call('t_saveLibFolder', { id: fid, name: cur.name, parent: to }); toast('フォルダを移動しました'); viewTeacherLibrary(); } catch (e) { showError(e); }
       };
       if ($('#tLibFRen')) $('#tLibFRen').onclick = async function () {
         var nm = prompt('フォルダの新しい名前', cur.name);
@@ -8842,9 +8913,9 @@ window.SAMPLE_ASSIGNMENTS = [
         try { await call('t_saveLibFolder', { id: fid, name: nm }); toast('名前を変えました'); viewTeacherLibrary(); } catch (e) { showError(e); }
       };
       if ($('#tLibFDel')) $('#tLibFDel').onclick = async function () {
-        var n0 = all.filter(function (x) { return x.folder === fid; }).length;
-        if (!confirm('「' + cur.name + '」フォルダを削除しますか？' + (n0 ? '\n中の英文（' + n0 + '本）は消えずに「デフォルト」へもどります。' : ''))) return;
-        try { await call('t_deleteLibFolder', { id: fid }); sessionStorage.setItem('tLibF', ''); toast('フォルダを削除しました'); viewTeacherLibrary(); } catch (e) { showError(e); }
+        var n0 = inF.length, nk = (tree.kids[fid] || []).length, upName = cur.parent ? '「' + libName(tree, cur.parent) + '」' : '「デフォルト」';
+        if (!confirm('「' + cur.name + '」フォルダを削除しますか？' + (n0 ? '\n中の英文（' + n0 + '本）は消えずに' + upName + 'へ移ります。' : '') + (nk ? '\n中のフォルダ（' + nk + '個）は1つ上の階層へ移ります。' : ''))) return;
+        try { await call('t_deleteLibFolder', { id: fid }); sessionStorage.setItem('tLibF', cur.parent || ''); toast('フォルダを削除しました'); viewTeacherLibrary(); } catch (e) { showError(e); }
       };
       function selected() { return $all('.tLibChk').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }); }
       function updSel() { var n0 = selected().length; $('#tLibMove').disabled = !n0 || !$('#tLibMoveTo').value && $('#tLibMoveTo').options.length === 0; $('#tLibSel').textContent = n0 ? n0 + '本を選択中' : ''; }
@@ -8853,7 +8924,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#tLibMove').onclick = async function () {
         var ids = selected(); if (!ids.length) return;
         var to = $('#tLibMoveTo').value;
-        try { await call('t_moveLibItems', { ids: ids, folder: to }); toast(ids.length + '本を「' + fmap[to].name + '」へ移しました'); viewTeacherLibrary(); } catch (e) { showError(e); }
+        try { await call('t_moveLibItems', { ids: ids, folder: to }); toast(ids.length + '本を「' + libName(tree, to) + '」へ移しました'); viewTeacherLibrary(); } catch (e) { showError(e); }
       };
       $all('button[data-hide]').forEach(function (b) {
         b.onclick = async function () {
