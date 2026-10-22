@@ -2756,10 +2756,12 @@ function cacheRead_(k, gen) {
       var m = c.getAll(keys);
       for (var j = 0; j < keys.length; j++) { if (!m[keys[j]]) return null; parts.push(m[keys[j]]); }
     }
-    var d = JSON.parse(parts.join('')), cols = SHEETS[k].cols, rows = [];
+    var d = JSON.parse(parts.join('')), cols = SHEETS[k].cols, rows = [], seenRow = {};
     for (var r = 0; r < d.length; r++) {
       var o = { _row: d[r][0] };
       for (var x = 0; x < cols.length; x++) o[cols[x][0]] = d[r][x + 1];
+      if (o._row && seenRow[o._row]) continue;   // 同じ行が2回入っていたら1回にする（以前の版のキャッシュの不具合への対策）
+      if (o._row) seenRow[o._row] = 1;
       rows.push(o);
     }
     return rows;
@@ -2888,6 +2890,12 @@ SheetStore.prototype.appendRow_ = function (k, obj) {
   }));
   this.touch_(k);
 };
+// 行を足す：先に一覧を読んでから書く（書いたあとに読むと、新しい行がシートからも読まれて、一覧に2回入ってしまうため）
+SheetStore.prototype.addRow_ = function (k, obj) {
+  var list = this.load(k);
+  this.writeRow(k, obj);
+  if (list.indexOf(obj) < 0) list.push(obj);
+};
 SheetStore.prototype.writeRow = function (k, obj, keepFormats) {
   var cols = SHEETS[k].cols, sh = this.sheet(k);
   this.ensureHead_(k);
@@ -2919,10 +2927,7 @@ SheetStore.prototype.updateStudent = function (id, f) {
   if (this.submit_) { this.stuPending_ = s; return; }   // 提出：書くのはロックの中で（下の commitSubmit_）
   this.writeRow('students', s);
 };
-SheetStore.prototype.addStudent = function (s) {
-  this.writeRow('students', s);
-  this.load('students').push(s);
-};
+SheetStore.prototype.addStudent = function (s) { this.addRow_('students', s); };
 
 /* ---------- 生徒ごとのキャッシュ（sx） ----------
  *  生徒1人の行（行番号・内容・読んだときの値の目印）を、生徒ごとにキャッシュに置きます。
@@ -3067,7 +3072,7 @@ SheetStore.prototype.flushDeferred_ = function () {
 
 // 英文ライブラリ（先生が追加したもの）
 SheetStore.prototype.getLibrary = function () { return this.load('library').filter(function (x) { return x.id; }); };
-SheetStore.prototype.addLibrary = function (x) { this.writeRow('library', x); this.load('library').push(x); };
+SheetStore.prototype.addLibrary = function (x) { this.addRow_('library', x); };
 SheetStore.prototype.updateLibrary = function (id, f) {
   var l = this.getLibrary();
   for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('library', l[i]); }
@@ -3107,7 +3112,7 @@ SheetStore.prototype.updateStudents = function (ups) {
 
 // 先生が作ったスタンプ
 SheetStore.prototype.getStamps = function () { return this.load('stamps').filter(function (x) { return x.id; }); };
-SheetStore.prototype.addStamp = function (x) { this.writeRow('stamps', x); this.load('stamps').push(x); };
+SheetStore.prototype.addStamp = function (x) { this.addRow_('stamps', x); };
 SheetStore.prototype.updateStamp = function (id, f) {
   var l = this.getStamps();
   for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('stamps', l[i]); }
@@ -3118,7 +3123,7 @@ SheetStore.prototype.deleteStamp = function (id) {
 };
 // アバターの絵・画像（大きいのでキャッシュしない）
 SheetStore.prototype.getPics = function () { return this.load('pics').filter(function (x) { return x.id; }); };
-SheetStore.prototype.addPic = function (x) { this.writeRow('pics', x); this.load('pics').push(x); };
+SheetStore.prototype.addPic = function (x) { this.addRow_('pics', x); };
 SheetStore.prototype.updatePic = function (id, f) {
   var l = this.getPics();
   for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('pics', l[i]); }
@@ -3188,7 +3193,7 @@ SheetStore.prototype.deleteLive = function (id) {
 
 // 課題フォルダ
 SheetStore.prototype.getFolders = function () { return this.load('folders').filter(function (x) { return x.id; }); };
-SheetStore.prototype.addFolder = function (x) { this.writeRow('folders', x); this.load('folders').push(x); };
+SheetStore.prototype.addFolder = function (x) { this.addRow_('folders', x); };
 SheetStore.prototype.updateFolder = function (id, f) {
   var l = this.getFolders();
   for (var i = 0; i < l.length; i++) if (String(l[i].id) === id) { for (var k in f) l[i][k] = f[k]; this.writeRow('folders', l[i]); }
@@ -3207,7 +3212,7 @@ SheetStore.prototype.getAssignment = function (id) {
   for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i];
   return null;
 };
-SheetStore.prototype.addAssignment = function (a) { this.writeRow('assignments', a); this.load('assignments').push(a); };
+SheetStore.prototype.addAssignment = function (a) { this.addRow_('assignments', a); };
 SheetStore.prototype.updateAssignment = function (id, f) {
   var a = this.getAssignment(id); if (!a) return;
   for (var k in f) a[k] = f[k];
@@ -3321,7 +3326,7 @@ SheetStore.prototype.getTeacher = function (id) {
   for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i];
   return null;
 };
-SheetStore.prototype.addTeacher = function (t) { this.writeRow('teachers', t); this.load('teachers').push(t); };
+SheetStore.prototype.addTeacher = function (t) { this.addRow_('teachers', t); };
 SheetStore.prototype.updateTeacher = function (id, f) {
   var t = this.getTeacher(id); if (!t) return;
   for (var k in f) t[k] = f[k];
@@ -3340,7 +3345,7 @@ SheetStore.prototype.setClass = function (name, count) {
   var l = this.getClasses();
   for (var i = 0; i < l.length; i++) if (l[i].name === name) { l[i].count = count; this.writeRow('classes', l[i]); return; }
   var c = { name: name, count: count };
-  this.writeRow('classes', c); this.load('classes').push(c);
+  this.addRow_('classes', c);
 };
 SheetStore.prototype.deleteClass = function (name) {
   var l = this.getClasses();
@@ -3525,6 +3530,13 @@ function doPost(e) {
     if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
     lockMs = Date.now() - tl;
   }
+  // 先生の保存・削除などの操作：同じ操作番号（rid）がもう一度届いたら（通信の自動の送り直し）、もう一度は行わずに前の返事を返す
+  //  ロックの中で確かめて、ロックを外す前に記録するので、前の操作の途中に送り直しが届いても二重にならない
+  var wrid = write && action !== 'submit' && payload && payload.rid ? 'w:' + String(payload.rid) : '';
+  if (wrid) {
+    var prevW = ridGet_(wrid);
+    if (prevW) { if (lock) lock.releaseLock(); prevW._ms = Date.now() - t0; prevW._dup = true; return json_(prevW); }
+  }
   try {
     if (!store) {
       // 書き込む処理は、書き換える可能性のあるシートを必ずシートから読む（生徒の操作は「生徒」「課題別ベスト」「アバター画像」だけ。ライブはキャッシュ）
@@ -3533,6 +3545,7 @@ function doPost(e) {
     }
     res = Core.handle(action, payload, store, GAS_CTX);
     if (lock) { SpreadsheetApp.flush(); store.publishCache_(); }   // 書いた内容をキャッシュに反映してから、ロックを外す
+    if (wrid && res && res.ok) ridPut_(wrid, res);
   } catch (err) {
     res = { ok: false, error: 'サーバーでエラーが発生しました：' + err.message };
   } finally {
