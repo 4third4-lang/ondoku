@@ -2418,7 +2418,7 @@ window.APP_CONFIG = {
       var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(ruleId), ach)) || { a: rule.a, t: rule.t };
       e.r = ruleId;
       var rec = {}; for (var k in e) rec[k] = e[k];
-      rec.d = today; rec.n = 1;
+      rec.d = today; if (!p.ackStamps) rec.n = 1;   // 画面がすぐポップアップで見せる提出は、はじめから「見た」にする（あとで別に送らなくてよい）
       ach.st.push(rec); newStamps.push(e);
     }
     stamp('first', 'first', firstEver && r.correct > 0);
@@ -2446,7 +2446,7 @@ window.APP_CONFIG = {
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
       newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store),
-      pointsGained: gain + bonus, fortune: fortune || undefined
+      pointsGained: gain + bonus, fortune: fortune || undefined, stampsSeen: !!p.ackStamps
     };
   };
   // おみくじの運勢（正確さが高いほど大吉・中吉が出やすい）
@@ -5267,7 +5267,7 @@ window.SAMPLE_ASSIGNMENTS = [
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
   // 待ち時間を少しずつばらけさせる（全員が同じ間隔で送り直して、また混み合うのを防ぐ）
-  function backoff(i) { return 700 * (i + 1) + Math.floor(Math.random() * 1500); }
+  function backoff(i) { return 1500 * (i + 1) + Math.floor(Math.random() * 4000 * (i + 1)); }   // 1回目 1.5〜5.5秒、2回目 3〜11秒 …
   async function callRemote(action, payload) {
     var body = JSON.stringify({ action: action, payload: payload });
     var lastErr, tries = action === 'submit' ? 4 : 3;
@@ -5609,12 +5609,12 @@ window.SAMPLE_ASSIGNMENTS = [
       if (/ログイン/.test(msg) && /有効期限|ログインしてください/.test(msg)) { logout(true); }
       var er = new Error(msg); er.net = !!(res && (res.net || res.busy)); throw er;
     }
-    delete res._ms; delete res._sheet; delete res._live; delete res._dup; delete res._wait; delete res._deferErr; // サーバーの処理時間（確認用）は画面では使わない
+    delete res._ms; delete res._sheet; delete res._live; delete res._dup; delete res._wait; delete res._deferErr; delete res._skip; delete res._held; // サーバーの処理時間（確認用）は画面では使わない
     noteImgs(res);
     // データを変える操作のあとは、保存しておいた前回のデータを捨てる（古い内容を見せないため）
     if (window.Core && Core.WRITE_ACTIONS[action] && action !== 'teacherLogin' && state.session) {
       cclear(whoKey() + ':');
-      if (action === 'submit') setTimeout(function () { fetchFresh('home', {}).catch(function () {}); }, 400); // ホームを先に読んでおく
+      if (action === 'submit') setTimeout(function () { fetchFresh('home', {}).catch(function () {}); }, 1000 + Math.floor(Math.random() * 3000)); // ホームを先に読んでおく（全員が同時にならないよう、時間をずらす）
     }
     return res;
   }
@@ -5627,7 +5627,7 @@ window.SAMPLE_ASSIGNMENTS = [
   function outboxGet() { var k = outboxKey(); if (!k) return []; try { return JSON.parse(localStorage.getItem(k) || '[]') || []; } catch (e) { return []; } }
   function outboxSet(list) { var k = outboxKey(); if (!k) return false; try { if (list.length) localStorage.setItem(k, JSON.stringify(list)); else localStorage.removeItem(k); return true; } catch (e) { return false; } }
   function outboxAdd(payload, title) {
-    var p = {}; for (var k in payload) if (k !== 'audio' && k !== 'token') p[k] = payload[k];   // 録音は大きいので取っておかない
+    var p = {}; for (var k in payload) if (k !== 'audio' && k !== 'token' && k !== 'ackStamps') p[k] = payload[k];   // 録音は大きいので取っておかない
     var list = outboxGet().filter(function (x) { return x.p.rid !== p.rid; });
     list.push({ p: p, title: title || '', at: Date.now() });
     return outboxSet(list.slice(-20));
@@ -7084,7 +7084,7 @@ window.SAMPLE_ASSIGNMENTS = [
       passage.classList.remove('mode-trans', 'mode-shuffle', 'mode-nospace');
       var payload = { rid: newRid(), aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, transcript: transcript, duration: dur,
         phrase: phrase, phraseAt: phraseAt, flag: flag, type: type,
-        recite: reciteOk && passage.classList.contains('blur'), libId: opt.libId || '', fortune: opt.fortune || '' };
+        recite: reciteOk && passage.classList.contains('blur'), libId: opt.libId || '', fortune: opt.fortune || '', ackStamps: true };
       var liveHere = isLiveHere();   // ライブ中は録音を送らない（速く届くように）
       if (audio && settings.saveAudio && !liveHere) payload.audio = audio;
       if (flag) {
@@ -7116,7 +7116,7 @@ window.SAMPLE_ASSIGNMENTS = [
           if (r.progress && opt.onProgress) opt.onProgress(r.progress, r);
           if (state.home) { state.home.student = r.student; if (r.rewards) state.home.rewards = r.rewards; }
           if (r.rewards) applyLook(r.rewards);
-          var popup = function () { showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); }); };
+          var popup = function () { showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length && !r.stampsSeen) call('seenStamps').catch(function () {}); }); };
           if (opt.deferRewards && opt.onDone) opt.onDone(r, popup);   // おみくじ：引いたあとでバッジなどを出す
           else { if (opt.onDone) opt.onDone(r); popup(); }
         }
@@ -7539,7 +7539,7 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#rpResult').innerHTML = '<div class="card result"><div class="muted">判定中…</div></div>';
       try {
         var r = await call('submit', { text: text, kind: 'repeat', transcript: transcript, duration: totalDur, phrase: phrase,
-          phraseAt: phrase ? Scoring.tokenize(text).length : 0, flag: tts ? 'tts' : '', type: 1 });
+          phraseAt: phrase ? Scoring.tokenize(text).length : 0, flag: tts ? 'tts' : '', type: 1, ackStamps: true });
         if (r.flagged) {
           if (r.definite) showCheatWarning(r.flagged);
           $('#rpResult').innerHTML = '<div class="card result">' + (r.definite ? '<div class="cheat-inline">⚠️ この音読は無効になりました</div>' : '<div class="pending-title">🔍 先生が確認します</div>') + '</div>';
@@ -7553,7 +7553,7 @@ window.SAMPLE_ASSIGNMENTS = [
           '<div class="muted">✅ 記録しました（+' + r.result.correct + '語）</div>' +
           '<div class="btn-row" style="justify-content:center;margin-top:10px"><a class="btn btn-primary" href="' + esc(c.back || '#/home') + '">もとの画面へ</a><a class="btn" href="#/home">ホーム</a></div></div>';
         $('#rpResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); });
+        showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length && !r.stampsSeen) call('seenStamps').catch(function () {}); });
       } catch (e) { showError(e); $('#rpResult').innerHTML = ''; done = false; }
     }
     draw();
