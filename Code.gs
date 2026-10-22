@@ -1339,7 +1339,7 @@
       var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(ruleId), ach)) || { a: rule.a, t: rule.t };
       e.r = ruleId;
       var rec = {}; for (var k in e) rec[k] = e[k];
-      rec.d = today; if (!p.ackStamps) rec.n = 1;   // 画面がすぐポップアップで見せる提出は、はじめから「見た」にする（あとで別に送らなくてよい）
+      rec.d = today; rec.n = 1;
       ach.st.push(rec); newStamps.push(e);
     }
     stamp('first', 'first', firstEver && r.correct > 0);
@@ -1367,7 +1367,7 @@
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
       newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store),
-      pointsGained: gain + bonus, fortune: fortune || undefined, stampsSeen: !!p.ackStamps
+      pointsGained: gain + bonus, fortune: fortune || undefined
     };
   };
   // おみくじの運勢（正確さが高いほど大吉・中吉が出やすい）
@@ -1721,17 +1721,24 @@
   // ---- 英文ライブラリ（先生が追加したもの・非表示にしたもの） ----
   function libraryHidden(store) { return str(store.getSetting('ライブラリ非表示')).split(',').filter(Boolean); }
   function libPublic(x) { return { id: str(x.id), level: num(x.level) || 1, title: str(x.title), text: str(x.text), ja: str(x.ja), cat: '先生から' }; }
-  // ライブラリのフォルダ（1段のみ）。「設定」シートの「ライブラリフォルダ」に JSON で保存
-  //  { f: [{id, name}], m: { 英文のid: フォルダのid } }。m にない英文は「デフォルト」フォルダ
-  var LIB_FOLDER_MAX = 50;
+  // ライブラリのフォルダ（合計3階層まで）。「設定」シートの「ライブラリフォルダ」に JSON で保存
+  //  { f: [{id, name, parent}], m: { 英文のid: フォルダのid } }。m にない英文は「デフォルト」フォルダ
+  var LIB_FOLDER_MAX = 100, LIB_DEPTH = 3;
+  var LIB_DEPTH_MSG = 'ライブラリのフォルダは、合計3階層までしか作れません。';
   function libFolders(store) {
     var o = {};
     try { o = JSON.parse(str(store.getSetting('ライブラリフォルダ')) || '{}') || {}; } catch (e) { o = {}; }
-    var f = (o.f || []).filter(function (x) { return x && x.id && x.name; }).map(function (x) { return { id: str(x.id), name: str(x.name) }; });
+    var f = (o.f || []).filter(function (x) { return x && x.id && x.name; }).map(function (x) { return { id: str(x.id), name: str(x.name), parent: str(x.parent) }; });
     var ids = {}; f.forEach(function (x) { ids[x.id] = 1; });
+    f.forEach(function (x) { if (x.parent && (!ids[x.parent] || x.parent === x.id)) x.parent = ''; });
     var m = {}; Object.keys(o.m || {}).forEach(function (k) { if (ids[str(o.m[k])]) m[k] = str(o.m[k]); });
     return { f: f, m: m };
   }
+  function lfMap(lf) { var m = {}; lf.f.forEach(function (x) { m[x.id] = x; }); return m; }
+  function lfDepth(m, id) { var d = 0, seen = {}; while (id && m[id] && !seen[id]) { seen[id] = 1; d++; id = m[id].parent; } return d; }
+  function lfHeight(lf, id) { return 1 + lf.f.filter(function (x) { return x.parent === id; }).reduce(function (mx, k) { return Math.max(mx, lfHeight(lf, k.id)); }, 0); }
+  function lfUnder(m, id, anc) { var seen = {}; while (id && m[id] && !seen[id]) { if (id === anc) return true; seen[id] = 1; id = m[id].parent; } return false; }
+  function lfNameTaken(lf, name, parent, except) { return lf.f.some(function (x) { return x.name === name && x.parent === parent && x.id !== except; }); }
   function saveLibFolders(store, lf) { store.setSetting('ライブラリフォルダ', JSON.stringify({ f: lf.f, m: lf.m })); }
   function libItemId(id) { return str(id).replace(/[^\w-]/g, '').slice(0, 40); }
   handlers.library = function (p, store, ctx) {
@@ -1744,33 +1751,49 @@
     return { custom: (store.getLibrary ? store.getLibrary() : []).map(function (x) { var o = libPublic(x); o.owner = str(x.owner); return o; }), hidden: libraryHidden(store),
       folders: lf.f, folderOf: lf.m };
   };
-  // フォルダを作る・名前を変える
+  // フォルダを作る・名前を変える・場所を移す（parent：親フォルダ。''＝いちばん上）
   handlers.t_saveLibFolder = function (p, store, ctx) {
     currentTeacher(p, store, ctx);
-    var lf = libFolders(store), id = str(p.id), name = str(p.name).replace(/\s+/g, ' ').trim().slice(0, 30);
+    var lf = libFolders(store), m = lfMap(lf), id = str(p.id), name = str(p.name).replace(/\s+/g, ' ').trim().slice(0, 30);
+    var cur = id ? m[id] : null;
+    if (id && !cur) throw err('フォルダが見つかりません。');
+    var parent = p.parent === undefined ? (cur ? cur.parent : '') : str(p.parent);
+    if (parent && !m[parent]) throw err('親のフォルダが見つかりません。');
+    if (!name) name = cur ? cur.name : '';
     if (!name) throw err('フォルダの名前を入力してください。');
     if (name === 'デフォルト') throw err('「デフォルト」は使えない名前です。');
-    if (lf.f.some(function (x) { return x.name === name && x.id !== id; })) throw err('同じ名前のフォルダがあります。');
-    if (id) {
-      var cur = lf.f.filter(function (x) { return x.id === id; })[0];
-      if (!cur) throw err('フォルダが見つかりません。');
+    if (lfNameTaken(lf, name, parent, id)) throw err('同じ場所に、同じ名前のフォルダがあります。');
+    if (cur) {
+      if (parent !== cur.parent) {
+        if (parent === id || lfUnder(m, parent, id)) throw err('フォルダを、そのフォルダ自身の中には移動できません。');
+        if (lfDepth(m, parent) + lfHeight(lf, id) > LIB_DEPTH) throw err(LIB_DEPTH_MSG);
+        cur.parent = parent;
+      }
       cur.name = name;
     } else {
       if (lf.f.length >= LIB_FOLDER_MAX) throw err('フォルダは' + LIB_FOLDER_MAX + '個までです。');
+      if (lfDepth(m, parent) + 1 > LIB_DEPTH) throw err(LIB_DEPTH_MSG);
       id = 'lf' + ctx.now().getTime().toString(36) + Math.floor(Math.random() * 1296).toString(36);
-      lf.f.push({ id: id, name: name });
+      lf.f.push({ id: id, name: name, parent: parent });
     }
     saveLibFolders(store, lf);
     return { id: id, folders: lf.f, folderOf: lf.m };
   };
-  // フォルダを消す（中の英文は「デフォルト」へもどる。英文そのものは消さない）
+  // フォルダを消す（英文そのものは消さない。中の英文とフォルダは、1つ上のフォルダへ（いちばん上なら英文は「デフォルト」へ））
   handlers.t_deleteLibFolder = function (p, store, ctx) {
     currentTeacher(p, store, ctx);
-    var lf = libFolders(store), id = str(p.id), moved = 0;
+    var lf = libFolders(store), m = lfMap(lf), id = str(p.id), f = m[id], moved = 0, movedF = 0;
+    if (!f) throw err('フォルダが見つかりません。');
+    var up = f.parent;
     lf.f = lf.f.filter(function (x) { return x.id !== id; });
-    Object.keys(lf.m).forEach(function (k) { if (lf.m[k] === id) { delete lf.m[k]; moved++; } });
+    lf.f.forEach(function (x) {
+      if (x.parent !== id) return;
+      x.parent = up; movedF++;
+      if (lfNameTaken(lf, x.name, up, x.id)) x.name = (x.name + '（' + f.name + '）').slice(0, 30);
+    });
+    Object.keys(lf.m).forEach(function (k) { if (lf.m[k] === id) { if (up) lf.m[k] = up; else delete lf.m[k]; moved++; } });
     saveLibFolders(store, lf);
-    return { moved: moved, folders: lf.f, folderOf: lf.m };
+    return { moved: moved, movedFolders: movedF, folders: lf.f, folderOf: lf.m };
   };
   // 英文をフォルダへ移す（folder が空なら「デフォルト」へ）
   handlers.t_moveLibItems = function (p, store, ctx) {
@@ -3397,10 +3420,6 @@ function ridGet_(rid) { if (!rid) return null; try { var c = sc_(), v = c && c.g
 function ridPut_(rid, res) { if (!rid || !res || !res.ok) return; try { var c = sc_(); if (c) c.put(ridKey_(rid), JSON.stringify(res), 21600); } catch (e) { /* 大きすぎるときは、生徒データの記録（ach.rq）で二重記録を防ぐ */ } }
 // ランキングの表彰：期間（日・週・月）が終わったら、その日の最初のアクセスのときに自動で配る（1日1回・ロックの中で）
 var RANK_CHECK_ACTIONS_ = { home: 1, t_overview: 1, ranking: 1, t_ranking: 1 };
-// 生徒が自分の行だけを書きかえる操作（提出と同じく、順番待ちの中は本人の1行を書くだけにする）
-var SELF_ACTIONS_ = { seenStamps: 1, seenItems: 1, setLook: 1, setNick: 1, setAvatar: 1, buyItem: 1 };
-// 順番待ちの上限（長く待たせるより、早めに「混み合っています」を返して、端末がばらばらの時間に送り直すほうが速く終わる）
-var LOCK_WAIT_MS_ = 8000;
 function rankAwardsMaybe_() {
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'), key = 'rkchk:' + today, c = null;
   try { c = sc_(); if (c && c.get(key)) return; } catch (e) { /* noop */ }
@@ -3447,23 +3466,18 @@ function doPost(e) {
     try { Core.preSubmit(payload, new SheetStore({ request: true }), GAS_CTX); } catch (err) { /* 本処理でもう一度確認されます */ }
   }
   var store, res, lockMs = 0, held = 0;
-  // ふつうの提出と、生徒が自分の行だけを書きかえる操作（「見た」・着せ替え・ニックネーム・お店）：
-  // 計算まではロックなしで行い、ロックの中は「本人の1行を読み直して、変わっていなければ書く」だけにする
-  if (action === 'submit' || SELF_ACTIONS_[action]) {
+  // ふつうの提出：計算まではロックなしで行い、ロックの中は「本人の1行を読み直して、変わっていなければ書く」だけにする
+  if (action === 'submit') {
     store = new SheetStore({ request: true, submit: true });
     try {
       store.prepareSubmit_();
       res = Core.handle(action, payload, store, GAS_CTX);
     } catch (err) { return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' }); }
-    if (res && res.ok && !store.stuPending_ && action !== 'submit') {   // 書きかえる内容がない（もう「見た」になっている など）→ 順番待ちせずに返す
-      res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = 0; res._held = 0; res._skip = true;
-      return json_(res);
-    }
     if (res && res.ok && store.stuPending_) {
       try { store.verifyBests_(); } catch (err) { /* ロックの中でもう一度書く */ }
       lock = LockService.getScriptLock();
       var tw = Date.now();
-      if (!lock.tryLock(LOCK_WAIT_MS_)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
+      if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
       lockMs = Date.now() - tw; var th = Date.now();
       try {
         store.inLock_ = true;
@@ -3496,7 +3510,7 @@ function doPost(e) {
   if (write) {
     lock = LockService.getScriptLock();
     var tl = Date.now();
-    if (!lock.tryLock(LOCK_WAIT_MS_)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
+    if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
     lockMs = Date.now() - tl;
   }
   try {
