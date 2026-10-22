@@ -5323,7 +5323,9 @@ window.SAMPLE_ASSIGNMENTS = [
     var lastErr, tries = action === 'submit' ? 4 : 3;
     for (var i = 0; i < tries; i++) {
       var ctl = window.AbortController ? new AbortController() : null;
-      var timer = ctl ? setTimeout(function () { ctl.abort(); }, action === 'submit' ? 60000 : 30000) : null;   // 返事が来ないときは打ち切る
+      // 返事が来ないときは打ち切る（データを変える操作は、サーバーが混んでいても終わるまで長めに待つ。送り直しても同じ操作番号なので二重にはならない）
+      var isWrite = !!(window.Core && Core.WRITE_ACTIONS[action]);
+      var timer = ctl ? setTimeout(function () { ctl.abort(); }, action === 'submit' ? 60000 : isWrite ? 90000 : 30000) : null;
       try {
         // text/plain にすると、Apps Script でも余計な事前確認（CORS）なしで送れます
         var res = await fetch(CFG.API_URL, { method: 'POST', body: body, signal: ctl ? ctl.signal : undefined,
