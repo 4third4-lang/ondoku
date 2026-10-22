@@ -5350,6 +5350,10 @@ window.SAMPLE_ASSIGNMENTS = [
         if (/^(home|t_overview|ranking|t_ranking)$/.test(action) && Core.awardRankings) { try { Core.awardRankings(getDemoStore(), demoCtx); } catch (e) { /* noop */ } }
         return Core.handle(action, payload, getDemoStore(), demoCtx);
       }
+      // データを変える操作には、操作ごとの番号（rid）をつける。通信の自動の送り直しで同じ操作が2回届いても、サーバーは1回だけ行う
+      if (window.Core && Core.WRITE_ACTIONS[action] && !/Login$/.test(action) && payload && !payload.rid) {
+        payload = Object.assign({}, payload, { rid: Date.now().toString(36) + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 8) });
+      }
       return callRemote(action, payload);
     },
     resetDemo: function () {
