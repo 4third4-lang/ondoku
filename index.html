@@ -2191,6 +2191,7 @@ window.APP_CONFIG = {
       autoCheck: boolDef(store.getSetting('自動無効チェック'), true),
       rankAward: rankSettings(store),
       saveAudio: boolDef(store.getSetting('音声を保存'), true),
+      repeatCreditLimit: repeatCreditLimit(store),
       autoStamps: stampRulesOn(store)
     };
   }
@@ -2250,19 +2251,185 @@ window.APP_CONFIG = {
     };
   }
 
+  // 試行の状態は生徒と同じ行に保存する。キャッシュが消えても排他・確定は失わない。
+  function attemptState(s) {
+    var st = jsonObj(s.attemptState);
+    st.done = Array.isArray(st.done) ? st.done : [];
+    return st;
+  }
+  function attemptError(code, message, a) {
+    var e = err(message); e.code = code;
+    if (a) { e.activeAttemptId = a.id; e.expiresAt = a.expiresAt; }
+    return e;
+  }
+  function clientId(p) {
+    var id = str(p.clientId);
+    if (!/^[A-Za-z0-9_-]{8,100}$/.test(id)) throw attemptError('CLIENT_UPDATE_REQUIRED', '画面を更新してから、もう一度音読を始めてください。');
+    return id;
+  }
+  function repeatCreditLimit(store) {
+    var v = num(store.getSetting('同じ英文の1日加算上限'));
+    return v >= 1 && v <= 20 ? Math.floor(v) : 5;
+  }
+  function textIdentity(text) {
+    var units = [];
+    Sc.tokenize(String(text || '').normalize ? String(text || '').normalize('NFKC') : String(text || '')).forEach(function (t) {
+      t.units.forEach(function (u) { units.push(u.toLowerCase()); });
+    });
+    return sha256(units.join(' '));
+  }
+  function targetForAttempt(p, s, store, ctx) {
+    var aid = str(p.aid), a = aid ? store.getAssignment(aid) : null, type = num(p.type) || 1;
+    if (aid && (!a || !assignmentVisibleTo(a, s))) throw err('この課題は見つかりません。');
+    if (a && aTypes(a).indexOf(type) < 0) throw err('この課題では、その音読の種類は選べません。');
+    var text = a ? str(a.text) : str(p.text).slice(0, MAX_TEXT);
+    if (!text || !Sc.countWords(text)) throw err('英文がありません。');
+    var kind = a ? '' : ({ proverb: 1, library: 1, omikuji: 1, repeat: 1 }[p.kind] ? str(p.kind) : 'self');
+    var live = a ? liveRunning(store, s, ctx.now(), aid) : null;
+    return { aid: aid, text: text, type: a ? type : 1, kind: kind, recite: bool(p.recite),
+      libId: str(p.libId).slice(0, 30), fortune: str(p.fortune).slice(0, 50), textHash: textIdentity(text),
+      liveId: live ? str(live.id) : '', liveStarted: live ? str(live.started) : '' };
+  }
+  function publicAttempt(a) { return { id: a.id, phrase: a.phrase, phraseAt: a.phraseAt, startedAt: a.startedAt, expiresAt: a.expiresAt }; }
+  function beginDigest(p) { return sha256(JSON.stringify([str(p.aid), str(p.text).slice(0, MAX_TEXT), num(p.type) || 1, str(p.kind), bool(p.recite), str(p.libId)])); }
+  function writeAttemptState(s, st, store) {
+    // 完了結果の再表示を直近に限定し、Sheetsのセル上限を超えないようにする。
+    // 未補完の記録・ベストを持つレシートは、再表示用の保存件数制限では捨てない。
+    st.done = st.done.filter(function (d, i) { return d.projectionPending || i >= st.done.length - 3; });
+    while (st.done.length > 1 && JSON.stringify(st.done).length > 28000) {
+      var removable = -1;
+      for (var i = 0; i < st.done.length - 1; i++) { if (!st.done[i].projectionPending) { removable = i; break; } }
+      if (removable < 0) break;
+      st.done.splice(removable, 1);
+    }
+    var text = JSON.stringify(st);
+    if (text.length > 47000) throw attemptError('ATTEMPT_STORAGE_FULL', '提出情報が大きいため保存できません。先生に確認してください。');
+    s.attemptState = text;
+    store.updateStudent(s.id, { attemptState: text });
+  }
+  handlers.beginAttempt = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), cid = clientId(p), st = attemptState(s), now = ctx.now(), rid = str(p.rid);
+    if (!/^[A-Za-z0-9_-]{8,100}$/.test(rid)) throw attemptError('CLIENT_UPDATE_REQUIRED', '画面を更新してから、もう一度音読を始めてください。');
+    var old = st.active, alive = old && Date.parse(old.expiresAt) > now.getTime();
+    if (alive && old.clientId === cid && old.beginRid === rid) {
+      if (old.beginDigest !== beginDigest(p)) throw attemptError('ATTEMPT_MISMATCH', '開始した音読と送信内容が異なります。');
+      return { attempt: publicAttempt(old) };
+    }
+    if (st.done.some(function (d) { return d.beginRid === rid && d.clientId === cid; }) || (st.closed || []).indexOf(cid + ':' + rid) >= 0) {
+      throw attemptError('ATTEMPT_CLOSED', 'この音読は終了しています。もう一度、録音を始めてください。');
+    }
+    if (alive && !(p.takeover === true && str(p.expectedAttemptId) === old.id)) {
+      throw attemptError('ATTEMPT_ACTIVE', '別の画面で音読中です。先の音読を終えるか、この画面へ切り替えてください。', old);
+    }
+    if (p.takeover === true && (!old || str(p.expectedAttemptId) !== old.id)) {
+      throw attemptError('ATTEMPT_CHANGED', '音読の状態が変わりました。もう一度、録音を始めてください。', alive ? old : null);
+    }
+    var a = targetForAttempt(p, s, store, ctx), cfg = settingsForClient(store);
+    // 前回の応答が失われても、新しい試行の前に永続レシートの投影を完成させる。
+    // この処理はbeginAttemptの書き込みロック下で実行される。失敗時は開始を許可しない。
+    st.done.forEach(function (d) {
+      if (d.projectionPending !== false && (d.record || d.bestKey)) {
+        repairAttemptReceipt(d, s, store, false);
+        d.projectionPending = false;
+      }
+    });
+    if (old) st.closed = (st.closed || []).concat([old.clientId + ':' + old.beginRid]).slice(-20);
+    a.id = 'at_' + sha256(s.id + ':' + cid + ':' + rid + ':' + now.getTime() + ':' + (ctx.randomId ? ctx.randomId() : Math.random())).slice(0, 36);
+    a.clientId = cid; a.beginRid = rid; a.beginDigest = beginDigest(p); a.startedAt = now.toISOString();
+    a.expiresAt = new Date(now.getTime() + (a.kind === 'repeat' ? 30 : 15) * 60000).toISOString();
+    a.phrase = cfg.phraseCheck && !a.liveId ? Sc.makePhrase(a.text) : '';
+    a.phraseAt = a.kind === 'repeat' ? Sc.tokenize(a.text).length : Sc.phrasePosition(a.text);
+    st.active = a; writeAttemptState(s, st, store);
+    return { attempt: publicAttempt(a) };
+  };
+  handlers.cancelAttempt = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), cid = clientId(p), st = attemptState(s), a = st.active;
+    if (!a) return { cancelled: true };
+    if (a.id !== str(p.attemptId) || a.clientId !== cid) throw attemptError('ATTEMPT_CHANGED', 'この画面の音読はすでに終了しています。');
+    st.closed = (st.closed || []).concat([a.clientId + ':' + a.beginRid]).slice(-20);
+    delete st.active; writeAttemptState(s, st, store);
+    return { cancelled: true };
+  };
+  function activeAttempt(p, s, ctx) {
+    var cid = clientId(p), id = str(p.attemptId), a = attemptState(s).active;
+    if (!id) throw attemptError('CLIENT_UPDATE_REQUIRED', '画面を更新してから、もう一度音読を始めてください。');
+    if (!a || a.id !== id || a.clientId !== cid) throw attemptError('ATTEMPT_CHANGED', 'この音読は取り消されたか、別の画面に切り替わりました。もう一度音読してください。');
+    if (Date.parse(a.expiresAt) <= ctx.now().getTime()) throw attemptError('ATTEMPT_EXPIRED', '音読の有効時間を過ぎました。もう一度、録音を始めてください。');
+    return a;
+  }
+  function submitDigest(p) {
+    return sha256(JSON.stringify([str(p.transcript).slice(0, 6000), num(p.duration), p.flag === 'tts' ? 'tts' : '',
+      str(p.aid), str(p.text).slice(0, MAX_TEXT), num(p.type) || 1, str(p.kind), bool(p.recite), str(p.libId)]));
+  }
+  function attemptScore(a, transcript) {
+    return a.phrase ? Sc.scoreWithPhrase(a.text, transcript, a.phrase, a.phraseAt) : Sc.score(a.text, transcript);
+  }
+  function validateAttemptCommit(a, store, ctx) {
+    if (Date.parse(a.expiresAt) <= ctx.now().getTime()) throw attemptError('ATTEMPT_EXPIRED', '音読の有効時間を過ぎました。もう一度、録音を始めてください。');
+    if (a.liveId) {
+      var live = store.getLives().filter(function (l) { return str(l.id) === a.liveId && str(l.started) === a.liveStarted; })[0];
+      if (!live || !liveOpen(live, ctx.now())) throw attemptError('LIVE_ENDED', 'このライブは終了しました。通常の音読を新しく始めてください。');
+    }
+  }
+  function repairAttemptReceipt(d, s, store, touchStudent) {
+    // 生徒の行が確定してから他のシートに失敗した場合も、再送で投影だけを補う。
+    if (d.bestKey) {
+      if (!store.submit_ && store.repairBestProjection) store.repairBestProjection(s.id, d.bestKey);
+      else {
+        var b = store.getBest(s.id, d.bestKey);
+        if (b) store.setBest(s.id, d.bestKey, b);
+      }
+    }
+    if (d.record) {
+      var exists = store.hasAttemptRecord ? store.hasAttemptRecord(d.id) : store.getRecordsSince(d.record.date).some(function (r) { return r.attemptId === d.id; });
+      if (!exists) store.appendRecord(d.record);
+    }
+    if (touchStudent !== false) store.updateStudent(s.id, { attemptState: s.attemptState });
+  }
+  handlers.submit = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), cid = clientId(p), st = attemptState(s), id = str(p.attemptId), digest = submitDigest(p);
+    if (!id) throw attemptError('CLIENT_UPDATE_REQUIRED', '画面を更新してから、もう一度音読を始めてください。');
+    var done = st.done.filter(function (d) { return d.id === id; })[0];
+    if (done) {
+      if (done.clientId !== cid || done.digest !== digest) throw attemptError('ATTEMPT_MISMATCH', '確定済みの音読と送信内容が異なります。');
+      repairAttemptReceipt(done, s, store);
+      var again = JSON.parse(JSON.stringify(done.response));
+      again.result = attemptScore(done.score, str(p.transcript).slice(0, 6000));
+      again.student = studentPublic(s); again.rewards = rewardsPublic(achOf(s), s, jstDate(ctx.now()), store); again.duplicate = true;
+      return again;
+    }
+    var a = activeAttempt(p, s, ctx), q = {};
+    if (store.submit_) store.attemptCommitGuard_ = a;
+    Object.keys(p).forEach(function (k) { q[k] = p[k]; });
+    ['aid', 'text', 'type', 'kind', 'recite', 'libId', 'fortune', 'phrase', 'phraseAt'].forEach(function (k) { q[k] = a[k]; });
+    q.recite = a.recite && bool(p.recite);   // 途中で英文を表示した場合は暗唱ボーナスを付けない。
+    q._attempt = a;
+    var result = submitActive(q, store, ctx), current = store.getStudent(s.id), record = result._record;
+    delete result._record;
+    var saved = {};
+    Object.keys(result).forEach(function (k) { if (k !== 'result' && k !== 'student' && k !== 'rewards') saved[k] = result[k]; });
+    st = attemptState(current); delete st.active;
+    st.done.push({ id: a.id, clientId: cid, beginRid: a.beginRid, digest: digest, completedAt: ctx.now().toISOString(),
+      score: { text: a.text, phrase: a.phrase, phraseAt: a.phraseAt }, response: saved, record: record || null, projectionPending: !!record,
+      bestKey: !result.flagged && !result.liveOnly && a.aid ? bestKey(a.aid, a.type) : '' });
+    writeAttemptState(current, st, store);
+    return result;
+  };
+
   // 録音の保存だけを先に行う（Apps Script では、順番待ちのロックの前に呼ばれる）
   function audioOk(cfg, p) { return cfg.saveAudio && p.audio && p.audio.b64 && String(p.audio.b64).length < 4000000; }
   function preSubmit(p, store, ctx) {
     var s = currentStudent(p, store, ctx);
+    if (attemptState(s).done.some(function (d) { return d.id === str(p.attemptId) && d.clientId === str(p.clientId); })) return;
+    var attempt = activeAttempt(p, s, ctx);
     if (!store.saveAudio || !audioOk(settingsForClient(store), p)) return;
-    var la = p.aid ? store.getAssignment(str(p.aid)) : null;
-    if (la && liveRunning(store, s, ctx.now(), la.id)) { delete p.audio; return; }   // ライブ中の音読は録音を保存しない
+    if (attempt.liveId) { delete p.audio; return; }   // ライブ中の音読は録音を保存しない
     var id = store.saveAudio({ mime: str(p.audio.mime).slice(0, 60) || 'audio/webm', b64: String(p.audio.b64),
       name: s.id + '_' + ctx.now().toISOString().replace(/[:.]/g, '-') });
     if (id) { p._audioId = String(id); delete p.audio; }
   }
 
-  handlers.submit = function (p, store, ctx) {
+  function submitActive(p, store, ctx) {
     var s = currentStudent(p, store, ctx);
     var now = ctx.now(), today = jstDate(now);
     var text, aid = str(p.aid), kind, type = 1, a = null;
@@ -2271,7 +2438,7 @@ window.APP_CONFIG = {
       if (!a || !assignmentVisibleTo(a, s)) throw err('この課題は見つかりません。');
       type = num(p.type) || 1;
       if (aTypes(a).indexOf(type) < 0) throw err('この課題では、その音読の種類は選べません。');
-      text = a.text; kind = (bool(a.contest) ? '大会' : '課題') + (type > 1 ? '（' + TYPE_NAME[type] + '）' : '');
+      text = p._attempt.text; kind = (bool(a.contest) ? '大会' : '課題') + (type > 1 ? '（' + TYPE_NAME[type] + '）' : '');
     } else {
       text = str(p.text).slice(0, MAX_TEXT);
       if (!text) throw err('英文がありません。');
@@ -2282,14 +2449,18 @@ window.APP_CONFIG = {
     var hasPhrase = !!str(p.phrase);
     var pAt = p.phraseAt === Sc.PHRASE_ENDS || String(p.phraseAt) === String(Sc.PHRASE_ENDS) ? Sc.PHRASE_ENDS : num(p.phraseAt);
     var r = hasPhrase ? Sc.scoreWithPhrase(text, transcript, str(p.phrase).slice(0, 60), pAt) : Sc.score(text, transcript);
-    var dur = Math.max(0, Math.min(3600, num(p.duration)));
+    var elapsed = Math.max(1, (now.getTime() - Date.parse(p._attempt.startedAt)) / 1000);
+    var dur = Math.max(1, Math.min(3600, num(p.duration) > 0 ? num(p.duration) : elapsed, elapsed + 2));
     // ライブ中の音読か（ライブ中は合言葉なし）
-    var liveNow = a ? liveRunning(store, s, now, a.id) : null;
+    var liveNow = p._attempt.liveId && a ? liveRunning(store, s, now, a.id) : null;
+    if (p._attempt.liveId && (!liveNow || str(liveNow.id) !== p._attempt.liveId || str(liveNow.started) !== p._attempt.liveStarted)) {
+      throw attemptError('LIVE_ENDED', 'このライブは終了しました。通常の音読を新しく始めてください。');
+    }
 
     // 不正防止：お手本音声の検知 → くり返し・少なすぎ・違う英文・0% → 合言葉の確認
     var flag = p.flag === 'tts' ? 'tts' : '';
     if (!flag && cfg.autoCheck) flag = Sc.cheatCheck(r, transcript, text);
-    if (!flag && cfg.phraseCheck && !liveNow) {
+    if (!flag && p._attempt.phrase && !liveNow) {
       if (!hasPhrase || !r.phrase || r.phrase.matched === 0) flag = 'phrase';   // 合言葉がまったくない → 録音などの可能性が高い
       // 合言葉は1語でも聞き取れれば合格（scoring.js）。'partial' は旧版との互換のために残しています
       else if (!r.phrase.ok) flag = 'partial';
@@ -2297,24 +2468,18 @@ window.APP_CONFIG = {
     // 1秒に4語を超える速さ（15語以上）は、人の音読としては不自然 → 先生が確認
     if (!flag && r.correct >= 15 && dur > 0 && r.correct / dur > 4) flag = 'speed';
 
-    // 同じ提出（提出番号 rid が同じ）がもう一度届いたときは、記録せずに結果だけ返す（通信の自動再送で二重に数えない）
-    var rid = str(p.rid).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
-    if (rid && (achOf(s).rq || []).indexOf(rid) >= 0) {
-      return { result: r, student: studentPublic(s), duplicate: true, newBadges: [], newStamps: [], bonus: 0, pointsGained: 0,
-        progress: a ? progress(store, s.id, a) : null, rewards: rewardsPublic(achOf(s), s, today, store) };
-    }
     // ---- ライブ中の音読：ライブのポイントだけに使う ----
-    // 記録シート・累計単語数・級・課題のベスト・ランキング・ごほうびには入れない（スプレッドシートには何も書かない）
+    // 生徒の行に試行確定とポイントを一緒に保存する。累計単語数や通常ランキングには入れない。
     if (liveNow) {
-      var liveResult = null;
+      var liveResult = null, liveAch = achOf(s);
       if (!flag && r.correct > 0) {
         var sc = liveScores(store, liveNow), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
-        if (rid && (le.q || []).indexOf(rid) >= 0) gained = 0;   // 同じ提出の再送：ポイントは足さない
-        else {
-          le = { p: num(le.p) + gained, c: num(le.c) + 1, b: Math.max(num(le.b), r.accuracy), t: now.toISOString(), q: (le.q || []).concat(rid ? [rid] : []).slice(-5) };
-          sc[s.id] = le;
-          setLiveScore(store, liveNow, s.id, le, sc);
-        }
+        // 本人の最新行を優先する。他の端末の古い全員分キャッシュを加算の基準にしない。
+        if (liveAch.liveScore && liveAch.liveScore.id === str(liveNow.id) && liveAch.liveScore.started === str(liveNow.started)) le = liveAch.liveScore.score;
+        le = { p: num(le.p) + gained, c: num(le.c) + 1, b: Math.max(num(le.b), r.accuracy), t: now.toISOString() };
+        liveAch.liveScore = { id: str(liveNow.id), started: str(liveNow.started), score: le };
+        store.updateStudent(s.id, { ach: JSON.stringify(liveAch) });
+        sc[s.id] = le;
         var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
         liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
       }
@@ -2334,14 +2499,27 @@ window.APP_CONFIG = {
 
     if (flag) {
       // 記録には残すが、単語数・自己ベストには加えない
-      store.appendRecord({
+      var flaggedRecord = {
         time: now.toISOString(), date: today, sid: s.id, aid: aid, type: type, kind: kind, flag: FLAGS[flag].label,
         reviewed: FLAGS[flag].definite ? AUTO_INVALID : '',
         accuracy: r.accuracy, correct: 0, total: r.total, duration: dur, audio: audioId,
-        transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
-      });
-      return { flagged: flag, definite: FLAGS[flag].definite, result: r, student: studentPublic(s) };
+        transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300), rankWords: '', attemptId: p._attempt.id
+      };
+      store.appendRecord(flaggedRecord);
+      return { flagged: flag, definite: FLAGS[flag].definite, result: r, student: studentPublic(s), _record: flaggedRecord };
     }
+
+    // 練習量は従来どおり記録し、同じ本文のランキング語数・反復ボーナスだけを制限する。
+    var creditAch = achOf(s), limit = repeatCreditLimit(store);
+    var daily = creditAch.repeatCredit && creditAch.repeatCredit.day === today ? creditAch.repeatCredit : { day: today, counts: {} };
+    daily.counts = daily.counts || {};
+    var textKey = p._attempt.textHash, used = num(daily.counts[textKey]), eligible = r.correct > 0 && used < limit;
+    if (eligible) daily.counts[textKey] = ++used;
+    creditAch.repeatCredit = daily;
+    var creditedWords = eligible ? r.correct : 0;
+    creditAch.rankExcludedWords = num(creditAch.rankExcludedWords) + r.correct - creditedWords;
+    creditAch.rankWordsTotal = Math.max(0, num(s.totalWords) + r.correct - creditAch.rankExcludedWords);
+    var credit = { limit: limit, used: used, remaining: Math.max(0, limit - used), rankWords: creditedWords, limited: r.correct > 0 && !eligible };
 
     // 生徒の累計を更新
     var before = levelOf(num(s.totalWords));
@@ -2373,17 +2551,18 @@ window.APP_CONFIG = {
         bestAt: newBest ? now.toISOString() : (b ? b.bestAt : now.toISOString())
       });
     }
-    store.appendRecord({
+    var acceptedRecord = {
       time: now.toISOString(), date: today, sid: s.id, aid: aid, type: type, kind: kind,
       accuracy: r.accuracy, correct: r.correct, total: r.total, duration: dur, audio: audioId, flag: '',
-      transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
-    });
+      transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300), rankWords: creditedWords, attemptId: p._attempt.id
+    };
+    store.appendRecord(acceptedRecord);
     var after2 = a ? progress(store, s.id, a) : null;
     var achievedNew = !!(after2 && after2.achieved && !before2.achieved);
     var masterNew = !!(after2 && after2.masterCleared && !before2.masterCleared);
 
     // ---- ごほうび（バッジ・ポイント・スタンプカード・先生スタンプ） ----
-    var ach = achOf(s), c = ach.c, newBadges = [], newStamps = [], bonus = 0, ws = weekStart(today);
+    var ach = creditAch, c = ach.c, newBadges = [], newStamps = [], bonus = 0, ws = weekStart(today);
     var firstEver = !ach.b.first && num(s.totalWords) - r.correct <= 0;
     // スタンプカード・今週の日数（その日の最初の音読で1つ）
     var newDay = r.correct > 0 && ach.ld !== today;
@@ -2407,7 +2586,7 @@ window.APP_CONFIG = {
     var thr = a ? passLine(a) : 80;
     var recite = bool(p.recite) && type !== 5, trans = !!a && type === 5;
     if ((recite || trans) && r.accuracy >= thr && r.correct > 0) {
-      bonus = r.correct; ach.p += bonus;
+      bonus = eligible ? r.correct : 0; ach.p += bonus;
       inc(recite ? 'rc' : 'tr');
     }
     function award(id, cond) { if (cond && !ach.b[id]) { ach.b[id] = today; newBadges.push(id); } }
@@ -2463,7 +2642,6 @@ window.APP_CONFIG = {
     if (ach.st.length > 60) ach.st = ach.st.slice(-60);
     var sk = Object.keys(ach.sk);
     if (sk.length > 150) sk.slice(0, sk.length - 150).forEach(function (x) { delete ach.sk[x]; });
-    if (rid) ach.rq = (ach.rq || []).concat([rid]).slice(-30);   // 最近の提出番号（再送の見分け用）
     upd.ach = JSON.stringify(ach); s.ach = upd.ach;
     store.updateStudent(s.id, upd);
 
@@ -2473,7 +2651,7 @@ window.APP_CONFIG = {
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
       newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store),
-      pointsGained: gain + bonus, fortune: fortune || undefined
+      pointsGained: gain + bonus, fortune: fortune || undefined, credit: credit, _record: acceptedRecord
     };
   };
   // おみくじの運勢（正確さが高いほど大吉・中吉が出やすい）
@@ -2527,11 +2705,12 @@ window.APP_CONFIG = {
   // 期間ごとの読めた語数（無効になった音読は0語なので数えない）
   function rankScores(store, type, per, records) {
     var score = {};
-    if (type === 'total') { store.getStudents().forEach(function (x) { score[x.id] = num(x.totalWords); }); return score; }
+    if (type === 'total') { store.getStudents().forEach(function (x) { score[x.id] = Math.max(0, num(x.totalWords) - num(achOf(x).rankExcludedWords)); }); return score; }
     (records || store.getRecordsSince(per.start)).forEach(function (r) {
       var d = str(r.date); if (d < per.start || d > per.end) return;
       if (type === 'self' && str(r.aid)) return;
-      var c = num(r.correct); if (c > 0) score[r.sid] = (score[r.sid] || 0) + c;
+      var c = r.rankWords === undefined || r.rankWords === null || r.rankWords === '' ? num(r.correct) : num(r.rankWords);
+      if (c > 0) score[r.sid] = (score[r.sid] || 0) + c;
     });
     return score;
   }
@@ -3403,7 +3582,14 @@ window.APP_CONFIG = {
     return store.getStudents().filter(function (x) { return !cl.length || cl.indexOf(x.cls) >= 0; }).map(function (x) { return x.id; });
   }
   function liveScores(store, l) {
-    if (str(l.status) === 'running' && store.getLiveScores) return store.getLiveScores(l, liveTargets(store, l));
+    if (str(l.status) === 'running') {
+      var scores = store.getLiveScores ? store.getLiveScores(l, liveTargets(store, l)) : jsonObj(l.scores);
+      store.getStudents().forEach(function (s) {
+        var ls = achOf(s).liveScore;
+        if (ls && ls.id === str(l.id) && ls.started === str(l.started)) scores[s.id] = ls.score;
+      });
+      return scores;
+    }
     return jsonObj(l.scores);
   }
   function setLiveScore(store, l, sid, e, sc) {
@@ -3518,6 +3704,11 @@ window.APP_CONFIG = {
     if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
     if ('phraseCheck' in st) store.setSetting('合言葉チェック', st.phraseCheck ? 'TRUE' : 'FALSE');
     if ('autoCheck' in st) store.setSetting('自動無効チェック', st.autoCheck ? 'TRUE' : 'FALSE');
+    if ('repeatCreditLimit' in st) {
+      var limit = Number(st.repeatCreditLimit);
+      if (!isFinite(limit) || Math.floor(limit) !== limit || limit < 1 || limit > 20) throw err('同じ英文の1日加算上限は1〜20回の整数にしてください。');
+      store.setSetting('同じ英文の1日加算上限', String(limit));
+    }
     if (st.rankAward && typeof st.rankAward === 'object') {
       var ra = st.rankAward, cur = rankSettings(store), outR = { on: ra.on !== false, types: {}, pts: {} };
       RANK_AWARD_TYPES.forEach(function (t) {
@@ -3742,6 +3933,7 @@ window.APP_CONFIG = {
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
     t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
 
+  WRITE_ACTIONS.beginAttempt = 1; WRITE_ACTIONS.cancelAttempt = 1;
   function handle(action, payload, store, ctx) {
     var fn = handlers[action];
     if (!fn) return { ok: false, error: '不明な操作です：' + action };
@@ -3751,12 +3943,16 @@ window.APP_CONFIG = {
       res.ok = true;
       return res;
     } catch (e) {
-      return { ok: false, error: e.userMessage || ('エラーが発生しました：' + (e && e.message)) };
+      var failure = { ok: false, error: e.userMessage || ('エラーが発生しました：' + (e && e.message)) };
+      if (e.code) failure.code = e.code;
+      if (e.activeAttemptId) failure.activeAttemptId = e.activeAttemptId;
+      if (e.expiresAt) failure.expiresAt = e.expiresAt;
+      return failure;
     }
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, awardRankings: awardRankings, RANK_TYPES: RANK_TYPES, RANK_TIERS: RANK_TIERS, RANK_DEF_PTS: RANK_DEF_PTS, preSubmit: preSubmit, isLiveSubmit: isLiveSubmit, FORTUNE_ODDS: FORTUNE_ODDS,
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, awardRankings: awardRankings, RANK_TYPES: RANK_TYPES, RANK_TIERS: RANK_TIERS, RANK_DEF_PTS: RANK_DEF_PTS, preSubmit: preSubmit, isLiveSubmit: isLiveSubmit, validateAttemptCommit: validateAttemptCommit, FORTUNE_ODDS: FORTUNE_ODDS,
     FOLDER_DEPTH: FOLDER_DEPTH, BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
@@ -3827,7 +4023,8 @@ window.APP_CONFIG = {
     return this.getAllBests().filter(function (b) { return b.aid === aid; });
   };
 
-  P.appendRecord = function (r) { this.d.records.push(r); this._changed(); };
+  P.hasAttemptRecord = function (id) { return !!id && this.d.records.some(function (r) { return r.attemptId === id; }); };
+  P.appendRecord = function (r) { if (r.attemptId && this.hasAttemptRecord(r.attemptId)) return; this.d.records.push(r); this._changed(); };
   P.getRecordsSince = function (date) {
     return this.d.records.filter(function (r) { return r.date >= date; });
   };
@@ -5555,14 +5752,17 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
   // ---------------- 音声の保存（先生が確認するため） ----------------
-  function AudioCapture() { this.chunks = []; this.rec = null; this.stream = null; this.mime = ''; }
+  function AudioCapture() { this.chunks = []; this.rec = null; this.stream = null; this.mime = ''; this.cancelled = false; }
   AudioCapture.isSupported = function () {
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
   };
   AudioCapture.prototype.start = async function () {
     var self = this;
     var gum = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-    this.stream = await Promise.race([gum, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, 5000); })]);
+    gum.then(function (stream) { if (self.cancelled) stream.getTracks().forEach(function (t) { t.stop(); }); }, function () {});
+    try { this.stream = await Promise.race([gum, new Promise(function (_, rej) { setTimeout(function () { rej(new Error('timeout')); }, 5000); })]); }
+    catch (e) { this.cancelled = true; throw e; }
+    if (this.cancelled) { this._release(); throw new Error('cancelled'); }
     var types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'];
     for (var i = 0; i < types.length; i++) {
       if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(types[i])) { this.mime = types[i]; break; }
@@ -5601,6 +5801,7 @@ window.SAMPLE_ASSIGNMENTS = [
     });
   };
   AudioCapture.prototype.cancel = function () {
+    this.cancelled = true;
     try { if (this.rec && this.rec.state !== 'inactive') this.rec.stop(); } catch (e) { /* noop */ }
     this._release();
   };
@@ -5663,7 +5864,9 @@ window.SAMPLE_ASSIGNMENTS = [
     if (!res || !res.ok) {
       var msg = (res && res.error) || 'エラーが発生しました。';
       if (/ログイン/.test(msg) && /有効期限|ログインしてください/.test(msg)) { logout(true); }
-      var er = new Error(msg); er.net = !!(res && (res.net || res.busy)); throw er;
+      var er = new Error(msg); er.net = !!(res && (res.net || res.busy));
+      er.code = res && res.code; er.activeAttemptId = res && res.activeAttemptId; er.expiresAt = res && res.expiresAt;
+      throw er;
     }
     delete res._ms; delete res._sheet; delete res._live; delete res._dup; delete res._wait; delete res._deferErr; // サーバーの処理時間（確認用）は画面では使わない
     noteImgs(res);
@@ -5679,6 +5882,89 @@ window.SAMPLE_ASSIGNMENTS = [
   // ================= 提出番号・未送信の記録 =================
   // 提出ごとに番号をつける（自動の送り直しや、あとで送る記録が二重に数えられないように）
   function newRid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 8); }
+  // ページごとに別の識別子を使う。同じ端末で開いた別タブにも同じ音読の許可を渡さない。
+  var readingClientId = (function () {
+    if (window.crypto && crypto.getRandomValues) {
+      var a = new Uint32Array(4); crypto.getRandomValues(a);
+      return Array.prototype.map.call(a, function (x) { return x.toString(16); }).join('-');
+    }
+    return newRid() + newRid();
+  })();
+  var activeReading = null, pendingReadingStart = null, submissionsInFlight = {};
+  function repeatCreditLimit(st) { return Math.max(1, Math.min(20, Math.floor(Number(st && st.repeatCreditLimit) || 5))); }
+  function creditPolicyHTML(st) {
+    return '<p class="muted credit-policy">ランキング・反復ボーナスは同じ英文につき1日' + repeatCreditLimit(st) + '回まで。練習と課題の合格回数は続けて記録します。</p>';
+  }
+  function creditResultHTML(r) {
+    var c = r && r.credit;
+    if (!c || r.liveOnly) return '';
+    return '<p class="muted credit-result">' + (c.limited ? '今日はこの英文のランキング・反復ボーナスの上限に達しました。練習の記録は残ります。' :
+      'ランキング認定 +' + n(c.rankWords) + '語。この英文の今日の加点はあと' + n(c.remaining) + '回（1日' + n(c.limit) + '回まで）。') + '</p>';
+  }
+  function cancelReadingAttempt(a, leaving) {
+    if (!a || a.submitting) return;
+    if (activeReading === a) activeReading = null;
+    var payload = { rid: newRid(), attemptId: a.id, clientId: a.clientId, token: a.token };
+    if (leaving && CFG.API_URL && navigator.sendBeacon) {
+      try { if (navigator.sendBeacon(CFG.API_URL, new Blob([JSON.stringify({ action: 'cancelAttempt', payload: payload })], { type: 'text/plain;charset=UTF-8' }))) return; } catch (e) { /* 通常送信へ */ }
+    }
+    API.call('cancelAttempt', payload).catch(function () { /* 通信が切れた場合はサーバーの期限で解放 */ });
+  }
+  async function beginReadingAttempt(opt) {
+    var view = state.renderSeq, request = pendingReadingStart;
+    if (request && request.view === view && request.inFlight) throw new Error('前の開始確認が終わるまで、少し待ってから押してください。');
+    if (!request || request.view !== view) {
+      request = { view: view, payload: Object.assign({}, opt, { rid: newRid(), clientId: readingClientId }) };
+      pendingReadingStart = request;
+    }
+    var r; request.inFlight = true;
+    try { r = await call('beginAttempt', request.payload); }
+    catch (e) {
+      request.inFlight = false;
+      if (state.renderSeq !== view) return null;
+      if (e.code !== 'ATTEMPT_ACTIVE' || !e.activeAttemptId) { if (!e.net && pendingReadingStart === request) pendingReadingStart = null; throw e; }
+      pendingReadingStart = null;
+      if (!confirm('別の端末やタブで音読が始まっています。そちらの音読を終了して、この画面ではじめ直しますか？\n途中の音読は提出できなくなります。')) return null;
+      request = { view: view, payload: Object.assign({}, opt, { rid: newRid(), clientId: readingClientId, takeover: true, expectedAttemptId: e.activeAttemptId }) };
+      pendingReadingStart = request; request.inFlight = true;
+      try { r = await call('beginAttempt', request.payload); }
+      catch (e2) { request.inFlight = false; if (!e2.net && pendingReadingStart === request) pendingReadingStart = null; throw e2; }
+    }
+    request.inFlight = false;
+    if (pendingReadingStart === request) pendingReadingStart = null;
+    if (!r || !r.attempt || !r.attempt.id) throw new Error('音読の開始を確認できませんでした。もう一度ためしてください。');
+    var a = Object.assign({}, r.attempt, { clientId: readingClientId, token: request.payload.token, submitting: false });
+    if (state.renderSeq !== view || document.hidden) { cancelReadingAttempt(a); return null; }
+    activeReading = a;
+    return a;
+  }
+  function releaseReadingAttempt(a) { if (activeReading === a) activeReading = null; }
+  async function submitReadingAttempt(a, payload, title) {
+    if (!a) throw new Error('音読の開始が確認できません。もう一度はじめてください。');
+    payload.attemptId = a.id; payload.clientId = a.clientId;
+    if (!payload.rid) payload.rid = newRid();
+    a.submitting = true;
+    submissionsInFlight[payload.rid] = true;
+    // 送信中の再読み込みでも、同じ試行・提出番号のまま確認し直す。
+    if (!API.isDemo()) a.outboxSaved = outboxAdd(payload, title);
+    try {
+      var r = await call('submit', payload);
+      outboxSet(outboxGet().filter(function (x) { return x.p.rid !== payload.rid; }));
+      releaseReadingAttempt(a); return r;
+    } catch (e) {
+      if (!e.net) {
+        outboxSet(outboxGet().filter(function (x) { return x.p.rid !== payload.rid; }));
+        a.submitting = false; cancelReadingAttempt(a);
+      }
+      e.outboxSaved = !!a.outboxSaved;
+      releaseReadingAttempt(a); throw e;
+    } finally { delete submissionsInFlight[payload.rid]; }
+  }
+  window.addEventListener('pagehide', function () {
+    if (state.readingCleanup) state.readingCleanup(true);
+    else cancelReadingAttempt(activeReading, true);
+  });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) render(); });
   function outboxKey() { var s = state.session; return s && s.role === 'student' ? 'ondoku_ob:' + (s.sid || s.label || '') : ''; }
   function outboxGet() { var k = outboxKey(); if (!k) return []; try { return JSON.parse(localStorage.getItem(k) || '[]') || []; } catch (e) { return []; } }
   function outboxSet(list) { var k = outboxKey(); if (!k) return false; try { if (list.length) localStorage.setItem(k, JSON.stringify(list)); else localStorage.removeItem(k); return true; } catch (e) { return false; } }
@@ -5691,21 +5977,37 @@ window.SAMPLE_ASSIGNMENTS = [
   var outboxBusy = false;
   async function flushOutbox() {
     if (outboxBusy || API.isDemo()) return;
-    var list = outboxGet(); if (!list.length) return;
+    var list = outboxGet().filter(function (x) { return !x.failed && !submissionsInFlight[x.p.rid]; }); if (!list.length) return;
     outboxBusy = true;
-    var sent = 0;
+    var sent = 0, failed = 0;
     try {
       while (list.length) {
         var it = list[0];
         try { await call('submit', JSON.parse(JSON.stringify(it.p))); sent++; }
-        catch (e) { if (e && e.net) break; }   // まだつながらない → また今度。それ以外のエラー（課題が消えた など）は送るのをやめる
-        list.shift(); outboxSet(list);
+        catch (e) {
+          if (e && e.net) break;
+          // 期限切れなどは勝手に削除せず、未反映の理由と元の提出を残す。
+          failed++;
+          outboxSet(outboxGet().map(function (x) { if (x.p.rid === it.p.rid) { x.failed = (e && e.message) || '記録できませんでした'; } return x; }));
+          list.shift(); continue;
+        }
+        outboxSet(outboxGet().filter(function (x) { return x.p.rid !== it.p.rid; }));
+        list.shift();
       }
     } finally { outboxBusy = false; }
+    if (failed) toast('送信待ちの音読のうち' + failed + '件は記録できませんでした。ホームで理由を確認してください。', true);
     if (sent) {
       toast('この端末に保存していた音読の記録を送りました（' + sent + '件）');
-      if (location.hash === '#/home' || location.hash === '' || location.hash === '#/') render();
     }
+    if ((sent || failed) && (location.hash === '#/home' || location.hash === '' || location.hash === '#/')) render();
+    else if ($('#bObSend')) $('#bObSend').disabled = false;
+  }
+  function outboxNoticeHTML() {
+    var failed = outboxGet().filter(function (x) { return !!x.failed; });
+    if (!failed.length) return '';
+    return '<div class="card"><h3>記録できなかった音読</h3><p class="muted">次の記録は成績・ポイントに反映されていません。必要な場合は先生に確認してください。</p><ul>' + failed.map(function (x) {
+      return '<li>' + esc(x.title || '音読') + '：' + esc(x.failed) + '</li>';
+    }).join('') + '</ul></div>';
   }
   window.addEventListener('online', function () { setTimeout(flushOutbox, Math.floor(Math.random() * 8000)); });
   setInterval(function () { if (outboxGet().length) flushOutbox(); }, 60000);
@@ -5760,7 +6062,7 @@ window.SAMPLE_ASSIGNMENTS = [
     return remember(action, payload, res);
   }
   function quiet() {
-    return !(state.lastInput > state.renderAt) && !state.recognizer && !document.querySelector('.reward-overlay, .cheat-overlay');
+    return !(state.lastInput > state.renderAt) && !state.recognizer && !activeReading && !pendingReadingStart && !document.querySelector('.reward-overlay, .cheat-overlay');
   }
   function cached(action, payload) {
     payload = payload || {};
@@ -6131,8 +6433,9 @@ window.SAMPLE_ASSIGNMENTS = [
       '<a class="entry" href="#/avatar"><span class="ic">👗</span><span>着せ替え</span>' + ((rw.newItems || []).length ? '<small class="new-dot">NEW</small>' : '') + '</a>' +
       '<a class="entry" href="#/rank"><span class="ic">🏆</span><span>ランキング</span></a>' +
       '</div>';
-    var ob = outboxGet();
+    var ob = outboxGet().filter(function (x) { return !x.failed; });
     if (ob.length) html += '<div class="notice">📦 まだ送れていない音読の記録が <b>' + ob.length + '件</b> この端末にあります。つながったら自動で送ります。 <button class="btn-small" id="bObSend">今すぐ送る</button></div>';
+    html += outboxNoticeHTML();
     $app.innerHTML = html;
     $('#bStampCard').onclick = function () {
       var el = document.createElement('div'); el.className = 'reward-overlay';
@@ -6927,7 +7230,7 @@ window.SAMPLE_ASSIGNMENTS = [
       5: '⑤日本語を見て、英語で言ってみよう。読み終わると正解の英文が表示されます。'
     };
     if (NOTE[type]) html += '<div class="mode-note">' + NOTE[type] + '</div>';
-    html += supportNotice();
+    html += supportNotice() + creditPolicyHTML(state.home && state.home.settings);
     html += '<div class="toolbar">' +
       '<button class="btn-small" id="bModel">🔊 お手本</button>' +
       '<div class="seg" id="segRate">' + [[0.7, 'ゆっくり'], [0.9, 'ふつう'], [1.05, 'はやい']].map(function (r) {
@@ -7021,6 +7324,12 @@ window.SAMPLE_ASSIGNMENTS = [
     var recording = false, startedAt = 0, timerId = null, busy = false;
     var settings = (state.home && state.home.settings) || { phraseCheck: true, saveAudio: true };
     var phrase = '', phraseAt = 0, ttsDetected = false, ttsTimer = null, capture = null;
+    var attempt = null, disposed = false, starting = false, startSeq = 0;
+    state.readingCleanup = function (leaving) {
+      disposed = true; startSeq++; clearInterval(timerId); clearInterval(ttsTimer);
+      if (capture) { capture.cancel(); capture = null; }
+      cancelReadingAttempt(attempt, leaving); attempt = null;
+    };
     if (!Recognizer.isSupported()) micBtn.disabled = true;
     if (settings.saveAudio && AudioCapture.isSupported() && !prefs().captureOff) {
       $('#live').insertAdjacentHTML('beforebegin', '<div class="rec-note">🎙 音読の音声は保存され、先生が聞くことがあります。</div>');
@@ -7029,7 +7338,8 @@ window.SAMPLE_ASSIGNMENTS = [
     // 画面を切り替えたら中断（別の画面で音声を流す使い方を防ぐ）
     if (state.visHandler) document.removeEventListener('visibilitychange', state.visHandler);
     state.visHandler = function () {
-      if (document.hidden && recording) {
+      if (document.hidden && (recording || starting)) {
+        startSeq++;
         resetUI();
         if (capture) { capture.cancel(); capture = null; }
         toast('画面を切り替えたため、音読を中断しました。もう一度はじめてください。', true);
@@ -7053,13 +7363,28 @@ window.SAMPLE_ASSIGNMENTS = [
       });
     }
     async function startRec() {
-      if (busy) return;
+      if (busy || recording || disposed) return;
+      busy = true; starting = true; micBtn.disabled = true;
+      label.textContent = '音読の開始を確認しています…';
+      var seq = ++startSeq;
       Speaker.stop();
       $('#resultArea').innerHTML = '';
       ttsDetected = false;
-      // 合言葉（毎回変わる）を英文の途中（🔑 の場所）に入れる。英文の上と下にも合言葉を表示し、英文を隠しても見えるようにする。ライブ中は合言葉なし
-      if (settings.phraseCheck && !isLiveHere()) { phrase = Scoring.makePhrase(opt.text); phraseAt = Scoring.phrasePosition(opt.text); }
-      else { phrase = ''; phraseAt = 0; }
+      // マイクを開く前に、この生徒の音読開始をサーバーで一つだけ許可する。
+      try {
+        var granted = await beginReadingAttempt({ aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, type: type,
+          recite: passage.classList.contains('blur'), libId: opt.libId || '', fortune: opt.fortune || '' });
+        if (!granted || disposed || seq !== startSeq) {
+          cancelReadingAttempt(granted); busy = false; starting = false; micBtn.disabled = false;
+          if (!disposed) label.textContent = 'ボタンを押して音読スタート';
+          return;
+        }
+        attempt = granted; phrase = String(attempt.phrase || ''); phraseAt = Number(attempt.phraseAt) || 0;
+      } catch (e) {
+        busy = false; starting = false; micBtn.disabled = false;
+        if (!disposed) { showError(e); label.textContent = '開始できませんでした。もう一度ためしてください'; }
+        return;
+      }
       lineIdx = 0;
       setPassage(display(previewTokens(), false));
       reciteOk = passage.classList.contains('blur');
@@ -7077,16 +7402,22 @@ window.SAMPLE_ASSIGNMENTS = [
       // 音声の保存（対応端末のみ）
       capture = null;
       if (settings.saveAudio && AudioCapture.isSupported() && !prefs().captureOff) {
-        capture = new AudioCapture();
-        try { await capture.start(); } catch (e) { capture = null; }
+        var openedCapture = new AudioCapture(); capture = openedCapture;
+        try { await openedCapture.start(); } catch (e) { openedCapture.cancel(); if (capture === openedCapture) capture = null; }
+        if (disposed || seq !== startSeq || document.hidden) openedCapture.cancel();
+      }
+      if (disposed || seq !== startSeq || document.hidden) {
+        if (capture) { capture.cancel(); capture = null; }
+        cancelReadingAttempt(attempt); attempt = null; busy = false; starting = false; micBtn.disabled = false; return;
       }
       var rec = new Recognizer({
         lang: CFG.SPEECH_LANG || 'en-US',
         onUpdate: function (t) { live.textContent = t || '…'; },
-        onError: function (m) { toast(m, true); resetUI(); if (capture) { capture.cancel(); capture = null; } }
+        onError: function (m) { if (disposed) return; toast(m, true); resetUI(); if (capture) { capture.cancel(); capture = null; } }
       });
       state.recognizer = rec;
-      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした：' + e.message, true); if (capture) { capture.cancel(); capture = null; } return; }
+      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした：' + e.message, true); resetUI(); if (capture) { capture.cancel(); capture = null; } return; }
+      busy = false; starting = false; micBtn.disabled = false;
       recording = true; startedAt = Date.now();
       $('#bModel').disabled = true;
       // お手本音声（読み上げ）が流れていないか見張る
@@ -7101,6 +7432,7 @@ window.SAMPLE_ASSIGNMENTS = [
     }
     function resetUI() {
       recording = false; clearInterval(timerId); clearInterval(ttsTimer);
+      cancelReadingAttempt(attempt); attempt = null; busy = false; starting = false; micBtn.disabled = false;
       micBtn.classList.remove('rec'); micBtn.textContent = '🎤'; micBtn.setAttribute('aria-label', '音読をはじめる');
       label.textContent = 'ボタンを押して音読スタート';
       $('#bModel').disabled = false;
@@ -7116,11 +7448,13 @@ window.SAMPLE_ASSIGNMENTS = [
       state.recognizer = null;
       var audio = capture ? await capture.stop() : null;
       var hadCapture = !!capture; capture = null;
+      if (disposed) { cancelReadingAttempt(attempt); attempt = null; return; }
       $('#bModel').disabled = false;
       removePhraseNotes();
       live.textContent = transcript || '（聞き取れませんでした）';
       micBtn.classList.remove('rec'); micBtn.textContent = '🎤';
       if (!transcript) {
+        cancelReadingAttempt(attempt); attempt = null;
         if (hadCapture && /iPad|iPhone|iPod/.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? ' iPad' : ''))) {
           // iPhone・iPad で録音と聞き取りがぶつかった可能性 → この端末では録音をやめる
           setPref('captureOff', true);
@@ -7148,13 +7482,16 @@ window.SAMPLE_ASSIGNMENTS = [
         $('#resultArea').innerHTML = '<div class="card result"><div class="cheat-inline">⚠️ この音読は無効になりました</div>' +
           '<div class="btn-row" style="justify-content:center;margin-top:12px"><button class="btn-primary" id="bAgain">🔁 もう一度読む</button></div></div>';
         $('#bAgain').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); startRec(); };
-        try { await call('submit', payload); } catch (e) { /* 警告の記録に失敗しても続行 */ }
+        try { await submitReadingAttempt(attempt, payload, opt.title); } catch (e) { if (!disposed) { if (e.net && e.outboxSaved) toast('確認結果は通信が戻ったら送ります'); else showError(e); } }
+        attempt = null;
+        if (disposed) return;
         label.textContent = 'もう一度読むときはボタンを押してね';
         micBtn.disabled = false; busy = false; return;
       }
       showResult(local, null, true);
       try {
-        var r = await call('submit', payload);
+        var r = await submitReadingAttempt(attempt, payload, opt.title); attempt = null;
+        if (disposed) return;
         setPassage(display(stripPh(r.result.tokens), true), true);
         if (r.flagged && r.definite) {
           showCheatWarning(r.flagged);
@@ -7177,6 +7514,8 @@ window.SAMPLE_ASSIGNMENTS = [
           else { if (opt.onDone) opt.onDone(r); popup(); }
         }
       } catch (e) {
+        attempt = null;
+        if (disposed) return;
         if (e && e.net && outboxAdd(payload, opt.title)) {
           // 通信できなかった → この端末に取っておき、つながったら自動で送る（同じ提出番号なので、二重には数えられない）
           if ($('#saveState')) $('#saveState').innerHTML = '📦 通信が混み合っていたので、この記録を<b>この端末に保存しました</b>。つながったら自動で送ります（もう一度読まなくて大丈夫です）。';
@@ -7208,6 +7547,7 @@ window.SAMPLE_ASSIGNMENTS = [
       if (server && server.pointsGained) html += '<div class="celebrate pts-line">🪙 ポイント +' + server.pointsGained + 'pt（使えるポイント ' + n(server.rewards ? server.rewards.avail : 0) + 'pt）<a href="#/avatar/shop">お店へ</a></div>';
       if (server && server.bonus) html += '<div class="celebrate bonus">🧠 ' + (type === 5 ? '日本語→英語' : '暗唱') + 'ボーナス +' + server.bonus + 'ポイント！（合計 ' + n(server.rewards ? server.rewards.points : 0) + 'pt）</div>';
       html += '<div class="muted" id="saveState">' + (pending ? '記録を保存中…' : server && server.liveOnly ? '🔴 ライブのポイントに入れました（ライブ中の音読は、ふだんの記録には入りません）' : '✅ 記録しました（+' + r.correct + '語）') + '</div>';
+      html += creditResultHTML(server);
       html += '<div class="btn-row" style="justify-content:center;margin-top:12px">' +
         '<button class="btn-primary" id="bAgain">🔁 もう一度</button>' +
         (opt.contest && opt.aid ? '<a class="btn" href="#/contest/' + encodeURIComponent(opt.aid) + '">🏆 大会ランキング</a>' : '') +
@@ -7541,12 +7881,11 @@ window.SAMPLE_ASSIGNMENTS = [
     var sents = enSentences(c.text), jas = jaForSentences(c.text, c.ja, sents.length);
     if (!sents.length) { toast('英文がありません', true); return go(c.back || '#/home'); }
     var settings = (state.home && state.home.settings) || { phraseCheck: true };
-    var phrase = settings.phraseCheck ? Scoring.makePhrase(c.text) : '';
+    var phrase = '', phraseAt = 0, attempt = null, busy = false, disposed = false, startSeq = 0;
     var steps = sents.map(function (x, i) { return { en: x, ja: jas[i] || '', tr: '', pct: null }; });
-    if (phrase) steps.push({ en: phrase, ja: '最後に合言葉を読もう', tr: '', pct: null, phrase: true });
     var idx = 0, rec = null, recording = false, startedAt = 0, totalDur = 0, tts = false, ttsTimer = null, done = false;
     var html = '<a class="back" href="' + esc(c.back || '#/home') + '">← もどる</a><div class="card"><div class="card-title"><h2>🔁 リピート練習</h2><span class="muted">' + esc(c.title || '') + '</span></div>' +
-      '<p class="muted" style="margin:0 0 8px">お手本を1文ずつ聞いて、すぐにまねして読もう。</p>' +
+      '<p class="muted" style="margin:0 0 8px">お手本を1文ずつ聞いて、すぐにまねして読もう。</p>' + creditPolicyHTML(settings) +
       '<div class="rp-progress"><div class="bar"><span id="rpBar"></span></div><span id="rpCount"></span></div>' +
       '<div class="rp-box"><div class="rp-ja" id="rpJa"></div><div class="rp-en passage" id="rpEn"></div><div class="rp-score" id="rpScore"></div></div>' +
       '<div class="live" id="rpLive"></div>' +
@@ -7556,7 +7895,24 @@ window.SAMPLE_ASSIGNMENTS = [
     $app.innerHTML = html;
     var mic = $('#rpMic'), label = $('#rpLabel'), live = $('#rpLive');
     bindVoiceSeg($app);
+    state.readingCleanup = function (leaving) {
+      disposed = true; startSeq++; clearInterval(ttsTimer);
+      if (rec) rec.abort();
+      cancelReadingAttempt(attempt, leaving); attempt = null;
+    };
+    function abortSet(message) {
+      startSeq++; stopUI(); cancelReadingAttempt(attempt); attempt = null;
+      busy = false; done = false; phrase = ''; phraseAt = 0; totalDur = 0; tts = false; idx = 0;
+      steps = sents.map(function (x, i) { return { en: x, ja: jas[i] || '', tr: '', pct: null }; });
+      if (!disposed) { draw(); mic.disabled = !Recognizer.isSupported(); label.textContent = message || 'ボタンを押して最初の文からはじめましょう'; }
+    }
+    if (state.visHandler) document.removeEventListener('visibilitychange', state.visHandler);
+    state.visHandler = function () {
+      if (document.hidden && !done && (attempt || busy || recording)) abortSet('画面を切り替えたため中断しました。最初の文からはじめてください');
+    };
+    document.addEventListener('visibilitychange', state.visHandler);
     function draw() {
+      if (disposed) return;
       var st = steps[idx];
       $('#rpBar').style.width = Math.round(idx / steps.length * 100) + '%';
       $('#rpCount').textContent = (idx + 1) + ' / ' + steps.length;
@@ -7565,10 +7921,11 @@ window.SAMPLE_ASSIGNMENTS = [
       $('#rpScore').innerHTML = st.pct === null ? '' : '<b class="' + (st.pct >= 80 ? 'cell-good' : st.pct >= 60 ? 'cell-mid' : 'cell-low') + '">' + st.pct + '%</b>';
       $('#rpListen').disabled = !!st.phrase;
       $('#rpNext').textContent = idx === steps.length - 1 ? '結果を見る ✔' : '次へ ▶';
-      $('#rpNext').disabled = !st.tr;
+      $('#rpNext').disabled = !st.tr || busy || recording || done;
       live.textContent = st.tr || '';
     }
     function listen(then) {
+      if (disposed || done || busy || recording) return;
       var st = steps[idx];
       if (st.phrase) { label.textContent = '🎤を押して、合言葉を読もう'; if (then) then(); return; }
       label.textContent = '🔊 お手本を聞いてね…';
@@ -7576,6 +7933,7 @@ window.SAMPLE_ASSIGNMENTS = [
       var fired = false, safety = null;
       function ended() {
         if (fired) return; fired = true; clearTimeout(safety);
+        if (disposed || done || document.hidden) return;
         mic.disabled = false; label.textContent = 'あなたの番！ 🎤を押して読もう';
         if (then) then();
       }
@@ -7585,13 +7943,31 @@ window.SAMPLE_ASSIGNMENTS = [
         st.en.split(/\s+/).length * 600 / (prefs().rate || 0.9) + 1500);
       if (!ok) { fired = true; clearTimeout(safety); mic.disabled = false; label.textContent = '🎤を押して読もう'; }
     }
-    function startRec() {
-      if (recording || done) return;
+    async function startRec() {
+      if (recording || done || busy || disposed) return;
+      busy = true; mic.disabled = true; $('#rpNext').disabled = true;
+      var seq = ++startSeq;
       Speaker.stop();
+      if (!attempt) {
+        label.textContent = '音読の開始を確認しています…';
+        try {
+          var granted = await beginReadingAttempt({ text: sents.join(' '), kind: 'repeat', type: 1, recite: false });
+          if (!granted || disposed || seq !== startSeq) {
+            cancelReadingAttempt(granted); busy = false;
+            if (!disposed) { mic.disabled = false; label.textContent = 'ボタンを押して音読スタート'; }
+            return;
+          }
+          attempt = granted; phrase = String(attempt.phrase || ''); phraseAt = Number(attempt.phraseAt) || 0;
+          if (phrase) steps.push({ en: phrase, ja: '最後に合言葉を読もう', tr: '', pct: null, phrase: true });
+          draw();
+        } catch (e) { busy = false; if (!disposed) { mic.disabled = false; showError(e); label.textContent = '開始できませんでした。もう一度ためしてください'; } return; }
+      }
+      if (disposed || document.hidden || seq !== startSeq) { abortSet(); return; }
       rec = new Recognizer({ lang: CFG.SPEECH_LANG || 'en-US', onUpdate: function (t) { live.textContent = t || '…'; },
-        onError: function (m) { toast(m, true); stopUI(); } });
+        onError: function (m) { if (!disposed) toast(m, true); abortSet('音声を確認できませんでした。最初の文からはじめてください'); } });
       state.recognizer = rec;
-      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした', true); return; }
+      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした', true); abortSet(); return; }
+      busy = false; mic.disabled = false;
       recording = true; startedAt = Date.now();
       clearInterval(ttsTimer);
       ttsTimer = setInterval(function () { if (recording && window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) tts = true; }, 200);
@@ -7600,14 +7976,19 @@ window.SAMPLE_ASSIGNMENTS = [
     }
     function stopUI() { recording = false; clearInterval(ttsTimer); mic.classList.remove('rec'); mic.textContent = '🎤'; if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; } }
     async function stopRec() {
-      if (!recording) return;
+      if (!recording || busy) return;
+      busy = true;
+      var stopSeq = startSeq;
       recording = false; clearInterval(ttsTimer);
       totalDur += Math.round((Date.now() - startedAt) / 1000);
       mic.disabled = true;
       var t = await rec.stop(); state.recognizer = null;
+      if (disposed) { cancelReadingAttempt(attempt); attempt = null; return; }
+      if (stopSeq !== startSeq) return;
+      busy = false;
       mic.classList.remove('rec'); mic.textContent = '🎤'; mic.disabled = false;
       var st = steps[idx];
-      if (!t) { label.textContent = '聞き取れませんでした。もう一度🎤を押してね'; return; }
+      if (!t) { abortSet('聞き取れませんでした。最初の文からもう一度ためしてください'); return; }
       var sc = st.phrase ? Scoring.score(st.en, t) : Scoring.score(st.en, t);
       if (st.pct === null || sc.accuracy >= st.pct) { st.tr = t; st.pct = sc.accuracy; }
       draw();
@@ -7615,23 +7996,26 @@ window.SAMPLE_ASSIGNMENTS = [
       label.textContent = sc.accuracy >= 80 ? 'いいね！「次へ」で進もう' : 'もう一度読んでもいいよ（「↺ もう一度読む」）';
     }
     mic.onclick = function () { if (recording) stopRec(); else startRec(); };
-    $('#rpListen').onclick = function () { if (!recording) listen(); };
-    $('#rpRetry').onclick = function () { if (!recording) listen(function () { setTimeout(startRec, 250); }); };
+    $('#rpListen').onclick = function () { if (!recording && !busy) listen(); };
+    $('#rpRetry').onclick = function () { if (!recording && !busy) listen(function () { setTimeout(startRec, 250); }); };
     $('#rpNext').onclick = function () {
-      if (recording) return;
+      if (recording || busy || done) return;
       if (idx < steps.length - 1) { idx++; draw(); listen(function () { setTimeout(startRec, 250); }); }
       else finish();
     };
     async function finish() {
-      done = true;
+      if (done || busy || !attempt) return;
+      done = true; busy = true; mic.disabled = true; $('#rpNext').disabled = true;
       var body = steps.filter(function (x) { return !x.phrase; });
       var text = body.map(function (x) { return x.en; }).join(' ');
       var transcript = body.map(function (x) { return x.tr; }).join(' ') + (phrase ? ' ' + steps[steps.length - 1].tr : '');
       $('#rpBar').style.width = '100%';
       $('#rpResult').innerHTML = '<div class="card result"><div class="muted">判定中…</div></div>';
+      var payload = { rid: newRid(), text: text, kind: 'repeat', transcript: transcript, duration: totalDur, phrase: phrase,
+        phraseAt: phraseAt, flag: tts ? 'tts' : '', type: 1 };
       try {
-        var r = await call('submit', { text: text, kind: 'repeat', transcript: transcript, duration: totalDur, phrase: phrase,
-          phraseAt: phrase ? Scoring.tokenize(text).length : 0, flag: tts ? 'tts' : '', type: 1 });
+        var r = await submitReadingAttempt(attempt, payload, c.title || 'リピート練習'); attempt = null;
+        if (disposed) return;
         if (r.flagged) {
           if (r.definite) showCheatWarning(r.flagged);
           $('#rpResult').innerHTML = '<div class="card result">' + (r.definite ? '<div class="cheat-inline">⚠️ この音読は無効になりました</div>' : '<div class="pending-title">🔍 先生が確認します</div>') + '</div>';
@@ -7642,11 +8026,18 @@ window.SAMPLE_ASSIGNMENTS = [
         $('#rpResult').innerHTML = '<div class="card result"><h2>🔁 リピート練習 完走！</h2><div class="ring">' + ringSVG(pct) + '<div class="center"><div class="big">' + pct + '<small style="font-size:1.2rem">%</small></div><div class="detail">正確さ</div></div></div>' +
           '<div class="detail">' + r.result.correct + ' / ' + r.result.total + ' 語 読めました</div>' +
           '<ul class="rp-list">' + body.map(function (x) { return '<li><span class="' + (x.pct >= 80 ? 'cell-good' : x.pct >= 60 ? 'cell-mid' : 'cell-low') + '">' + x.pct + '%</span> ' + esc(x.en) + '</li>'; }).join('') + '</ul>' +
-          '<div class="muted">✅ 記録しました（+' + r.result.correct + '語）</div>' +
+          '<div class="muted">✅ 記録しました（+' + r.result.correct + '語）</div>' + creditResultHTML(r) +
           '<div class="btn-row" style="justify-content:center;margin-top:10px"><a class="btn btn-primary" href="' + esc(c.back || '#/home') + '">もとの画面へ</a><a class="btn" href="#/home">ホーム</a></div></div>';
         $('#rpResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
         showRewardPopup(r.newStamps, r.newBadges, function () { if (r.newStamps && r.newStamps.length) call('seenStamps').catch(function () {}); });
-      } catch (e) { showError(e); $('#rpResult').innerHTML = ''; done = false; }
+      } catch (e) {
+        attempt = null;
+        if (disposed) return;
+        if (e.net && outboxAdd(payload, c.title || 'リピート練習')) {
+          $('#rpResult').innerHTML = '<div class="card result">📦 記録をこの端末に保存しました。通信が戻ったら同じ音読の記録を送ります。<div class="btn-row"><a class="btn" href="#/home">ホーム</a></div></div>';
+          setTimeout(flushOutbox, 20000 + Math.floor(Math.random() * 20000));
+        } else { showError(e); $('#rpResult').innerHTML = ''; abortSet('記録できませんでした。最初の文からもう一度ためしてください'); }
+      } finally { busy = false; }
     }
     draw();
     label.textContent = '「🔊 もう一度聞く」でお手本を聞いてから、🎤で読もう';
@@ -8694,6 +9085,8 @@ window.SAMPLE_ASSIGNMENTS = [
           '<label class="check"><input type="checkbox" id="sPhrase"' + (st.phraseCheck ? ' checked' : '') + '>🔑 合言葉チェック（英文の途中に毎回変わる合言葉を読ませる。確認できないと記録しない。ライブ中は使いません）</label>' +
           '<label class="check"><input type="checkbox" id="sAuto"' + (st.autoCheck !== false ? ' checked' : '') + '>🚫 自動で無効にする（同じ言葉を続けて5回以上くり返す・読んだ量が英文の30%未満・言った語の70%以上が英文と違う・正確さ0%）</label>' +
           '<label class="check"><input type="checkbox" id="sAudio"' + (st.saveAudio ? ' checked' : '') + '>🎙 音読の音声を保存し、先生画面で再生できるようにする</label>' +
+          '<label for="sRepeatCredit">同じ英文をランキング・反復ボーナスに数える回数（1日）</label><input type="number" id="sRepeatCredit" min="1" max="20" step="1" value="' + repeatCreditLimit(st) + '">' +
+          '<p class="muted" style="font-size:.85rem">1〜20回で変更できます。初期値は5回です。上限を超えても練習と課題の合格回数は記録します。ライブ中の競技ポイントにはこの上限を使いません。</p>' +
           '<p class="muted" style="font-size:.85rem">お手本音声の検知（判定中にお手本が流れたら記録しない）は常に有効です。音声を保存する場合は、生徒と保護者に事前にお知らせください。</p>' +
           rankSettingsHTML(st.rankAward) +
           '<h3 style="margin-top:16px">💌 先生スタンプ（自動）</h3><p class="muted" style="font-size:.85rem">条件を満たした生徒に、先生からのスタンプが自動で届きます。押さない条件はチェックを外してください。スタンプの絵は「<a href="#/t/stamps">🐾 スタンプ</a>」画面で、先生が作ったスタンプに変えられます。</p>' +
@@ -8718,7 +9111,9 @@ window.SAMPLE_ASSIGNMENTS = [
       };
       if ($('#sSave')) $('#sSave').onclick = async function () {
         try {
-          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, phraseCheck: $('#sPhrase').checked, autoCheck: $('#sAuto').checked, saveAudio: $('#sAudio').checked, rankAward: readRankSettings(),
+          var creditLimit = Number($('#sRepeatCredit').value);
+          if (!Number.isInteger(creditLimit) || creditLimit < 1 || creditLimit > 20) { toast('加点の回数は1〜20の整数で入力してください', true); $('#sRepeatCredit').focus(); return; }
+          await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, phraseCheck: $('#sPhrase').checked, autoCheck: $('#sAuto').checked, saveAudio: $('#sAudio').checked, repeatCreditLimit: creditLimit, rankAward: readRankSettings(),
             autoStamps: $all('.sStamp').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }) } });
           state.overview = null; setTitle($('#sTitle').value); toast('保存しました');
         } catch (e) { showError(e); }
@@ -9453,6 +9848,8 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
   function render() {
+    if (state.readingCleanup) { state.readingCleanup(false); state.readingCleanup = null; }
+    if (state.visHandler) { document.removeEventListener('visibilitychange', state.visHandler); state.visHandler = null; }
     if (state.recognizer) { state.recognizer.abort(); state.recognizer = null; }
     Speaker.stop();
     var ov = document.querySelector('.cheat-overlay'); if (ov) ov.remove();
@@ -9521,3 +9918,4 @@ window.SAMPLE_ASSIGNMENTS = [
 </script>
 </body>
 </html>
+

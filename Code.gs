@@ -1097,6 +1097,7 @@
       autoCheck: boolDef(store.getSetting('自動無効チェック'), true),
       rankAward: rankSettings(store),
       saveAudio: boolDef(store.getSetting('音声を保存'), true),
+      repeatCreditLimit: repeatCreditLimit(store),
       autoStamps: stampRulesOn(store)
     };
   }
@@ -1156,19 +1157,185 @@
     };
   }
 
+  // 試行の状態は生徒と同じ行に保存する。キャッシュが消えても排他・確定は失わない。
+  function attemptState(s) {
+    var st = jsonObj(s.attemptState);
+    st.done = Array.isArray(st.done) ? st.done : [];
+    return st;
+  }
+  function attemptError(code, message, a) {
+    var e = err(message); e.code = code;
+    if (a) { e.activeAttemptId = a.id; e.expiresAt = a.expiresAt; }
+    return e;
+  }
+  function clientId(p) {
+    var id = str(p.clientId);
+    if (!/^[A-Za-z0-9_-]{8,100}$/.test(id)) throw attemptError('CLIENT_UPDATE_REQUIRED', '画面を更新してから、もう一度音読を始めてください。');
+    return id;
+  }
+  function repeatCreditLimit(store) {
+    var v = num(store.getSetting('同じ英文の1日加算上限'));
+    return v >= 1 && v <= 20 ? Math.floor(v) : 5;
+  }
+  function textIdentity(text) {
+    var units = [];
+    Sc.tokenize(String(text || '').normalize ? String(text || '').normalize('NFKC') : String(text || '')).forEach(function (t) {
+      t.units.forEach(function (u) { units.push(u.toLowerCase()); });
+    });
+    return sha256(units.join(' '));
+  }
+  function targetForAttempt(p, s, store, ctx) {
+    var aid = str(p.aid), a = aid ? store.getAssignment(aid) : null, type = num(p.type) || 1;
+    if (aid && (!a || !assignmentVisibleTo(a, s))) throw err('この課題は見つかりません。');
+    if (a && aTypes(a).indexOf(type) < 0) throw err('この課題では、その音読の種類は選べません。');
+    var text = a ? str(a.text) : str(p.text).slice(0, MAX_TEXT);
+    if (!text || !Sc.countWords(text)) throw err('英文がありません。');
+    var kind = a ? '' : ({ proverb: 1, library: 1, omikuji: 1, repeat: 1 }[p.kind] ? str(p.kind) : 'self');
+    var live = a ? liveRunning(store, s, ctx.now(), aid) : null;
+    return { aid: aid, text: text, type: a ? type : 1, kind: kind, recite: bool(p.recite),
+      libId: str(p.libId).slice(0, 30), fortune: str(p.fortune).slice(0, 50), textHash: textIdentity(text),
+      liveId: live ? str(live.id) : '', liveStarted: live ? str(live.started) : '' };
+  }
+  function publicAttempt(a) { return { id: a.id, phrase: a.phrase, phraseAt: a.phraseAt, startedAt: a.startedAt, expiresAt: a.expiresAt }; }
+  function beginDigest(p) { return sha256(JSON.stringify([str(p.aid), str(p.text).slice(0, MAX_TEXT), num(p.type) || 1, str(p.kind), bool(p.recite), str(p.libId)])); }
+  function writeAttemptState(s, st, store) {
+    // 完了結果の再表示を直近に限定し、Sheetsのセル上限を超えないようにする。
+    // 未補完の記録・ベストを持つレシートは、再表示用の保存件数制限では捨てない。
+    st.done = st.done.filter(function (d, i) { return d.projectionPending || i >= st.done.length - 3; });
+    while (st.done.length > 1 && JSON.stringify(st.done).length > 28000) {
+      var removable = -1;
+      for (var i = 0; i < st.done.length - 1; i++) { if (!st.done[i].projectionPending) { removable = i; break; } }
+      if (removable < 0) break;
+      st.done.splice(removable, 1);
+    }
+    var text = JSON.stringify(st);
+    if (text.length > 47000) throw attemptError('ATTEMPT_STORAGE_FULL', '提出情報が大きいため保存できません。先生に確認してください。');
+    s.attemptState = text;
+    store.updateStudent(s.id, { attemptState: text });
+  }
+  handlers.beginAttempt = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), cid = clientId(p), st = attemptState(s), now = ctx.now(), rid = str(p.rid);
+    if (!/^[A-Za-z0-9_-]{8,100}$/.test(rid)) throw attemptError('CLIENT_UPDATE_REQUIRED', '画面を更新してから、もう一度音読を始めてください。');
+    var old = st.active, alive = old && Date.parse(old.expiresAt) > now.getTime();
+    if (alive && old.clientId === cid && old.beginRid === rid) {
+      if (old.beginDigest !== beginDigest(p)) throw attemptError('ATTEMPT_MISMATCH', '開始した音読と送信内容が異なります。');
+      return { attempt: publicAttempt(old) };
+    }
+    if (st.done.some(function (d) { return d.beginRid === rid && d.clientId === cid; }) || (st.closed || []).indexOf(cid + ':' + rid) >= 0) {
+      throw attemptError('ATTEMPT_CLOSED', 'この音読は終了しています。もう一度、録音を始めてください。');
+    }
+    if (alive && !(p.takeover === true && str(p.expectedAttemptId) === old.id)) {
+      throw attemptError('ATTEMPT_ACTIVE', '別の画面で音読中です。先の音読を終えるか、この画面へ切り替えてください。', old);
+    }
+    if (p.takeover === true && (!old || str(p.expectedAttemptId) !== old.id)) {
+      throw attemptError('ATTEMPT_CHANGED', '音読の状態が変わりました。もう一度、録音を始めてください。', alive ? old : null);
+    }
+    var a = targetForAttempt(p, s, store, ctx), cfg = settingsForClient(store);
+    // 前回の応答が失われても、新しい試行の前に永続レシートの投影を完成させる。
+    // この処理はbeginAttemptの書き込みロック下で実行される。失敗時は開始を許可しない。
+    st.done.forEach(function (d) {
+      if (d.projectionPending !== false && (d.record || d.bestKey)) {
+        repairAttemptReceipt(d, s, store, false);
+        d.projectionPending = false;
+      }
+    });
+    if (old) st.closed = (st.closed || []).concat([old.clientId + ':' + old.beginRid]).slice(-20);
+    a.id = 'at_' + sha256(s.id + ':' + cid + ':' + rid + ':' + now.getTime() + ':' + (ctx.randomId ? ctx.randomId() : Math.random())).slice(0, 36);
+    a.clientId = cid; a.beginRid = rid; a.beginDigest = beginDigest(p); a.startedAt = now.toISOString();
+    a.expiresAt = new Date(now.getTime() + (a.kind === 'repeat' ? 30 : 15) * 60000).toISOString();
+    a.phrase = cfg.phraseCheck && !a.liveId ? Sc.makePhrase(a.text) : '';
+    a.phraseAt = a.kind === 'repeat' ? Sc.tokenize(a.text).length : Sc.phrasePosition(a.text);
+    st.active = a; writeAttemptState(s, st, store);
+    return { attempt: publicAttempt(a) };
+  };
+  handlers.cancelAttempt = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), cid = clientId(p), st = attemptState(s), a = st.active;
+    if (!a) return { cancelled: true };
+    if (a.id !== str(p.attemptId) || a.clientId !== cid) throw attemptError('ATTEMPT_CHANGED', 'この画面の音読はすでに終了しています。');
+    st.closed = (st.closed || []).concat([a.clientId + ':' + a.beginRid]).slice(-20);
+    delete st.active; writeAttemptState(s, st, store);
+    return { cancelled: true };
+  };
+  function activeAttempt(p, s, ctx) {
+    var cid = clientId(p), id = str(p.attemptId), a = attemptState(s).active;
+    if (!id) throw attemptError('CLIENT_UPDATE_REQUIRED', '画面を更新してから、もう一度音読を始めてください。');
+    if (!a || a.id !== id || a.clientId !== cid) throw attemptError('ATTEMPT_CHANGED', 'この音読は取り消されたか、別の画面に切り替わりました。もう一度音読してください。');
+    if (Date.parse(a.expiresAt) <= ctx.now().getTime()) throw attemptError('ATTEMPT_EXPIRED', '音読の有効時間を過ぎました。もう一度、録音を始めてください。');
+    return a;
+  }
+  function submitDigest(p) {
+    return sha256(JSON.stringify([str(p.transcript).slice(0, 6000), num(p.duration), p.flag === 'tts' ? 'tts' : '',
+      str(p.aid), str(p.text).slice(0, MAX_TEXT), num(p.type) || 1, str(p.kind), bool(p.recite), str(p.libId)]));
+  }
+  function attemptScore(a, transcript) {
+    return a.phrase ? Sc.scoreWithPhrase(a.text, transcript, a.phrase, a.phraseAt) : Sc.score(a.text, transcript);
+  }
+  function validateAttemptCommit(a, store, ctx) {
+    if (Date.parse(a.expiresAt) <= ctx.now().getTime()) throw attemptError('ATTEMPT_EXPIRED', '音読の有効時間を過ぎました。もう一度、録音を始めてください。');
+    if (a.liveId) {
+      var live = store.getLives().filter(function (l) { return str(l.id) === a.liveId && str(l.started) === a.liveStarted; })[0];
+      if (!live || !liveOpen(live, ctx.now())) throw attemptError('LIVE_ENDED', 'このライブは終了しました。通常の音読を新しく始めてください。');
+    }
+  }
+  function repairAttemptReceipt(d, s, store, touchStudent) {
+    // 生徒の行が確定してから他のシートに失敗した場合も、再送で投影だけを補う。
+    if (d.bestKey) {
+      if (!store.submit_ && store.repairBestProjection) store.repairBestProjection(s.id, d.bestKey);
+      else {
+        var b = store.getBest(s.id, d.bestKey);
+        if (b) store.setBest(s.id, d.bestKey, b);
+      }
+    }
+    if (d.record) {
+      var exists = store.hasAttemptRecord ? store.hasAttemptRecord(d.id) : store.getRecordsSince(d.record.date).some(function (r) { return r.attemptId === d.id; });
+      if (!exists) store.appendRecord(d.record);
+    }
+    if (touchStudent !== false) store.updateStudent(s.id, { attemptState: s.attemptState });
+  }
+  handlers.submit = function (p, store, ctx) {
+    var s = currentStudent(p, store, ctx), cid = clientId(p), st = attemptState(s), id = str(p.attemptId), digest = submitDigest(p);
+    if (!id) throw attemptError('CLIENT_UPDATE_REQUIRED', '画面を更新してから、もう一度音読を始めてください。');
+    var done = st.done.filter(function (d) { return d.id === id; })[0];
+    if (done) {
+      if (done.clientId !== cid || done.digest !== digest) throw attemptError('ATTEMPT_MISMATCH', '確定済みの音読と送信内容が異なります。');
+      repairAttemptReceipt(done, s, store);
+      var again = JSON.parse(JSON.stringify(done.response));
+      again.result = attemptScore(done.score, str(p.transcript).slice(0, 6000));
+      again.student = studentPublic(s); again.rewards = rewardsPublic(achOf(s), s, jstDate(ctx.now()), store); again.duplicate = true;
+      return again;
+    }
+    var a = activeAttempt(p, s, ctx), q = {};
+    if (store.submit_) store.attemptCommitGuard_ = a;
+    Object.keys(p).forEach(function (k) { q[k] = p[k]; });
+    ['aid', 'text', 'type', 'kind', 'recite', 'libId', 'fortune', 'phrase', 'phraseAt'].forEach(function (k) { q[k] = a[k]; });
+    q.recite = a.recite && bool(p.recite);   // 途中で英文を表示した場合は暗唱ボーナスを付けない。
+    q._attempt = a;
+    var result = submitActive(q, store, ctx), current = store.getStudent(s.id), record = result._record;
+    delete result._record;
+    var saved = {};
+    Object.keys(result).forEach(function (k) { if (k !== 'result' && k !== 'student' && k !== 'rewards') saved[k] = result[k]; });
+    st = attemptState(current); delete st.active;
+    st.done.push({ id: a.id, clientId: cid, beginRid: a.beginRid, digest: digest, completedAt: ctx.now().toISOString(),
+      score: { text: a.text, phrase: a.phrase, phraseAt: a.phraseAt }, response: saved, record: record || null, projectionPending: !!record,
+      bestKey: !result.flagged && !result.liveOnly && a.aid ? bestKey(a.aid, a.type) : '' });
+    writeAttemptState(current, st, store);
+    return result;
+  };
+
   // 録音の保存だけを先に行う（Apps Script では、順番待ちのロックの前に呼ばれる）
   function audioOk(cfg, p) { return cfg.saveAudio && p.audio && p.audio.b64 && String(p.audio.b64).length < 4000000; }
   function preSubmit(p, store, ctx) {
     var s = currentStudent(p, store, ctx);
+    if (attemptState(s).done.some(function (d) { return d.id === str(p.attemptId) && d.clientId === str(p.clientId); })) return;
+    var attempt = activeAttempt(p, s, ctx);
     if (!store.saveAudio || !audioOk(settingsForClient(store), p)) return;
-    var la = p.aid ? store.getAssignment(str(p.aid)) : null;
-    if (la && liveRunning(store, s, ctx.now(), la.id)) { delete p.audio; return; }   // ライブ中の音読は録音を保存しない
+    if (attempt.liveId) { delete p.audio; return; }   // ライブ中の音読は録音を保存しない
     var id = store.saveAudio({ mime: str(p.audio.mime).slice(0, 60) || 'audio/webm', b64: String(p.audio.b64),
       name: s.id + '_' + ctx.now().toISOString().replace(/[:.]/g, '-') });
     if (id) { p._audioId = String(id); delete p.audio; }
   }
 
-  handlers.submit = function (p, store, ctx) {
+  function submitActive(p, store, ctx) {
     var s = currentStudent(p, store, ctx);
     var now = ctx.now(), today = jstDate(now);
     var text, aid = str(p.aid), kind, type = 1, a = null;
@@ -1177,7 +1344,7 @@
       if (!a || !assignmentVisibleTo(a, s)) throw err('この課題は見つかりません。');
       type = num(p.type) || 1;
       if (aTypes(a).indexOf(type) < 0) throw err('この課題では、その音読の種類は選べません。');
-      text = a.text; kind = (bool(a.contest) ? '大会' : '課題') + (type > 1 ? '（' + TYPE_NAME[type] + '）' : '');
+      text = p._attempt.text; kind = (bool(a.contest) ? '大会' : '課題') + (type > 1 ? '（' + TYPE_NAME[type] + '）' : '');
     } else {
       text = str(p.text).slice(0, MAX_TEXT);
       if (!text) throw err('英文がありません。');
@@ -1188,14 +1355,18 @@
     var hasPhrase = !!str(p.phrase);
     var pAt = p.phraseAt === Sc.PHRASE_ENDS || String(p.phraseAt) === String(Sc.PHRASE_ENDS) ? Sc.PHRASE_ENDS : num(p.phraseAt);
     var r = hasPhrase ? Sc.scoreWithPhrase(text, transcript, str(p.phrase).slice(0, 60), pAt) : Sc.score(text, transcript);
-    var dur = Math.max(0, Math.min(3600, num(p.duration)));
+    var elapsed = Math.max(1, (now.getTime() - Date.parse(p._attempt.startedAt)) / 1000);
+    var dur = Math.max(1, Math.min(3600, num(p.duration) > 0 ? num(p.duration) : elapsed, elapsed + 2));
     // ライブ中の音読か（ライブ中は合言葉なし）
-    var liveNow = a ? liveRunning(store, s, now, a.id) : null;
+    var liveNow = p._attempt.liveId && a ? liveRunning(store, s, now, a.id) : null;
+    if (p._attempt.liveId && (!liveNow || str(liveNow.id) !== p._attempt.liveId || str(liveNow.started) !== p._attempt.liveStarted)) {
+      throw attemptError('LIVE_ENDED', 'このライブは終了しました。通常の音読を新しく始めてください。');
+    }
 
     // 不正防止：お手本音声の検知 → くり返し・少なすぎ・違う英文・0% → 合言葉の確認
     var flag = p.flag === 'tts' ? 'tts' : '';
     if (!flag && cfg.autoCheck) flag = Sc.cheatCheck(r, transcript, text);
-    if (!flag && cfg.phraseCheck && !liveNow) {
+    if (!flag && p._attempt.phrase && !liveNow) {
       if (!hasPhrase || !r.phrase || r.phrase.matched === 0) flag = 'phrase';   // 合言葉がまったくない → 録音などの可能性が高い
       // 合言葉は1語でも聞き取れれば合格（scoring.js）。'partial' は旧版との互換のために残しています
       else if (!r.phrase.ok) flag = 'partial';
@@ -1203,24 +1374,18 @@
     // 1秒に4語を超える速さ（15語以上）は、人の音読としては不自然 → 先生が確認
     if (!flag && r.correct >= 15 && dur > 0 && r.correct / dur > 4) flag = 'speed';
 
-    // 同じ提出（提出番号 rid が同じ）がもう一度届いたときは、記録せずに結果だけ返す（通信の自動再送で二重に数えない）
-    var rid = str(p.rid).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
-    if (rid && (achOf(s).rq || []).indexOf(rid) >= 0) {
-      return { result: r, student: studentPublic(s), duplicate: true, newBadges: [], newStamps: [], bonus: 0, pointsGained: 0,
-        progress: a ? progress(store, s.id, a) : null, rewards: rewardsPublic(achOf(s), s, today, store) };
-    }
     // ---- ライブ中の音読：ライブのポイントだけに使う ----
-    // 記録シート・累計単語数・級・課題のベスト・ランキング・ごほうびには入れない（スプレッドシートには何も書かない）
+    // 生徒の行に試行確定とポイントを一緒に保存する。累計単語数や通常ランキングには入れない。
     if (liveNow) {
-      var liveResult = null;
+      var liveResult = null, liveAch = achOf(s);
       if (!flag && r.correct > 0) {
         var sc = liveScores(store, liveNow), le = sc[s.id] || { p: 0, c: 0, b: 0, t: '' }, gained = Math.round(r.accuracy);
-        if (rid && (le.q || []).indexOf(rid) >= 0) gained = 0;   // 同じ提出の再送：ポイントは足さない
-        else {
-          le = { p: num(le.p) + gained, c: num(le.c) + 1, b: Math.max(num(le.b), r.accuracy), t: now.toISOString(), q: (le.q || []).concat(rid ? [rid] : []).slice(-5) };
-          sc[s.id] = le;
-          setLiveScore(store, liveNow, s.id, le, sc);
-        }
+        // 本人の最新行を優先する。他の端末の古い全員分キャッシュを加算の基準にしない。
+        if (liveAch.liveScore && liveAch.liveScore.id === str(liveNow.id) && liveAch.liveScore.started === str(liveNow.started)) le = liveAch.liveScore.score;
+        le = { p: num(le.p) + gained, c: num(le.c) + 1, b: Math.max(num(le.b), r.accuracy), t: now.toISOString() };
+        liveAch.liveScore = { id: str(liveNow.id), started: str(liveNow.started), score: le };
+        store.updateStudent(s.id, { ach: JSON.stringify(liveAch) });
+        sc[s.id] = le;
         var order = liveOrder(sc), rank = order.indexOf(s.id) + 1;
         liveResult = { id: str(liveNow.id), title: str(liveNow.title), gained: gained, points: le.p, count: le.c, rank: rank, total: order.length };
       }
@@ -1240,14 +1405,27 @@
 
     if (flag) {
       // 記録には残すが、単語数・自己ベストには加えない
-      store.appendRecord({
+      var flaggedRecord = {
         time: now.toISOString(), date: today, sid: s.id, aid: aid, type: type, kind: kind, flag: FLAGS[flag].label,
         reviewed: FLAGS[flag].definite ? AUTO_INVALID : '',
         accuracy: r.accuracy, correct: 0, total: r.total, duration: dur, audio: audioId,
-        transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
-      });
-      return { flagged: flag, definite: FLAGS[flag].definite, result: r, student: studentPublic(s) };
+        transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300), rankWords: '', attemptId: p._attempt.id
+      };
+      store.appendRecord(flaggedRecord);
+      return { flagged: flag, definite: FLAGS[flag].definite, result: r, student: studentPublic(s), _record: flaggedRecord };
     }
+
+    // 練習量は従来どおり記録し、同じ本文のランキング語数・反復ボーナスだけを制限する。
+    var creditAch = achOf(s), limit = repeatCreditLimit(store);
+    var daily = creditAch.repeatCredit && creditAch.repeatCredit.day === today ? creditAch.repeatCredit : { day: today, counts: {} };
+    daily.counts = daily.counts || {};
+    var textKey = p._attempt.textHash, used = num(daily.counts[textKey]), eligible = r.correct > 0 && used < limit;
+    if (eligible) daily.counts[textKey] = ++used;
+    creditAch.repeatCredit = daily;
+    var creditedWords = eligible ? r.correct : 0;
+    creditAch.rankExcludedWords = num(creditAch.rankExcludedWords) + r.correct - creditedWords;
+    creditAch.rankWordsTotal = Math.max(0, num(s.totalWords) + r.correct - creditAch.rankExcludedWords);
+    var credit = { limit: limit, used: used, remaining: Math.max(0, limit - used), rankWords: creditedWords, limited: r.correct > 0 && !eligible };
 
     // 生徒の累計を更新
     var before = levelOf(num(s.totalWords));
@@ -1279,17 +1457,18 @@
         bestAt: newBest ? now.toISOString() : (b ? b.bestAt : now.toISOString())
       });
     }
-    store.appendRecord({
+    var acceptedRecord = {
       time: now.toISOString(), date: today, sid: s.id, aid: aid, type: type, kind: kind,
       accuracy: r.accuracy, correct: r.correct, total: r.total, duration: dur, audio: audioId, flag: '',
-      transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300)
-    });
+      transcript: transcript.slice(0, 1000), text: aid ? '' : text.slice(0, 300), rankWords: creditedWords, attemptId: p._attempt.id
+    };
+    store.appendRecord(acceptedRecord);
     var after2 = a ? progress(store, s.id, a) : null;
     var achievedNew = !!(after2 && after2.achieved && !before2.achieved);
     var masterNew = !!(after2 && after2.masterCleared && !before2.masterCleared);
 
     // ---- ごほうび（バッジ・ポイント・スタンプカード・先生スタンプ） ----
-    var ach = achOf(s), c = ach.c, newBadges = [], newStamps = [], bonus = 0, ws = weekStart(today);
+    var ach = creditAch, c = ach.c, newBadges = [], newStamps = [], bonus = 0, ws = weekStart(today);
     var firstEver = !ach.b.first && num(s.totalWords) - r.correct <= 0;
     // スタンプカード・今週の日数（その日の最初の音読で1つ）
     var newDay = r.correct > 0 && ach.ld !== today;
@@ -1313,7 +1492,7 @@
     var thr = a ? passLine(a) : 80;
     var recite = bool(p.recite) && type !== 5, trans = !!a && type === 5;
     if ((recite || trans) && r.accuracy >= thr && r.correct > 0) {
-      bonus = r.correct; ach.p += bonus;
+      bonus = eligible ? r.correct : 0; ach.p += bonus;
       inc(recite ? 'rc' : 'tr');
     }
     function award(id, cond) { if (cond && !ach.b[id]) { ach.b[id] = today; newBadges.push(id); } }
@@ -1369,7 +1548,6 @@
     if (ach.st.length > 60) ach.st = ach.st.slice(-60);
     var sk = Object.keys(ach.sk);
     if (sk.length > 150) sk.slice(0, sk.length - 150).forEach(function (x) { delete ach.sk[x]; });
-    if (rid) ach.rq = (ach.rq || []).concat([rid]).slice(-30);   // 最近の提出番号（再送の見分け用）
     upd.ach = JSON.stringify(ach); s.ach = upd.ach;
     store.updateStudent(s.id, upd);
 
@@ -1379,7 +1557,7 @@
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
       newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store),
-      pointsGained: gain + bonus, fortune: fortune || undefined
+      pointsGained: gain + bonus, fortune: fortune || undefined, credit: credit, _record: acceptedRecord
     };
   };
   // おみくじの運勢（正確さが高いほど大吉・中吉が出やすい）
@@ -1433,11 +1611,12 @@
   // 期間ごとの読めた語数（無効になった音読は0語なので数えない）
   function rankScores(store, type, per, records) {
     var score = {};
-    if (type === 'total') { store.getStudents().forEach(function (x) { score[x.id] = num(x.totalWords); }); return score; }
+    if (type === 'total') { store.getStudents().forEach(function (x) { score[x.id] = Math.max(0, num(x.totalWords) - num(achOf(x).rankExcludedWords)); }); return score; }
     (records || store.getRecordsSince(per.start)).forEach(function (r) {
       var d = str(r.date); if (d < per.start || d > per.end) return;
       if (type === 'self' && str(r.aid)) return;
-      var c = num(r.correct); if (c > 0) score[r.sid] = (score[r.sid] || 0) + c;
+      var c = r.rankWords === undefined || r.rankWords === null || r.rankWords === '' ? num(r.correct) : num(r.rankWords);
+      if (c > 0) score[r.sid] = (score[r.sid] || 0) + c;
     });
     return score;
   }
@@ -2309,7 +2488,14 @@
     return store.getStudents().filter(function (x) { return !cl.length || cl.indexOf(x.cls) >= 0; }).map(function (x) { return x.id; });
   }
   function liveScores(store, l) {
-    if (str(l.status) === 'running' && store.getLiveScores) return store.getLiveScores(l, liveTargets(store, l));
+    if (str(l.status) === 'running') {
+      var scores = store.getLiveScores ? store.getLiveScores(l, liveTargets(store, l)) : jsonObj(l.scores);
+      store.getStudents().forEach(function (s) {
+        var ls = achOf(s).liveScore;
+        if (ls && ls.id === str(l.id) && ls.started === str(l.started)) scores[s.id] = ls.score;
+      });
+      return scores;
+    }
     return jsonObj(l.scores);
   }
   function setLiveScore(store, l, sid, e, sc) {
@@ -2424,6 +2610,11 @@
     if ('appTitle' in st) store.setSetting('アプリ名', str(st.appTitle).slice(0, 30));
     if ('phraseCheck' in st) store.setSetting('合言葉チェック', st.phraseCheck ? 'TRUE' : 'FALSE');
     if ('autoCheck' in st) store.setSetting('自動無効チェック', st.autoCheck ? 'TRUE' : 'FALSE');
+    if ('repeatCreditLimit' in st) {
+      var limit = Number(st.repeatCreditLimit);
+      if (!isFinite(limit) || Math.floor(limit) !== limit || limit < 1 || limit > 20) throw err('同じ英文の1日加算上限は1〜20回の整数にしてください。');
+      store.setSetting('同じ英文の1日加算上限', String(limit));
+    }
     if (st.rankAward && typeof st.rankAward === 'object') {
       var ra = st.rankAward, cur = rankSettings(store), outR = { on: ra.on !== false, types: {}, pts: {} };
       RANK_AWARD_TYPES.forEach(function (t) {
@@ -2648,6 +2839,7 @@
     t_resetTeacherPass: 1, t_deleteTeacher: 1, t_saveClass: 1, t_deleteClass: 1, teacherLogin: 1,
     t_saveStamp: 1, t_deleteStamp: 1, t_giveStamp: 1, t_createLive: 1, t_startLive: 1, t_endLive: 1, t_deleteLive: 1 };
 
+  WRITE_ACTIONS.beginAttempt = 1; WRITE_ACTIONS.cancelAttempt = 1;
   function handle(action, payload, store, ctx) {
     var fn = handlers[action];
     if (!fn) return { ok: false, error: '不明な操作です：' + action };
@@ -2657,12 +2849,16 @@
       res.ok = true;
       return res;
     } catch (e) {
-      return { ok: false, error: e.userMessage || ('エラーが発生しました：' + (e && e.message)) };
+      var failure = { ok: false, error: e.userMessage || ('エラーが発生しました：' + (e && e.message)) };
+      if (e.code) failure.code = e.code;
+      if (e.activeAttemptId) failure.activeAttemptId = e.activeAttemptId;
+      if (e.expiresAt) failure.expiresAt = e.expiresAt;
+      return failure;
     }
   }
 
   var api = { handle: handle, sha256: sha256, hashPass: hashPass, levelOf: levelOf, LEVELS: LEVELS, jstDate: jstDate, addDays: addDays,
-    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, awardRankings: awardRankings, RANK_TYPES: RANK_TYPES, RANK_TIERS: RANK_TIERS, RANK_DEF_PTS: RANK_DEF_PTS, preSubmit: preSubmit, isLiveSubmit: isLiveSubmit, FORTUNE_ODDS: FORTUNE_ODDS,
+    weekStart: weekStart, WRITE_ACTIONS: WRITE_ACTIONS, awardRankings: awardRankings, RANK_TYPES: RANK_TYPES, RANK_TIERS: RANK_TIERS, RANK_DEF_PTS: RANK_DEF_PTS, preSubmit: preSubmit, isLiveSubmit: isLiveSubmit, validateAttemptCommit: validateAttemptCommit, FORTUNE_ODDS: FORTUNE_ODDS,
     FOLDER_DEPTH: FOLDER_DEPTH, BADGES: BADGES, STAMP_RULES: STAMP_RULES, THEMES: THEMES, LIVE_STAMPS: LIVE_STAMPS, STAMP_ANIMALS: STAMP_ANIMALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Core = api;
@@ -2677,7 +2873,7 @@ var SHEETS = {
     ['cls', 'クラス', '@'], ['no', '番号', '0'], ['name', '名前', '@'], ['pass', 'パスコード', '@'],
     ['nick', 'ニックネーム', '@'], ['totalWords', '累計単語数', '0'], ['streak', '連続日数', '0'],
     ['bestStreak', '最長連続日数', '0'], ['lastDate', '最終音読日', '@'], ['todayDate', '今日の日付', '@'],
-    ['todayWords', '今日の単語数', '0'], ['ach', '実績データ（自動）', '@'], ['bj', '自己ベスト（自動）', '@']] },
+    ['todayWords', '今日の単語数', '0'], ['ach', '実績データ（自動）', '@'], ['bj', '自己ベスト（自動）', '@'], ['attemptState', '音読試行（自動）', '@']] },
   assignments: { name: '課題', cols: [
     ['id', '課題ID', '@'], ['title', 'タイトル', '@'], ['text', '英文', '@'], ['ja', '和訳', '@'],
     ['classes', '対象クラス', '@'], ['due', '締切', '@'], ['contest', '音読大会', 'check'],
@@ -2689,7 +2885,8 @@ var SHEETS = {
     ['time', '日時', '@'], ['date', '日付', '@'], ['sid', '生徒ID', '@'], ['aid', '課題ID', '@'],
     ['kind', '種別', '@'], ['accuracy', '正確さ(%)', '0.0'], ['correct', '読めた単語数', '0'],
     ['total', '全単語数', '0'], ['duration', '秒数', '0'], ['transcript', '聞き取り結果', '@'], ['text', '自主練の英文', '@'],
-    ['flag', '注意', '@'], ['audio', '音声ファイルID', '@'], ['reviewed', '先生の確認', '@'], ['type', '音読の種類', '0']] },
+    ['flag', '注意', '@'], ['audio', '音声ファイルID', '@'], ['reviewed', '先生の確認', '@'], ['type', '音読の種類', '0'],
+    ['rankWords', 'ランキング対象語数', '0'], ['attemptId', '音読試行ID', '@']] },
   bests: { name: '課題別ベスト', cols: [
     ['sid', '生徒ID', '@'], ['aid', '課題ID', '@'], ['best', '最高正確さ(%)', '0.0'], ['attempts', '回数', '0'],
     ['last', '最終日時', '@'], ['bestAt', 'ベスト達成日時', '@'], ['passes', '合格回数', '0']] },
@@ -2712,6 +2909,7 @@ var DEFAULT_SETTINGS = [
   ['ニックネームを使う', 'TRUE', 'TRUE：ランキングでニックネームを使える / FALSE：クラスと番号で表示'],
   ['ログイン有効日数', '30', '生徒が再ログインせずに使える日数'],
   ['合言葉チェック', 'TRUE', 'TRUE：音読の途中に毎回変わる合言葉を読ませ、確認できない場合は記録しない'],
+  ['同じ英文の1日加算上限', '5', '1〜20回。同じ本文のランキング語数と暗唱・翻訳ボーナスの上限。練習記録は続けて残す'],
   ['音声を保存', 'TRUE', 'TRUE：音読の音声をGoogleドライブに保存し、先生画面で再生できる'],
   ['音声の保存日数', '60', 'メニュー「古い音声を削除」で、この日数より古い音声をゴミ箱へ移す'],
   ['自動スタンプ', '', '条件を満たした生徒に自動で押す先生スタンプ（空欄：すべて / なし：押さない）'],
@@ -3040,6 +3238,8 @@ SheetStore.prototype.commitSubmit_ = function (force) {
   if (map) { var bj = {}; Object.keys(map).forEach(function (k) { bj[k] = bestToBj_(map[k]); }); var bjs = JSON.stringify(bj); o.bj = bjs.length < 45000 ? bjs : ''; }   // セルの上限（5万文字）をこえそうなときは写しを持たない
   this.writeRow('students', o);   // 書式も毎回そろえる（「1-1」などが日付に変わらないように。まとめて送るので遅くならない）
   items.forEach(function (b) { self.writeRow('bests', b); delete b._new; });
+  // 試行ID付き記録も同じ確定ロックで書く。途中失敗は完了レシートから安全に補完できる。
+  this.flushDeferred_();
   return true;
 };
 // ロックの前に：書きかえる「課題別ベスト」の行が本人の行か確かめる（手で並べかえた などでずれていたら、正しい行を探し直す）
@@ -3062,12 +3262,23 @@ SheetStore.prototype.afterCommit_ = function () {
 SheetStore.prototype.resetSubmit_ = function () {
   this.subStu_ = null; this.subSig_ = null; this.stuPending_ = null; this.defer_ = [];
   this.subBj_ = null; this.subBjSid_ = null; this.subDirty_ = [];
+  this.attemptCommitGuard_ = null;
 };
 SheetStore.prototype.flushDeferred_ = function () {
   var d = this.defer_; this.defer_ = [];
   for (var i = 0; i < d.length; i++) {
+    if (d[i].k === 'records' && d[i].obj.attemptId && this.hasAttemptRecord(d[i].obj.attemptId)) continue;
     if (d[i].obj._row) this.writeRow(d[i].k, d[i].obj); else this.appendRow_(d[i].k, d[i].obj);
   }
+};
+SheetStore.prototype.hasAttemptRecord = function (id) {
+  if (!id) return false;
+  var sh = this.sheet('records'), count = sh.getLastRow() - 1;
+  if (count < 1) return false;
+  var col = SHEETS.records.cols.map(function (c) { return c[0]; }).indexOf('attemptId') + 1;
+  var range = sh.getRange(2, col, count, 1);
+  if (range.createTextFinder) return !!range.createTextFinder(String(id)).matchEntireCell(true).findNext();
+  return range.getValues().some(function (r) { return String(r[0]) === String(id); });
 };
 
 // 英文ライブラリ（先生が追加したもの）
@@ -3225,6 +3436,26 @@ SheetStore.prototype.deleteAssignment = function (id) {
 
 // 課題別ベスト
 SheetStore.prototype.getAllBests = function () { return this.load('bests').filter(function (b) { return b.sid && b.aid; }); };
+// 次の録音を許可する前に、本人の永続bjにあるベストをシートへ補完する。
+// 通常は本人の1行を確かめるだけ。未確定の行番号が他生徒に使われていた場合は探し直す。
+SheetStore.prototype.repairBestProjection = function (sid, aid) {
+  var s = this.getStudent(sid), map = s && String(s.bj || '').trim() ? bjParse_(s.bj) : null;
+  if (!map || !map[aid]) return;
+  var b = bjToBest_(sid, aid, map[aid]), sh = this.sheet('bests'), cols = SHEETS.bests.cols;
+  var row = b._row >= 2 && b._row <= sh.getLastRow() ? sh.getRange(b._row, 1, 1, cols.length).getValues()[0] : null;
+  if (!row || String(row[0]) !== sid || String(row[1]) !== aid) {
+    this.fresh.bests = 1; this.cache.bests = null;
+    var found = this.getAllBests().filter(function (x) { return String(x.sid) === sid && String(x.aid) === aid; })[0];
+    b._row = found ? found._row : 0;
+    row = found ? cols.map(function (c) { return found[c[0]]; }) : null;
+  }
+  var same = row && cols.every(function (c, i) { return String(fmtCell_(row[i], c[0])) === String(b[c[0]] === undefined ? '' : b[c[0]]); });
+  if (!same) this.writeRow('bests', b);
+  var encoded = bestToBj_(b);
+  if (JSON.stringify(map[aid]) !== JSON.stringify(encoded)) {
+    map[aid] = encoded; s.bj = JSON.stringify(map); this.updateStudent(sid, { bj: s.bj });
+  }
+};
 SheetStore.prototype.getBest = function (sid, aid) {
   if (this.submit_) return this.subBests_(sid)[aid] || null;
   if (!this.cache.bests && !this.isFresh_('bests')) {
@@ -3459,25 +3690,8 @@ function doPost(e) {
   var lock = null, write = !!Core.WRITE_ACTIONS[action];
   if (payload && typeof payload === 'object') delete payload._audioId;
   if (RANK_CHECK_ACTIONS_[action]) rankAwardsMaybe_();
-  var rid = action === 'submit' && payload.rid ? String(payload.rid) : '';
-  if (rid) {
-    var prev = ridGet_(rid);
-    if (prev) { prev._ms = Date.now() - t0; prev._dup = true; return json_(prev); }
-  }
-  // ライブ中の音読：順番待ちなし・スプレッドシートを開かずに処理する（ポイントは生徒ごとにキャッシュへ）
-  if (action === 'submit' && payload.aid) {
-    var qs = new SheetStore({ request: true }), isLive = false;
-    try { isLive = Core.isLiveSubmit(payload, qs, GAS_CTX); } catch (err) { isLive = false; }
-    if (isLive) {
-      delete payload.audio;
-      try {
-        var lr = Core.handle(action, payload, qs, GAS_CTX);
-        ridPut_(rid, lr);
-        lr._ms = Date.now() - t0; lr._sheet = !!qs._book; lr._live = true;
-        return json_(lr);
-      } catch (err) { return json_({ ok: false, error: 'サーバーでエラーが発生しました：' + err.message }); }
-    }
-  }
+  // 試行系は必ず本人と永続状態を確認する。ridキャッシュで認証・取消・引継ぎを飛ばさない。
+  var rid = '';
   // 録音の保存（Googleドライブ）は時間がかかるので、順番待ち（ロック）の前に済ませておく
   if (action === 'submit' && payload.audio) {
     try { Core.preSubmit(payload, new SheetStore({ request: true }), GAS_CTX); } catch (err) { /* 本処理でもう一度確認されます */ }
@@ -3498,6 +3712,10 @@ function doPost(e) {
       lockMs = Date.now() - tw; var th = Date.now();
       try {
         store.inLock_ = true;
+        if (store.attemptCommitGuard_) {
+          store.livesMem_ = null;
+          Core.validateAttemptCommit(store.attemptCommitGuard_, store, GAS_CTX);
+        }
         if (!store.commitSubmit_()) {   // その間に先生などが本人の行を変えていた → ロックの中で計算し直す（まれ）
           store.resetSubmit_(); res = Core.handle(action, payload, store, GAS_CTX);
           if (res && res.ok && store.stuPending_) store.commitSubmit_(true);
@@ -3505,19 +3723,10 @@ function doPost(e) {
         }
         SpreadsheetApp.flush();
       } catch (err) {
-        res = { ok: false, error: 'サーバーでエラーが発生しました：' + err.message };
+        res = err.code ? { ok: false, code: err.code, error: err.userMessage || err.message } :
+          { ok: false, busy: true, error: '提出を確認中です。同じ提出を送り直してください：' + err.message };
       } finally { lock.releaseLock(); held = Date.now() - th; }
       try { store.afterCommit_(); } catch (err) { /* noop */ }
-    }
-    if (res && res.ok && store.defer_.length) {
-      // 記録を末尾に足す（混雑で失敗したら、少し待って何回か試す）
-      var pend = store.defer_.slice();
-      for (var tr = 0; tr < 5; tr++) {
-        try { store.defer_ = pend.slice(); store.flushDeferred_(); SpreadsheetApp.flush(); res._deferErr = ''; break; }
-        catch (err) { res._deferErr = String(err.message || err).slice(0, 120); Utilities.sleep(300 + Math.floor(Math.random() * 900) * (tr + 1)); }
-      }
-      try { store.publishCache_(); } catch (err) { /* noop */ }
-      if (!res._deferErr) delete res._deferErr;
     }
     if (res && !res.ok && busyErr_(res.error)) res.busy = true;   // 混雑によるエラー → 端末が少し待って送り直す
     if (!res.busy) ridPut_(rid, res);
@@ -3532,7 +3741,7 @@ function doPost(e) {
   }
   // 先生の保存・削除などの操作：同じ操作番号（rid）がもう一度届いたら（通信の自動の送り直し）、もう一度は行わずに前の返事を返す
   //  ロックの中で確かめて、ロックを外す前に記録するので、前の操作の途中に送り直しが届いても二重にならない
-  var wrid = write && action !== 'submit' && payload && payload.rid ? 'w:' + String(payload.rid) : '';
+  var wrid = write && action !== 'submit' && action !== 'beginAttempt' && action !== 'cancelAttempt' && payload && payload.rid ? 'w:' + String(payload.rid) : '';
   if (wrid) {
     var prevW = ridGet_(wrid);
     if (prevW) { if (lock) lock.releaseLock(); prevW._ms = Date.now() - t0; prevW._dup = true; return json_(prevW); }
@@ -3656,3 +3865,4 @@ function resetAdminPassword() {
   else store.addTeacher({ id: id, name: '管理者', pass: Core.hashPass(id, pw), role: 'admin', classes: '', active: true, created: new Date().toISOString() });
   SpreadsheetApp.getUi().alert('管理者のログインID：' + id + '\n新しいパスワード：' + pw);
 }
+
