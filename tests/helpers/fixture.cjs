@@ -10,11 +10,13 @@ const ROOT = path.resolve(__dirname, '../..');
 const TEXT = 'My friends and I read interesting books together after school because every story helps us learn something new about the world.';
 const WORDS = TEXT.split(/\s+/).length;
 
-function loadRuntime() {
+function loadRuntime(options = {}) {
   // No module/require binding: the bundled modules expose the same globals as GAS.
   const sandbox = vm.createContext({ console, Date, Math, Uint16Array });
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'Code.gs'), 'utf8'), sandbox, { filename: 'Code.gs' });
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const codePath = path.resolve(ROOT, options.codePath || 'Code.gs');
+  const indexPath = path.resolve(ROOT, options.indexPath || 'index.html');
+  vm.runInContext(fs.readFileSync(codePath, 'utf8'), sandbox, { filename: codePath });
+  const html = fs.readFileSync(indexPath, 'utf8');
   const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
   const memStore = scripts.find(script => /function MemStore\s*\(/.test(script));
   assert.ok(memStore, 'The actual browser MemStore module must be present');
@@ -28,7 +30,7 @@ function ok(result, operation = 'operation') {
 }
 
 function createFixture(options = {}) {
-  const runtime = loadRuntime();
+  const runtime = loadRuntime(options);
   let time = Date.parse(options.now || '2026-10-26T02:00:00.000Z');
   let sequence = 0;
   const cache = new Map();
@@ -46,12 +48,13 @@ function createFixture(options = {}) {
     cacheRemove: key => cache.delete(key)
   };
   const data = {
-    students: [1, 2].map(no => ({ id: `1-1-${no}`, cls: '1-1', no, name: `Test student ${no}`, pass: '1234', totalWords: 0, todayWords: 0 })),
+    students: Array.from({ length: Math.max(2, options.studentCount || 2) }, (_, i) => i + 1)
+      .map(no => ({ id: `1-1-${no}`, cls: '1-1', no, name: `Test student ${no}`, pass: '1234', totalWords: 0, todayWords: 0 })),
     teachers: [
       { id: 'admin', name: 'Test administrator', role: 'admin', classes: '', active: true, pass: 'admin-test' },
       { id: 'teacher', name: 'Test teacher', role: 'teacher', classes: '1-1', active: true, pass: 'teacher-test' }
     ],
-    classes: [{ name: '1-1', count: 2 }],
+    classes: [{ name: '1-1', count: Math.max(2, options.studentCount || 2) }],
     assignments: [{ id: 'A1', title: 'Reading practice', text: TEXT, ja: 'テスト用の和訳です。', classes: '1-1', published: true,
       types: '1,2,3,4,5', mode: 'normal', pass: 80, passCount: 10, words: WORDS, created: '2026-10-25T00:00:00.000Z' }],
     records: [],

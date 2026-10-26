@@ -2329,7 +2329,9 @@ window.APP_CONFIG = {
     // この処理はbeginAttemptの書き込みロック下で実行される。失敗時は開始を許可しない。
     st.done.forEach(function (d) {
       if (d.projectionPending !== false && (d.record || d.bestKey)) {
-        repairAttemptReceipt(d, s, store, false);
+        // 全書込みとflushの成功後にだけ作る一時マーカーがあれば、既に保存済み。
+        // マーカーが消えている場合は、永続レシートから従来どおり確認・補完する。
+        if (!store.isAttemptProjectionConfirmed || !store.isAttemptProjectionConfirmed(s.id, d)) repairAttemptReceipt(d, s, store, false);
         d.projectionPending = false;
       }
     });
