@@ -1235,7 +1235,9 @@
     // この処理はbeginAttemptの書き込みロック下で実行される。失敗時は開始を許可しない。
     st.done.forEach(function (d) {
       if (d.projectionPending !== false && (d.record || d.bestKey)) {
-        repairAttemptReceipt(d, s, store, false);
+        // 全書込みとflushの成功後にだけ作る一時マーカーがあれば、既に保存済み。
+        // マーカーが消えている場合は、永続レシートから従来どおり確認・補完する。
+        if (!store.isAttemptProjectionConfirmed || !store.isAttemptProjectionConfirmed(s.id, d)) repairAttemptReceipt(d, s, store, false);
         d.projectionPending = false;
       }
     });
@@ -2996,6 +2998,7 @@ function SheetStore(opt) {
   this.cache = {}; this._book = null; this.fresh = opt.fresh || null; this.request = !!opt.request;
   this.dirty = {}; this.fromSheet = {}; this.gens = null;
   this.submit_ = !!opt.submit; this.defer_ = [];   // 音読の提出：順番待ちを短くするための書き方（下の「提出の高速化」）
+  this.attemptMutation_ = !!opt.attemptMutation;
 }
 SheetStore.prototype.book_ = function () { return this._book || (this._book = ss_()); };
 SheetStore.prototype.isFresh_ = function (k) { return this.fresh === true || !!(this.fresh && this.fresh[k]); };
@@ -3113,6 +3116,7 @@ SheetStore.prototype.getStudents = function () {
   return this.load('students').filter(function (s) { return String(s.cls).trim() && String(s.no).trim(); }).map(normStudent_);
 };
 SheetStore.prototype.getStudent = function (id) {
+  if (this.attemptMutation_) return this.attemptStudentFresh_(id);
   if (this.submit_) return this.studentFresh_(id);
   if (!this.cache.students && !this.isFresh_('students')) { var px = this.sxGet_(id); if (px) return px.o; }   // 生徒ごとのキャッシュ（ホームなど）
   var list = this.getStudents();
@@ -3126,6 +3130,41 @@ SheetStore.prototype.updateStudent = function (id, f) {
   this.writeRow('students', s);
 };
 SheetStore.prototype.addStudent = function (s) { this.addRow_('students', s); };
+
+// 開始・取消はロック下で必ず本人の永続行を確認する。キャッシュは行番号のヒントだけ。
+SheetStore.prototype.attemptStudentFresh_ = function (id) {
+  if (!this.inLock_) throw new Error('音読の開始・取消には書き込みロックが必要です。');
+  if (this.attemptStudent_ && this.attemptStudent_.id === id) return this.attemptStudent_;
+  var hint = this.sxGet_(id), row = hint && Number(hint.r), sh = this.sheet('students'), cols = SHEETS.students.cols;
+  if (row >= 2 && Math.floor(row) === row && row <= sh.getLastRow()) {
+    var values = sh.getRange(row, 1, 1, cols.length).getValues()[0], s = { _row: row };
+    for (var j = 0; j < cols.length; j++) s[cols[j][0]] = fmtCell_(values[j], cols[j][0]);
+    if (String(s.cls).trim() && String(s.no).trim() && normStudent_(s).id === id) return (this.attemptStudent_ = s);
+  }
+  // 行の移動・削除・キャッシュ消失時だけ名簿を読み直し、本人の行を安全に探し直す。
+  if (this.fresh !== true) { this.fresh = this.fresh || {}; this.fresh.students = 1; }
+  this.cache.students = null;
+  var students = this.getStudents();
+  for (var i = 0; i < students.length; i++) if (students[i].id === id) return (this.attemptStudent_ = students[i]);
+  return null;
+};
+
+function attemptProjectionKey_(sid, receipt) {
+  // 生徒・試行・提出内容・投影先をまとめてハッシュ化し、キャッシュのキーを短く保つ。
+  return 'apc:' + Core.sha256(JSON.stringify([String(sid), receipt.id, receipt.digest, receipt.bestKey, receipt.record])).slice(0, 48);
+}
+SheetStore.prototype.isAttemptProjectionConfirmed = function (sid, receipt) {
+  try { var c = sc_(); return !!(c && c.get(attemptProjectionKey_(sid, receipt)) === '1'); } catch (e) { return false; }
+};
+SheetStore.prototype.markAttemptProjectionCommitted_ = function (attemptId) {
+  // 呼び出し元はcommitとSpreadsheetApp.flushの両方が成功した場合に限定する。
+  var s = this.stuPending_, state;
+  if (!s || !attemptId) return;
+  try { state = JSON.parse(String(s.attemptState || '{}')); } catch (e) { return; }
+  var receipt = (state.done || []).filter(function (d) { return d.id === String(attemptId); })[0];
+  if (!receipt || (!receipt.record && !receipt.bestKey)) return;
+  try { var c = sc_(); if (c) c.put(attemptProjectionKey_(s.id, receipt), '1', 21600); } catch (e) { /* 消失時は次の開始で永続レシートから補完する */ }
+};
 
 /* ---------- 生徒ごとのキャッシュ（sx） ----------
  *  生徒1人の行（行番号・内容・読んだときの値の目印）を、生徒ごとにキャッシュに置きます。
@@ -3181,8 +3220,8 @@ function bestToBj_(b) { return [b.best, b.attempts, b.passes, b.last, b.bestAt, 
 /* ---------- 提出の高速化 ----------
  * 音読の提出（submit）は、クラス全員がほぼ同時に送ることがあります。スプレッドシートへの同時アクセスと順番待ちを減らすため、
  *  ・計算は、生徒ごとのキャッシュ（本人の行。自己ベストの写しも入っている）を使ってロックなしで行う（シートは読まない）
- *  ・ロックの中で：本人の行を1行だけ読み直し、変わっていなければ、本人の行と「課題別ベスト」の行を書く。変わっていたら計算し直す
- *  ・ロックのあとで：記録を「末尾に足す」（同時に足してもぶつからない） */
+  *  ・ロックの中で：本人の行を読み直し、変わっていなければ本人・自己ベスト・試行ID付き記録を確定する。変わっていたら計算し直す
+  *  ・全書込みとflushの成功後：ロックを外して個人キャッシュと投影完了マーカーを更新する */
 SheetStore.prototype.prepareSubmit_ = function () {
   this.fresh = {};
   ['settings', 'assignments', 'stamps'].forEach(function (k) { try { this.load(k); } catch (e) { /* noop */ } }, this);
@@ -3444,7 +3483,8 @@ SheetStore.prototype.repairBestProjection = function (sid, aid) {
   var b = bjToBest_(sid, aid, map[aid]), sh = this.sheet('bests'), cols = SHEETS.bests.cols;
   var row = b._row >= 2 && b._row <= sh.getLastRow() ? sh.getRange(b._row, 1, 1, cols.length).getValues()[0] : null;
   if (!row || String(row[0]) !== sid || String(row[1]) !== aid) {
-    this.fresh.bests = 1; this.cache.bests = null;
+    if (this.fresh !== true) { this.fresh = this.fresh || {}; this.fresh.bests = 1; }
+    this.cache.bests = null;
     var found = this.getAllBests().filter(function (x) { return String(x.sid) === sid && String(x.aid) === aid; })[0];
     b._row = found ? found._row : 0;
     row = found ? cols.map(function (c) { return found[c[0]]; }) : null;
@@ -3696,8 +3736,8 @@ function doPost(e) {
   if (action === 'submit' && payload.audio) {
     try { Core.preSubmit(payload, new SheetStore({ request: true }), GAS_CTX); } catch (err) { /* 本処理でもう一度確認されます */ }
   }
-  var store, res, lockMs = 0, held = 0;
-  // ふつうの提出：計算まではロックなしで行い、ロックの中は「本人の1行を読み直して、変わっていなければ書く」だけにする
+  var store, res, lockMs = 0, held = 0, projectionCommitted = false;
+  // 通常・ライブの提出：採点はロック外、本人の再確認と永続記録の確定だけをロック内で行う。
   if (action === 'submit') {
     store = new SheetStore({ request: true, submit: true });
     try {
@@ -3722,11 +3762,14 @@ function doPost(e) {
           res._rerun = true;
         }
         SpreadsheetApp.flush();
+        projectionCommitted = !!(res && res.ok && store.stuPending_);
       } catch (err) {
         res = err.code ? { ok: false, code: err.code, error: err.userMessage || err.message } :
           { ok: false, busy: true, error: '提出を確認中です。同じ提出を送り直してください：' + err.message };
       } finally { lock.releaseLock(); held = Date.now() - th; }
       try { store.afterCommit_(); } catch (err) { /* noop */ }
+      // afterCommit_は失敗時にもキャッシュを整理するため、成功マーカーは別条件にする。
+      if (projectionCommitted) store.markAttemptProjectionCommitted_(payload.attemptId);
     }
     if (res && !res.ok && busyErr_(res.error)) res.busy = true;   // 混雑によるエラー → 端末が少し待って送り直す
     if (!res.busy) ridPut_(rid, res);
@@ -3739,6 +3782,7 @@ function doPost(e) {
     if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
     lockMs = Date.now() - tl;
   }
+  var writeHeldAt = lock ? Date.now() : 0;
   // 先生の保存・削除などの操作：同じ操作番号（rid）がもう一度届いたら（通信の自動の送り直し）、もう一度は行わずに前の返事を返す
   //  ロックの中で確かめて、ロックを外す前に記録するので、前の操作の途中に送り直しが届いても二重にならない
   var wrid = write && action !== 'submit' && action !== 'beginAttempt' && action !== 'cancelAttempt' && payload && payload.rid ? 'w:' + String(payload.rid) : '';
@@ -3748,9 +3792,11 @@ function doPost(e) {
   }
   try {
     if (!store) {
-      // 書き込む処理は、書き換える可能性のあるシートを必ずシートから読む（生徒の操作は「生徒」「課題別ベスト」「アバター画像」だけ。ライブはキャッシュ）
-      var fresh = !write ? null : (/^t_/.test(action) || action === 'teacherLogin') ? true : { students: 1, bests: 1, pics: 1 };
-      store = new SheetStore({ fresh: fresh, request: true });
+      // 開始・取消は本人行を直接再読する。他の書込みは従来どおり対象シートをfreshで読む。
+      var attemptMutation = action === 'beginAttempt' || action === 'cancelAttempt';
+      var fresh = !write || attemptMutation ? null : (/^t_/.test(action) || action === 'teacherLogin') ? true : { students: 1, bests: 1, pics: 1 };
+      store = new SheetStore({ fresh: fresh, request: true, attemptMutation: attemptMutation });
+      store.inLock_ = !!lock;
     }
     res = Core.handle(action, payload, store, GAS_CTX);
     if (lock) { SpreadsheetApp.flush(); store.publishCache_(); }   // 書いた内容をキャッシュに反映してから、ロックを外す
@@ -3758,11 +3804,11 @@ function doPost(e) {
   } catch (err) {
     res = { ok: false, error: 'サーバーでエラーが発生しました：' + err.message };
   } finally {
-    if (lock) lock.releaseLock();
+    if (lock) { lock.releaseLock(); held = Date.now() - writeHeldAt; }
   }
   if (res && !res.ok && busyErr_(res.error)) res.busy = true;
   if (!res.busy) ridPut_(rid, res);
-  res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = lockMs; // 処理時間・スプレッドシートを開いたか・順番待ちの時間（速さの確認用）
+  res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = lockMs; res._held = held; // 処理時間・順番待ち・ロック保持時間
   return json_(res);
 }
 
