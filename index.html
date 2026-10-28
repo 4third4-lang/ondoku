@@ -9277,14 +9277,39 @@ window.SAMPLE_ASSIGNMENTS = [
           '<div><label for="lbLv">レベル</label><select id="lbLv">' + [1, 2, 3, 4].map(function (lv) { return '<option value="' + lv + '"' + (lv === editing.level ? ' selected' : '') + '>' + LV_NAME[lv] + '</option>'; }).join('') + '</select></div>' +
           '<div><label for="lbFolder">フォルダ</label>' + folderSel('lbFolder', editing.folder || '') + '</div></div>' +
           '<label for="lbText">英文</label><textarea id="lbText">' + esc(editing.text) + '</textarea>' +
-          '<label for="lbJa">和訳（任意・英文と同じ数の文にすると、1文ずつ組で表示されます）</label><textarea id="lbJa" style="min-height:80px">' + esc(editing.ja) + '</textarea>' +
+          '<div class="label-row"><label for="lbJa">和訳（任意・英文と同じ数の文にすると、1文ずつ組で表示されます）</label><button class="btn-small" type="button" id="lbTrans">🌐 英文から自動で和訳</button></div><textarea id="lbJa" style="min-height:80px">' + esc(editing.ja) + '</textarea>' +
+          '<label class="check-inline" style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.9rem"><input type="checkbox" id="lbAutoJa"' + (store('ondoku_lib_autoja') ? ' checked' : '') + '> 保存するとき、和訳が空なら自動で和訳をつける（機械翻訳）</label>' +
           '<p class="muted" style="font-size:.85rem">歌詞や市販の教材の文章など、著作権のある文章は入れないでください。</p>' +
           '<div class="btn-row"><button class="btn-primary" id="lbSave">保存する</button><a class="btn" href="#/t/library">キャンセル</a>' +
           (editing.id ? '<button class="btn-danger" id="lbDel">削除</button>' : '') + '</div><div class="error" id="lbErr"></div></div>';
         $app.innerHTML = html;
+        // 英文から和訳を作る（課題の作成画面と同じしくみ）。quiet：保存時の自動和訳（確認・案内を出さない）
+        async function libTranslate(quiet) {
+          var list = enSentences($('#lbText').value);
+          if (!list.length) { if (!quiet) toast('先に英文を入力してください'); return false; }
+          if (list.length > 80) { toast('英文が長すぎるため、自動の和訳はできません（80文まで）'); return false; }
+          var ja = await translateSentences(list);
+          $('#lbJa').value = ja.map(tidyJa).join('\n');
+          var lj = $('#lbJa'); lj.style.height = 'auto'; lj.style.height = Math.min(lj.scrollHeight + 4, 400) + 'px';
+          return true;
+        }
+        $('#lbTrans').onclick = async function () {
+          var b = this;
+          if ($('#lbJa').value.trim() && !confirm('いま入っている和訳を、自動の翻訳で置きかえますか？')) return;
+          b.disabled = true; var old = b.textContent; b.textContent = '⏳ 翻訳中…';
+          try { if (await libTranslate(false)) toast('和訳を入れました。必要に応じて直してください（機械翻訳です）'); }
+          catch (e) { toast(e.message || '翻訳できませんでした'); }
+          b.disabled = false; b.textContent = old;
+        };
+        $('#lbAutoJa').onchange = function () { store('ondoku_lib_autoja', this.checked ? 1 : null); };
         $('#lbSave').onclick = async function () {
           var btn = this; btn.disabled = true;
           try {
+            if ($('#lbAutoJa').checked && !$('#lbJa').value.trim() && $('#lbText').value.trim()) {
+              var old = btn.textContent; btn.textContent = '⏳ 和訳をつけています…';
+              try { await libTranslate(true); } catch (e) { toast('自動の和訳ができなかったため、和訳なしで保存します（' + (e.message || '翻訳エラー') + '）', true); }
+              btn.textContent = old;
+            }
             await call('t_saveLibrary', { item: { id: editing.id, level: +$('#lbLv').value, title: $('#lbTitle').value, text: $('#lbText').value, ja: $('#lbJa').value, folder: $('#lbFolder').value } });
             sessionStorage.setItem('tLibLv', $('#lbLv').value); sessionStorage.setItem('tLibF', $('#lbFolder').value); toast('保存しました'); go('#/t/library');
           } catch (e) { $('#lbErr').textContent = e.message; btn.disabled = false; }
