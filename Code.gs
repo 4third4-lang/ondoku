@@ -1624,7 +1624,7 @@
       e.r = ruleId;
       if (rule.type) e.rn = str(rule.name).slice(0, 40);   // 先生が作った条件：生徒の画面に条件の名前を出す
       var rec = {}; for (var k in e) rec[k] = e[k];
-      rec.d = today; rec.n = 1;
+      rec.d = today; if (!p.ackStamps) rec.n = 1;   // 画面がすぐポップアップで見せる提出は、はじめから「見た」にする（あとで別に送らなくてよい）
       ach.st.push(rec); newStamps.push(e);
     }
     stamp('first', 'first', firstEver && r.correct > 0);
@@ -1677,7 +1677,7 @@
       result: r, student: studentPublic(s), newBest: newBest,
       levelUp: after.index > before.index ? after.name : null,
       newBadges: newBadges, newStamps: newStamps, bonus: bonus, rewards: rewardsPublic(ach, s, today, store),
-      pointsGained: gain + bonus, fortune: fortune || undefined, credit: credit, _record: acceptedRecord
+      pointsGained: gain + bonus, fortune: fortune || undefined, credit: credit, stampsSeen: !!p.ackStamps, _record: acceptedRecord
     };
   };
   // おみくじの運勢（正確さが高いほど大吉・中吉が出やすい）
@@ -3844,6 +3844,10 @@ function ridKey_(rid) { return 'rs:' + String(rid).replace(/[^A-Za-z0-9_-]/g, ''
 function ridGet_(rid) { if (!rid) return null; try { var c = sc_(), v = c && c.get(ridKey_(rid)); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function ridPut_(rid, res) { if (!rid || !res || !res.ok) return; try { var c = sc_(); if (c) c.put(ridKey_(rid), JSON.stringify(res), 21600); } catch (e) { /* 大きすぎるときは、生徒データの記録（ach.rq）で二重記録を防ぐ */ } }
 // ランキングの表彰：期間（日・週・月）が終わったら、その日の最初のアクセスのときに自動で配る（1日1回・ロックの中で）
+// 生徒が自分の行だけを書きかえる操作（提出と同じく、順番待ちの中は本人の1行を書くだけにする）
+var SELF_ACTIONS_ = { seenStamps: 1, seenItems: 1, setLook: 1, setNick: 1, setAvatar: 1, buyItem: 1 };
+// 順番待ちの上限（長く待たせるより、早めに「混み合っています」を返して、端末がばらばらの時間に送り直すほうが速く終わる）
+var LOCK_WAIT_MS_ = 8000;
 var RANK_CHECK_ACTIONS_ = { home: 1, t_overview: 1, ranking: 1, t_ranking: 1 };
 function rankAwardsMaybe_() {
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd'), key = 'rkchk:' + today, c = null;
@@ -3874,6 +3878,40 @@ function doPost(e) {
     try { Core.preSubmit(payload, new SheetStore({ request: true }), GAS_CTX); } catch (err) { /* 本処理でもう一度確認されます */ }
   }
   var store, res, lockMs = 0, held = 0, projectionCommitted = false;
+  // 生徒が自分の行だけを書きかえる操作（「見た」・着せ替え・ニックネーム・お店）：
+  // 計算はロックなしで行い、ロックの中は「本人の1行を読み直して、変わっていなければ書く」だけにする
+  if (SELF_ACTIONS_[action]) {
+    store = new SheetStore({ request: true, submit: true });
+    try {
+      store.prepareSubmit_();
+      res = Core.handle(action, payload, store, GAS_CTX);
+    } catch (err) { return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' }); }
+    if (res && res.ok && !store.stuPending_) {   // 書きかえる内容がない（もう「見た」になっている など）→ 順番待ちせずに返す
+      res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = 0; res._held = 0; res._skip = true;
+      return json_(res);
+    }
+    if (res && res.ok && store.stuPending_) {
+      lock = LockService.getScriptLock();
+      var sw = Date.now();
+      if (!lock.tryLock(LOCK_WAIT_MS_)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
+      lockMs = Date.now() - sw; var sh0 = Date.now();
+      try {
+        store.inLock_ = true;
+        if (!store.commitSubmit_()) {   // その間に先生などが本人の行を変えていた → ロックの中で計算し直す（まれ）
+          store.resetSubmit_(); res = Core.handle(action, payload, store, GAS_CTX);
+          if (res && res.ok && store.stuPending_) store.commitSubmit_(true);
+          res._rerun = true;
+        }
+        SpreadsheetApp.flush();
+      } catch (err) {
+        res = { ok: false, error: 'サーバーでエラーが発生しました：' + err.message };
+      } finally { lock.releaseLock(); held = Date.now() - sh0; }
+      try { store.afterCommit_(); } catch (err) { /* noop */ }
+    }
+    if (res && !res.ok && busyErr_(res.error)) res.busy = true;
+    res._ms = Date.now() - t0; res._sheet = !!store._book; res._wait = lockMs; res._held = held;
+    return json_(res);
+  }
   // 通常・ライブの提出：採点はロック外、本人の再確認と永続記録の確定だけをロック内で行う。
   if (action === 'submit') {
     store = new SheetStore({ request: true, submit: true });
@@ -3885,7 +3923,7 @@ function doPost(e) {
       try { store.verifyBests_(); } catch (err) { /* ロックの中でもう一度書く */ }
       lock = LockService.getScriptLock();
       var tw = Date.now();
-      if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
+      if (!lock.tryLock(LOCK_WAIT_MS_)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
       lockMs = Date.now() - tw; var th = Date.now();
       try {
         store.inLock_ = true;
@@ -3916,7 +3954,7 @@ function doPost(e) {
   if (write) {
     lock = LockService.getScriptLock();
     var tl = Date.now();
-    if (!lock.tryLock(25000)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
+    if (!lock.tryLock(LOCK_WAIT_MS_)) return json_({ ok: false, busy: true, error: '混み合っています。少し待ってからもう一度ためしてください。' });
     lockMs = Date.now() - tl;
   }
   var writeHeldAt = lock ? Date.now() : 0;
