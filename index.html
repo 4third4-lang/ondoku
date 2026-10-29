@@ -7053,7 +7053,24 @@ window.SAMPLE_ASSIGNMENTS = [
   }
 
   // ================= 生徒：練習 =================
+  // 音声認識の機能はあるように見えても、実際には聞き取れないブラウザ（Brave・iPhone/iPad の Chrome など）
+  function unreliableBrowser() {
+    var ua = navigator.userAgent || '';
+    var ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    if (navigator.brave || /Brave\//.test(ua)) return 'Brave';
+    if (ios && /CriOS/.test(ua)) return 'iPhone・iPad の Chrome';
+    if (ios && /FxiOS/.test(ua)) return 'iPhone・iPad の Firefox';
+    if (ios && /EdgiOS/.test(ua)) return 'iPhone・iPad の Edge';
+    if (ios && /OPiOS|OPT\//.test(ua)) return 'iPhone・iPad の Opera';
+    if (ios && /Line\/|FBAN|FBAV|Instagram|GSA\//.test(ua)) return 'アプリの中のブラウザ';
+    return '';
+  }
   function supportNotice() {
+    var bad = unreliableBrowser();
+    if (bad) {
+      return '<div class="notice warn">' + esc(bad) + ' では、音声認識がうまく動きません（声が聞き取れなかったり、通信エラーになったりします）。<br>' +
+        '<b>iPhone・iPad は Safari</b>、<b>パソコン・Android・Chromebook は Google Chrome</b> で開いてください。</div>';
+    }
     if (!Recognizer.isSupported()) {
       return '<div class="notice warn">このブラウザは音声認識に対応していません。<br>' +
         'パソコン・Android・Chromebook は <b>Google Chrome</b>、iPhone・iPad は <b>Safari</b> で開いてください。</div>';
@@ -7597,13 +7614,13 @@ window.SAMPLE_ASSIGNMENTS = [
       micBtn.classList.remove('rec'); micBtn.textContent = '🎤';
       if (!transcript) {
         cancelReadingAttempt(attempt); attempt = null;
-        if (hadCapture && /iPad|iPhone|iPod/.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? ' iPad' : ''))) {
+        if (hadCapture && !unreliableBrowser() && /iPad|iPhone|iPod/.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? ' iPad' : ''))) {
           // iPhone・iPad で録音と聞き取りがぶつかった可能性 → この端末では録音をやめる
           setPref('captureOff', true);
           var rn = $('.rec-note'); if (rn) rn.remove();
           label.textContent = '聞き取れませんでした。設定を調整したので、もう一度ためしてね';
         } else {
-          label.textContent = '声が聞き取れませんでした。マイクに近づいて、もう一度ためしてね';
+          label.textContent = unreliableBrowser() ? 'このブラウザでは聞き取れません。iPhone・iPad は Safari、パソコンは Chrome で開いてね' : '声が聞き取れませんでした。マイクに近づいて、もう一度ためしてね';
         }
         micBtn.disabled = false; busy = false; return;
       }
