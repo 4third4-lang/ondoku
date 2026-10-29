@@ -100,3 +100,15 @@ test('non-admin teachers do not receive the rule editor data', () => {
   assert.equal(ov.settings.autoRules, undefined);
   assert.equal(f.call('t_saveSettings', { token: f.teacher, settings: { autoRules: { c: [] } } }).ok, false);
 });
+
+test('teacher stamps can have a name that is returned with the list', () => {
+  const f = createFixture();
+  ok(f.call('t_saveStamp', { token: f.admin, stamp: { kind: 'art', animal: 'cat', text: 'Nice!', name: '1学期 皆勤賞' } }));
+  ok(f.call('t_saveStamp', { token: f.admin, stamp: { kind: 'art', animal: 'dog', text: 'Nice!' } }));
+  const list = ok(f.call('t_stamps', { token: f.admin })).custom;
+  assert.equal(list.find(x => x.animal === 'cat').name, '1学期 皆勤賞');
+  assert.equal(list.find(x => x.animal === 'dog').name, '');
+  const id = list.find(x => x.animal === 'cat').id;
+  ok(f.call('t_saveStamp', { token: f.admin, stamp: { id, kind: 'art', animal: 'cat', text: 'Nice!', name: '<b>運動会</b>' } }));
+  assert.equal(ok(f.call('t_stamps', { token: f.admin })).custom.find(x => x.id === id).name, 'b運動会/b');
+});

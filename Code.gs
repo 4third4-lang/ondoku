@@ -907,7 +907,7 @@
   function stampPublic(d) {
     var a = str(d.animal).split(':');
     return { id: str(d.id), kind: str(d.kind) === 'image' ? 'image' : 'art', animal: a[0] || 'cat', pose: a[1] || 'banzai', expr: a[2] || 'sparkle', text: str(d.text),
-      color: str(d.color), image: str(d.image), owner: str(d.owner), created: str(d.created) };
+      color: str(d.color), image: str(d.image), owner: str(d.owner), created: str(d.created), name: str(d.name) };
   }
   // 生徒の記録に入れるスタンプの形（a：絵、t：言葉、col：色、cr：王冠、c：画像スタンプのID）
   function stampEntry(def) {
@@ -2528,7 +2528,7 @@
     var sp = STAMP_ANIMALS.indexOf(str(it.animal)) >= 0 ? str(it.animal) : 'cat';
     var po = STAMP_POSES.indexOf(str(it.pose)) >= 0 ? str(it.pose) : 'banzai', ex = STAMP_EXPRS.indexOf(str(it.expr)) >= 0 ? str(it.expr) : 'sparkle';
     var data = { kind: kind, text: text, animal: sp + ':' + po + ':' + ex,
-      color: /^#[0-9a-fA-F]{6}$/.test(str(it.color)) ? str(it.color) : '', image: '' };
+      color: /^#[0-9a-fA-F]{6}$/.test(str(it.color)) ? str(it.color) : '', image: '', name: str(it.name).replace(/[<>]/g, '').trim().slice(0, 30) };
     if (kind === 'image') {
       var img = str(it.image);
       if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(img)) throw err('画像を選んでください。');
@@ -3037,7 +3037,7 @@ var SHEETS = {
   library: { name: 'ライブラリ', cols: [['id', 'ID', '@'], ['level', 'レベル（1中1・2中2・3中3・4高校）', '0'], ['title', 'タイトル', '@'],
     ['text', '英文', '@'], ['ja', '和訳', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] },
   stamps: { name: '先生スタンプ', cols: [['id', 'ID', '@'], ['kind', '種類（art：絵／image：画像）', '@'], ['animal', '絵', '@'], ['text', '言葉', '@'],
-    ['color', '色', '@'], ['image', '画像データ（自動）', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@']] },
+    ['color', '色', '@'], ['image', '画像データ（自動）', '@'], ['owner', '作成した先生', '@'], ['created', '作成日時', '@'], ['name', '名前（先生用）', '@']] },
   pics: { name: 'アバター画像', cols: [['id', 'ID', '@'], ['sid', '生徒ID', '@'], ['image', '画像データ（自動）', '@'], ['kind', '種類（draw：絵／photo：画像）', '@'],
     ['status', '状態（p：確認待ち／ok：OK／x：使えない）', '@'], ['created', '作成日時', '@'], ['reviewed', '確認した日時・先生', '@']] }
 };

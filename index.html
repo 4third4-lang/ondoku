@@ -2003,7 +2003,7 @@ window.APP_CONFIG = {
   function stampPublic(d) {
     var a = str(d.animal).split(':');
     return { id: str(d.id), kind: str(d.kind) === 'image' ? 'image' : 'art', animal: a[0] || 'cat', pose: a[1] || 'banzai', expr: a[2] || 'sparkle', text: str(d.text),
-      color: str(d.color), image: str(d.image), owner: str(d.owner), created: str(d.created) };
+      color: str(d.color), image: str(d.image), owner: str(d.owner), created: str(d.created), name: str(d.name) };
   }
   // 生徒の記録に入れるスタンプの形（a：絵、t：言葉、col：色、cr：王冠、c：画像スタンプのID）
   function stampEntry(def) {
@@ -3624,7 +3624,7 @@ window.APP_CONFIG = {
     var sp = STAMP_ANIMALS.indexOf(str(it.animal)) >= 0 ? str(it.animal) : 'cat';
     var po = STAMP_POSES.indexOf(str(it.pose)) >= 0 ? str(it.pose) : 'banzai', ex = STAMP_EXPRS.indexOf(str(it.expr)) >= 0 ? str(it.expr) : 'sparkle';
     var data = { kind: kind, text: text, animal: sp + ':' + po + ':' + ex,
-      color: /^#[0-9a-fA-F]{6}$/.test(str(it.color)) ? str(it.color) : '', image: '' };
+      color: /^#[0-9a-fA-F]{6}$/.test(str(it.color)) ? str(it.color) : '', image: '', name: str(it.name).replace(/[<>]/g, '').trim().slice(0, 30) };
     if (kind === 'image') {
       var img = str(it.image);
       if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(img)) throw err('画像を選んでください。');
@@ -9800,6 +9800,8 @@ window.SAMPLE_ASSIGNMENTS = [
   // ================= ルーター =================
   // ================= 先生：スタンプ =================
   var STAMP_COLORS = ['#e64980', '#e03131', '#f76707', '#f08c00', '#2b8a3e', '#0c8599', '#1971c2', '#7048e8', '#9c36b5', '#495057'];
+  // 先生スタンプの呼び名（名前があれば名前、なければ言葉）
+  function stampLabel(x) { return (x && (x.name || x.text)) || '（画像）'; }
   function customEntry(x) { return x.kind === 'image' ? { c: x.id, t: x.text } : { a: x.animal, t: x.text, col: x.color, po: x.pose, ex: x.expr }; }
   // 画像を小さく整える（スプレッドシートに入る大きさにする）
   function shrinkImage(file) {
@@ -9830,7 +9832,7 @@ window.SAMPLE_ASSIGNMENTS = [
       if (mode === 'new' || mode === 'edit') return stampEditor(S, mode === 'edit' ? S.custom.filter(function (x) { return x.id === arg; })[0] : null);
       var SL = (window.StampSet && StampSet.list) || [], KN = (window.StampSet && StampSet.KINDS) || {};
       var groups = [{ name: '🎲 おまかせ', items: [{ key: 'rand:', html: '<span class="dice">🎲</span>', label: 'どれかが届く' }] }];
-      if (S.custom.length) groups.push({ name: '✏ 先生が作ったスタンプ', items: S.custom.map(function (x) { return { key: 'c:' + x.id, e: customEntry(x) }; }) });
+      if (S.custom.length) groups.push({ name: '✏ 先生が作ったスタンプ', items: S.custom.map(function (x) { return { key: 'c:' + x.id, e: customEntry(x), label: x.name || '' }; }) });
       ['st', 'hk', 'pp', 'lv'].forEach(function (k) {
         groups.push({ name: KN[k] || k, items: SL.filter(function (d) { return d.k === k; }).map(function (d) { return { key: 'g:' + d.id, e: { g: d.id } }; }) });
       });
@@ -9851,7 +9853,7 @@ window.SAMPLE_ASSIGNMENTS = [
       html += '<div class="card"><div class="card-title"><h2>✏ 先生が作ったスタンプ</h2><a class="btn btn-primary" href="#/t/stamps/new">＋ 新しく作る</a></div>' +
         (S.custom.length ? '<div class="stamp-grid">' + S.custom.map(function (x) {
           var mine = S.admin || x.owner === S.me;
-          return '<div class="stamp-item">' + stampHTML(customEntry(x), 88) + '<div class="ds">' + (x.kind === 'image' ? '画像' : esc((Art.SPECIES[x.animal] || {}).name || '')) + '</div>' +
+          return '<div class="stamp-item">' + stampHTML(customEntry(x), 88) + '<div class="ds">' + (x.name ? '<b>' + esc(x.name) + '</b>' : (x.kind === 'image' ? '画像' : esc((Art.SPECIES[x.animal] || {}).name || ''))) + '</div>' +
             (mine ? '<div class="btn-row" style="justify-content:center"><a class="btn btn-small" href="#/t/stamps/edit/' + encodeURIComponent(x.id) + '">編集</a><button class="btn-small btn-danger" data-del="' + esc(x.id) + '">削除</button></div>' : '') + '</div>';
         }).join('') + '</div>' : '<div class="empty">まだありません。「＋ 新しく作る」から、絵と言葉を選んで作るか、画像を使って作れます。</div>') + '</div>';
       if (S.admin) {
@@ -9861,7 +9863,7 @@ window.SAMPLE_ASSIGNMENTS = [
             return '<div class="auto-art-row"><span class="aa-prev" data-rule="' + r.id + '">' + (cur ? stampHTML(customEntry(S.custom.filter(function (x) { return x.id === cur; })[0] || {}), 56) : poolSamples(r.pool || r.id, 3, 48)) + '</span>' +
               '<span class="aa-name">' + esc(r.name) + (S.on.indexOf(r.id) < 0 ? ' <span class="pill gray">押さない</span>' : '') + '</span>' +
               '<select class="aa-sel" data-rule="' + r.id + '"><option value="">標準（' + ((window.StampSet && StampSet.pool(r.pool || r.id).length) || 1) + '種類からランダム）</option>' + S.custom.map(function (x) {
-                return '<option value="' + esc(x.id) + '"' + (cur === x.id ? ' selected' : '') + '>先生スタンプ：' + esc(x.text || '（画像）') + '</option>'; }).join('') + '</select></div>';
+                return '<option value="' + esc(x.id) + '"' + (cur === x.id ? ' selected' : '') + '>先生スタンプ：' + esc(stampLabel(x)) + '</option>'; }).join('') + '</select></div>';
           }).join('') + '</div><div style="margin-top:10px"><button class="btn-primary" id="aaSave">保存する</button></div></div>';
       }
       $app.innerHTML = html;
@@ -9907,8 +9909,8 @@ window.SAMPLE_ASSIGNMENTS = [
     } catch (e) { $app.innerHTML = teacherTabs('stamps') + '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
   function stampEditor(S, cur) {
-    var d = cur ? { id: cur.id, kind: cur.kind, animal: cur.animal, pose: cur.pose || 'banzai', expr: cur.expr || 'sparkle', text: cur.text, color: cur.color, image: cur.image }
-      : { id: '', kind: 'art', animal: 'cat', pose: 'banzai', expr: 'sparkle', text: '', color: '', image: '' };
+    var d = cur ? { id: cur.id, kind: cur.kind, animal: cur.animal, pose: cur.pose || 'banzai', expr: cur.expr || 'sparkle', text: cur.text, color: cur.color, image: cur.image, name: cur.name || '' }
+      : { id: '', kind: 'art', animal: 'cat', pose: 'banzai', expr: 'sparkle', text: '', color: '', image: '', name: '' };
     var animals = S.animals || Art.ANIMALS;
     var html = teacherTabs('stamps') + '<a class="back" href="#/t/stamps">← スタンプ</a><div class="card"><h2>' + (d.id ? 'スタンプを編集' : 'スタンプを作る') + '</h2>' +
       '<div class="seg" id="seKind"><button data-k="art">🎨 絵と言葉で作る</button><button data-k="image">🖼 画像で作る</button></div>' +
@@ -9921,6 +9923,7 @@ window.SAMPLE_ASSIGNMENTS = [
       '<input type="color" id="seColor" title="好きな色"><button type="button" class="btn-small" id="seNoColor">キャラクターの色</button></div></div>' +
       '<div id="seImg"><label for="seFile">画像（写真や手書きのイラストなど。丸く切り抜かれます）</label><input type="file" id="seFile" accept="image/*">' +
       '<p class="muted" style="font-size:.82rem">著作権のあるキャラクターなどの画像は使わないでください。自動で小さくして保存します。</p></div>' +
+      '<label for="seName">スタンプの名前（先生だけに見えます。一覧や選ぶ画面で見分けるために使います。30文字まで）</label><input type="text" id="seName" maxlength="30" placeholder="例：1学期 皆勤賞、運動会の写真" value="' + esc(d.name || '') + '">' +
       '<label for="seText">スタンプの言葉（14文字まで。短いほど大きく表示されます。画像のときは空欄でもOK）</label><input type="text" id="seText" maxlength="14" placeholder="例：Nice reading!" value="' + esc(d.text) + '">' +
       '<div class="btn-row" style="margin-top:14px"><button class="btn-primary" id="seSave">保存する</button><a class="btn" href="#/t/stamps">キャンセル</a></div><div class="error" id="seErr"></div>' +
       '</div></div></div>';
@@ -9943,6 +9946,7 @@ window.SAMPLE_ASSIGNMENTS = [
     $('#seColor').oninput = function () { d.color = this.value; draw(); };
     $('#seNoColor').onclick = function () { d.color = ''; draw(); };
     $('#seText').oninput = function () { d.text = this.value; draw(); };
+    $('#seName').oninput = function () { d.name = this.value; };
     $('#seFile').onchange = async function () {
       var f = this.files && this.files[0]; if (!f) return;
       $('#seErr').textContent = '';
@@ -9978,9 +9982,9 @@ window.SAMPLE_ASSIGNMENTS = [
           [3, 5, 10, 15, 20, 30, 45].map(function (x) { return '<option value="' + x + '">' + x + '分</option>'; }).join('') + '</select></div>' +
         '<div><label for="lvT">タイトル（空欄なら課題名）</label><input type="text" id="lvT" maxlength="60"></div></div>' +
         '<h3 style="margin-top:12px">🏆 表彰スタンプ</h3><div class="form-row"><div><label for="lvS3">1〜3位</label><select id="lvS3"><option value="">標準（1位・2位・3位で別の王冠スタンプ）</option>' +
-          L.custom.map(function (x) { return '<option value="c:' + esc(x.id) + '">先生スタンプ：' + esc(x.text || '（画像）') + '</option>'; }).join('') + '</select></div>' +
+          L.custom.map(function (x) { return '<option value="c:' + esc(x.id) + '">先生スタンプ：' + esc(stampLabel(x)) + '</option>'; }).join('') + '</select></div>' +
         '<div><label for="lvS10">4〜10位</label><select id="lvS10"><option value="">標準（Top 10!）</option>' +
-          L.custom.map(function (x) { return '<option value="c:' + esc(x.id) + '">先生スタンプ：' + esc(x.text || '（画像）') + '</option>'; }).join('') + '</select></div></div>' +
+          L.custom.map(function (x) { return '<option value="c:' + esc(x.id) + '">先生スタンプ：' + esc(stampLabel(x)) + '</option>'; }).join('') + '</select></div></div>' +
         '<div class="live-prev" id="lvPrev"></div>' +
         '<div style="margin-top:14px"><button class="btn-primary btn-big" id="lvGo">ライブを準備する</button></div><div class="error" id="lvErr"></div></div>';
       html += '<div class="card"><h2>これまでのライブ</h2>' + (L.lives.length ? '<ul class="list">' + L.lives.map(function (l) {
