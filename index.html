@@ -440,8 +440,10 @@ html[data-theme="night"] { --primary: #3a3f8f; --primary-dark: #262a6b; --primar
 .stamp-item .ds { font-size: .75rem; color: var(--muted); }
 .stamp-svg { display: inline-block; }
 .mini-stamps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-.auto-stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.auto-stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
 .auto-stamp { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; cursor: pointer; font-size: .88rem; }
+input.rule-num { display: inline-block; width: 4.6em; min-width: 0; padding: 3px 6px; margin: 2px 2px; font-size: .9rem; }
+.auto-rules .ar-row { margin-bottom: 6px; cursor: default; }
 .reward-overlay { position: fixed; inset: 0; background: rgba(20, 25, 40, .55); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .reward-box { background: #fff; border-radius: 18px; padding: 20px; max-width: 520px; width: 100%; max-height: 90vh; overflow: auto; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
 .reward-stamps { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 6px 0 14px; }
@@ -1910,6 +1912,92 @@ window.APP_CONFIG = {
     if (v === 'なし') return [];
     return v.split(/[,、\s]+/).filter(Boolean);
   }
+  // ---- 自動スタンプの条件（数値を変える・先生が新しい条件を作る） ----
+  // 「設定」シートの「自動スタンプ条件」に JSON で保存：{ p: { 最初からある条件のID: 数値 }, c: [先生が作った条件] }
+  var RULE_PARAM = {
+    week3: { def: 3, min: 1, max: 7 }, week5: { def: 5, min: 1, max: 7 }, week7: { def: 7, min: 1, max: 7 },
+    perfect: { def: 100, min: 50, max: 100 }, comeback: { def: 7, min: 2, max: 90 }
+  };
+  var WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
+  var REP_NAME = { day: '1日1回まで', week: '1週間に1回まで', month: '1か月に1回まで', ever: '1回だけ' };
+  // g：グループ、n：数値の範囲、rep：くり返しの初期値、pool：標準のスタンプの絵
+  var RULE_TYPES = {
+    streak: { g: '連続・日数', label: '◯日連続で読んだ', n: [2, 365, 5], rep: 'day', pool: 'week5', name: function (r) { return r.n + '日連続で読んだとき'; } },
+    weekDays: { g: '連続・日数', label: '1週間に◯日読んだ', n: [1, 7, 4], rep: 'week', pool: 'week3', name: function (r) { return '1週間に' + r.n + '日読んだとき'; } },
+    monthDays: { g: '連続・日数', label: '1か月に◯日読んだ', n: [1, 31, 10], rep: 'month', pool: 'week5', name: function (r) { return '1か月に' + r.n + '日読んだとき'; } },
+    totalDays: { g: '連続・日数', label: '通算◯日読んだ', n: [1, 3650, 30], rep: 'ever', pool: 'week7', name: function (r) { return '通算' + r.n + '日読んだとき'; } },
+    gap: { g: '連続・日数', label: '◯日以上あいてから、また読んだ', n: [2, 90, 14], rep: 'day', pool: 'comeback', name: function (r) { return r.n + '日以上あいてから、また読んだとき'; } },
+    totalWords: { g: '量・回数', label: '累計◯語に達した', n: [10, 10000000, 5000], rep: 'ever', pool: 'week7', name: function (r) { return '累計' + r.n.toLocaleString() + '語に達したとき'; } },
+    dayWords: { g: '量・回数', label: '1日に◯語読んだ', n: [10, 100000, 300], rep: 'day', pool: 'week3', name: function (r) { return '1日に' + r.n.toLocaleString() + '語読んだとき'; } },
+    dayCount: { g: '量・回数', label: '1日に◯回読んだ', n: [1, 100, 3], rep: 'day', pool: 'week3', name: function (r) { return '1日に' + r.n + '回読んだとき'; } },
+    totalCount: { g: '量・回数', label: '通算◯回読んだ', n: [1, 100000, 50], rep: 'ever', pool: 'week7', name: function (r) { return '通算' + r.n.toLocaleString() + '回読んだとき'; } },
+    accuracy: { g: '成績・課題', label: '正確さ◯%以上を出した', n: [1, 100, 90], rep: 'week', pool: 'perfect', name: function (r) { return '正確さ' + r.n + '%以上を出したとき'; } },
+    assign: { g: '成績・課題', label: '特定の課題を達成した', rep: 'ever', pool: 'achieve', name: function (r) { return '課題「' + (r.at || '（削除された課題）') + '」を達成したとき'; } },
+    assignCount: { g: '成績・課題', label: '課題を◯個達成した', n: [1, 1000, 5], rep: 'ever', pool: 'achieve', name: function (r) { return '課題を' + r.n + '個達成したとき'; } },
+    newBest: { g: '成績・課題', label: '課題で自己ベストを更新した', rep: 'day', pool: 'perfect', name: function () { return '課題で自己ベストを更新したとき'; } },
+    typePass: { g: '成績・課題', label: '特定の読み方で合格した', n: [2, 6, 6], rep: 'day', pool: 'achieve', name: function (r) { return (r.n === 6 ? '暗唱' : '「' + TYPE_NAME[r.n] + '」') + 'で合格したとき'; } },
+    weekday: { g: 'その他', label: '特定の曜日に読んだ', n: [0, 6, 6], rep: 'day', pool: 'week3', name: function (r) { return WEEKDAY_JA[r.n] + '曜日に読んだとき'; } },
+    period: { g: 'その他', label: '決めた期間に読んだ', rep: 'ever', pool: 'week5', name: function (r) { return fmtMD(r.from) + '〜' + fmtMD(r.to) + 'に読んだとき'; } },
+    early: { g: 'その他', label: '朝◯時より前に読んだ', n: [5, 12, 7], rep: 'day', pool: 'week3', name: function (r) { return '朝' + r.n + '時より前に読んだとき'; } },
+    level: { g: 'その他', label: '決めたレベルになった', n: [1, LEVELS.length - 1, 3], rep: 'ever', pool: 'week7', name: function (r) { return '「' + LEVELS[r.n][1] + '」になったとき'; } }
+  };
+  var MAX_CUSTOM_RULES = 40;
+  function fmtMD(d) { var m = str(d).match(/^\d{4}-(\d{2})-(\d{2})$/); return m ? (+m[1]) + '/' + (+m[2]) : str(d); }
+  function ruleConf(store) {
+    var o = {};
+    try { o = JSON.parse(str(store.getSetting('自動スタンプ条件')) || '{}') || {}; } catch (e) { o = {}; }
+    var p = {};
+    Object.keys(RULE_PARAM).forEach(function (k) {
+      var d = RULE_PARAM[k], v = o.p && o.p[k] !== undefined ? Math.round(num(o.p[k])) : d.def;
+      p[k] = v >= d.min && v <= d.max ? v : d.def;
+    });
+    var c = [].concat(o.c || []).map(function (r) { try { return normRule(r); } catch (e) { return null; } }).filter(Boolean);
+    return { p: p, c: c };
+  }
+  // 先生が作った条件の形をそろえる（正しくないときはエラー）
+  function normRule(r) {
+    r = r || {};
+    var T = RULE_TYPES[str(r.type)];
+    if (!T) throw err('条件の種類が正しくありません。');
+    var out = { id: str(r.id).replace(/[^\w-]/g, '').slice(0, 20), type: str(r.type), on: r.on !== false };
+    if (!/^u/.test(out.id)) throw err('条件のIDが正しくありません。');
+    if (T.n) {
+      var n = Math.round(num(r.n));
+      if (!isFinite(n) || n < T.n[0] || n > T.n[1]) throw err('「' + T.label + '」の数は ' + T.n[0] + '〜' + T.n[1] + ' にしてください。');
+      if (out.type === 'typePass' && !(n >= 2 && n <= 6)) throw err('読み方を選んでください。');
+      out.n = n;
+    }
+    if (out.type === 'assign') {
+      out.aid = str(r.aid).slice(0, 40); out.at = str(r.at).slice(0, 60);
+      if (!out.aid) throw err('達成する課題を選んでください。');
+    }
+    if (out.type === 'period') {
+      out.from = str(r.from).slice(0, 10); out.to = str(r.to).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(out.from) || !/^\d{4}-\d{2}-\d{2}$/.test(out.to)) throw err('期間の始まりと終わりの日付を入れてください。');
+      if (out.from > out.to) throw err('期間の始まりは、終わりより前の日にしてください。');
+    }
+    out.rep = REP_NAME[str(r.rep)] ? str(r.rep) : T.rep;
+    out.name = T.name(out);
+    return out;
+  }
+  // 最初からある条件と先生が作った条件を合わせた一覧（名前は数値に合わせて作る）
+  function allStampRules(store) {
+    var cf = ruleConf(store);
+    var base = STAMP_RULES.map(function (r) {
+      var x = { id: r.id, a: r.a, t: r.t, name: r.name, builtin: true };
+      if (RULE_PARAM[r.id]) {
+        var n = cf.p[r.id]; x.n = n; x.min = RULE_PARAM[r.id].min; x.max = RULE_PARAM[r.id].max;
+        if (/^week/.test(r.id)) x.name = '1週間に' + n + '日読んだとき';
+        else if (r.id === 'perfect') x.name = (n >= 100 ? '正確さ100%' : '正確さ' + n + '%以上') + 'を出したとき（週1回まで）';
+        else if (r.id === 'comeback') x.name = n + '日以上あいてから、また読んだとき';
+      }
+      return x;
+    });
+    return base.concat(cf.c.map(function (r) { var x = {}; for (var k in r) x[k] = r[k]; x.pool = RULE_TYPES[r.type].pool; x.name = r.name + '（' + REP_NAME[r.rep] + '）'; return x; }));
+  }
+  function ruleTypesPublic() {
+    return Object.keys(RULE_TYPES).map(function (k) { var T = RULE_TYPES[k]; return { id: k, g: T.g, label: T.label, n: T.n || null, rep: T.rep, pool: T.pool }; });
+  }
   // ---- 先生が作ったスタンプ ----
   function customStamps(store) { return store.getStamps ? store.getStamps().filter(function (x) { return str(x.id); }) : []; }
   function stampPublic(d) {
@@ -2616,26 +2704,58 @@ window.APP_CONFIG = {
     award('comeback', comeback);
     award('alltypes', !!(after2 && after2.types.length === 5 && after2.types.every(function (t) { return after2.passes[t] >= 1; })));
     award('shodan', after.index >= 10);
-    // 先生スタンプ（条件を満たすと自動で押す。同じ条件では1回だけ）
-    var on = stampRulesOn(store), art = autoStampArt(store);
-    function stamp(ruleId, key, cond) {
-      if (!cond || on.indexOf(ruleId) < 0 || ach.sk[key]) return;
-      var rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0];
+    // 先生スタンプ（条件を満たすと自動で押す。同じ条件では、決めた期間に1回だけ）
+    var on = stampRulesOn(store), art = autoStampArt(store), rcf = ruleConf(store), P = rcf.p;
+    var monthKey = today.slice(0, 7);
+    if (newDay) { if (ach.mm !== monthKey) { ach.mm = monthKey; ach.md = 0; } ach.md = num(ach.md) + 1; }   // 今月読んだ日数
+    inc('n');                                   // 通算の音読回数
+    if (achievedNew) inc('ac');                 // 達成した課題の数
+    var improved = !!(aid && newBest && b);     // 2回目以降の音読で自己ベストを更新
+    function stamp(ruleId, key, cond, rule) {
+      if (!cond || ach.sk[key]) return;
+      if (!rule) { if (on.indexOf(ruleId) < 0) return; rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0]; }
       ach.sk[key] = 1;
       // 先生が作ったスタンプが選ばれていれば、そちらを押す
-      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(ruleId), ach)) || { a: rule.a, t: rule.t };
+      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(rule.type ? RULE_TYPES[rule.type].pool : ruleId), ach)) || { a: rule.a || 'cat', t: rule.t || 'Great!' };
       e.r = ruleId;
+      if (rule.type) e.rn = str(rule.name).slice(0, 40);   // 先生が作った条件：生徒の画面に条件の名前を出す
       var rec = {}; for (var k in e) rec[k] = e[k];
       rec.d = today; rec.n = 1;
       ach.st.push(rec); newStamps.push(e);
     }
     stamp('first', 'first', firstEver && r.correct > 0);
-    stamp('week3', 'w3:' + ws, newDay && ach.wd === 3);
-    stamp('week5', 'w5:' + ws, newDay && ach.wd === 5);
-    stamp('week7', 'w7:' + ws, newDay && ach.wd === 7);
+    stamp('week3', 'w3:' + ws, newDay && ach.wd === P.week3);
+    stamp('week5', 'w5:' + ws, newDay && ach.wd === P.week5);
+    stamp('week7', 'w7:' + ws, newDay && ach.wd === P.week7);
     stamp('achieve', 'a:' + aid, achievedNew);
-    stamp('perfect', 'pf:' + ws, r.accuracy >= 100);
-    stamp('comeback', 'cb:' + today, comeback);
+    stamp('perfect', 'pf:' + ws, r.correct > 0 && r.accuracy >= P.perfect);
+    stamp('comeback', 'cb:' + today, firstToday && !!prevLast && prevLast < addDays(today, -P.comeback));
+    function repKey(rep) { return rep === 'ever' ? '' : rep === 'month' ? monthKey : rep === 'week' ? ws : today; }
+    rcf.c.forEach(function (u) {
+      if (!u.on) return;
+      var n = u.n, rd = r.correct > 0, ok = false;
+      switch (u.type) {
+        case 'streak': ok = newDay && num(s.streak) === n; break;
+        case 'weekDays': ok = newDay && ach.wd === n; break;
+        case 'monthDays': ok = newDay && ach.md === n; break;
+        case 'totalDays': ok = newDay && ach.d === n; break;
+        case 'gap': ok = firstToday && !!prevLast && prevLast < addDays(today, -n); break;
+        case 'totalWords': ok = rd && num(s.totalWords) >= n && num(s.totalWords) - r.correct < n; break;
+        case 'dayWords': ok = rd && num(s.todayWords) >= n && num(s.todayWords) - r.correct < n; break;
+        case 'dayCount': ok = ach.tn === n; break;
+        case 'totalCount': ok = num(c.n) === n; break;
+        case 'accuracy': ok = rd && r.accuracy >= n; break;
+        case 'assign': ok = achievedNew && aid === u.aid; break;
+        case 'assignCount': ok = achievedNew && num(c.ac) === n; break;
+        case 'newBest': ok = improved; break;
+        case 'typePass': ok = !!a && rd && r.accuracy >= passLine(a) && (n === 6 ? recite : type === n); break;
+        case 'weekday': ok = rd && dow === n; break;
+        case 'period': ok = rd && today >= u.from && today <= u.to; break;
+        case 'early': ok = rd && hour >= 4 && hour < n; break;
+        case 'level': ok = after.index >= n && before.index < n; break;
+      }
+      stamp(u.id, 'u:' + u.id + ':' + repKey(u.rep), ok, u);
+    });
     award('teacher', ach.st.length >= 1);
     // ポイント（お店で使える）：毎日の最初の音読 +10、バッジ1つ +20、課題達成 +30
     var gain = (newDay ? 10 : 0) + newBadges.length * 20 + (achievedNew ? 30 : 0);
@@ -3199,6 +3319,7 @@ window.APP_CONFIG = {
       return pub;
     });
     var settings = settingsForClient(store);
+    if (me.admin) { var rcfO = ruleConf(store); settings.autoRules = { p: rcfO.p, c: rcfO.c, types: ruleTypesPublic(), rep: REP_NAME, rules: allStampRules(store) }; }   // 自動スタンプの条件（管理者の設定画面用）
     return { assignments: assignments, students: list, classes: classList(store).map(function (c) { return c.name; }), today: today, settings: settings,
       openFlags: openFlags(store, today) + pendingPics(store, me).length, me: me,
       folders: folderList(store).map(function (f) { return folderPublic(f, me, tname); }) };
@@ -3492,8 +3613,9 @@ window.APP_CONFIG = {
   // ================= 先生スタンプ（作成・手動で押す） =================
   handlers.t_stamps = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
-    return { custom: customStamps(store).map(stampPublic), rules: STAMP_RULES, live: LIVE_STAMPS, animals: STAMP_ANIMALS,
-      autoArt: autoStampArt(store), on: stampRulesOn(store), me: me.id, admin: me.admin };
+    var rulesAll = allStampRules(store), onIds = stampRulesOn(store).concat(rulesAll.filter(function (r) { return r.type && r.on; }).map(function (r) { return r.id; }));
+    return { custom: customStamps(store).map(stampPublic), rules: rulesAll, live: LIVE_STAMPS, animals: STAMP_ANIMALS,
+      autoArt: autoStampArt(store), on: onIds, me: me.id, admin: me.admin };
   };
   handlers.t_saveStamp = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx), it = p.stamp || {};
@@ -3724,12 +3846,29 @@ window.APP_CONFIG = {
       var ids = [].concat(st.autoStamps || []).filter(function (x) { return STAMP_RULES.some(function (r) { return r.id === x; }); });
       store.setSetting('自動スタンプ', ids.length ? ids.join(',') : 'なし');
     }
+    if (st.autoRules && typeof st.autoRules === 'object') {
+      var ar = st.autoRules, outA = { p: {}, c: [] }, seenR = {};
+      Object.keys(RULE_PARAM).forEach(function (k) {
+        var d = RULE_PARAM[k], raw = ar.p ? ar.p[k] : undefined, v = raw === undefined || raw === '' || raw === null ? d.def : Math.round(Number(raw));
+        if (!isFinite(v) || v < d.min || v > d.max) throw err('自動スタンプの数は ' + d.min + '〜' + d.max + ' にしてください。');
+        outA.p[k] = v;
+      });
+      var listR = [].concat(ar.c || []);
+      if (listR.length > MAX_CUSTOM_RULES) throw err('自動スタンプの条件は ' + MAX_CUSTOM_RULES + ' 個までです。');
+      listR.forEach(function (r) {
+        var x = normRule(r);
+        if (seenR[x.id]) throw err('同じ条件が2つあります。もう一度画面を開き直してください。');
+        seenR[x.id] = 1; delete x.name; outA.c.push(x);
+      });
+      store.setSetting('自動スタンプ条件', JSON.stringify(outA));
+    }
     if ('autoArt' in st) {
-      var art = {}, have = {};
+      var art = {}, have = {}, ruleIds = {};
       customStamps(store).forEach(function (x) { have[str(x.id)] = 1; });
+      allStampRules(store).forEach(function (r) { ruleIds[r.id] = 1; });
       Object.keys(st.autoArt || {}).forEach(function (k) {
         var v = str(st.autoArt[k]);
-        if (v && have[v] && STAMP_RULES.some(function (r) { return r.id === k; })) art[k] = v;
+        if (v && have[v] && ruleIds[k]) art[k] = v;
       });
       store.setSetting('自動スタンプの絵', JSON.stringify(art));
     }
@@ -6220,6 +6359,7 @@ window.SAMPLE_ASSIGNMENTS = [
     if (x.r === 'manual') return '先生から' + (x.by ? '（' + x.by + '）' : '');
     if (x.r === 'live') return '🔴 ライブ表彰' + (x.by ? '：' + x.by : '');
     if (x.r === 'rank') return '🏆 ランキング表彰' + (x.by ? '：' + x.by : '');
+    if (x.rn) return x.rn;   // 先生が作った条件
     var r = ((window.Core && Core.STAMP_RULES) || []).filter(function (y) { return y.id === x.r; })[0];
     return r ? r.name : '';
   }
@@ -9064,6 +9204,118 @@ window.SAMPLE_ASSIGNMENTS = [
     } catch (e) { $app.innerHTML = '<div class="card empty">' + esc(e.message) + '</div>'; }
   }
 
+  // ---- 自動スタンプの条件（設定画面） ----
+  var RULE_LV_TYPES = { 2: '穴埋め', 3: 'スペースなし', 4: '並べ替え', 5: '日本語→英語', 6: '暗唱（英文を隠して読む）' };
+  var RULE_WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+  function ruleMD(d) { var m = String(d || '').match(/^\d{4}-(\d{2})-(\d{2})$/); return m ? (+m[1]) + '/' + (+m[2]) : String(d || ''); }
+  function ruleLabel(u) {
+    var n = +u.n, LV = (window.Core && Core.LEVELS) || [];
+    switch (u.type) {
+      case 'streak': return n + '日連続で読んだとき';
+      case 'weekDays': return '1週間に' + n + '日読んだとき';
+      case 'monthDays': return '1か月に' + n + '日読んだとき';
+      case 'totalDays': return '通算' + n + '日読んだとき';
+      case 'gap': return n + '日以上あいてから、また読んだとき';
+      case 'totalWords': return '累計' + n.toLocaleString() + '語に達したとき';
+      case 'dayWords': return '1日に' + n.toLocaleString() + '語読んだとき';
+      case 'dayCount': return '1日に' + n + '回読んだとき';
+      case 'totalCount': return '通算' + n.toLocaleString() + '回読んだとき';
+      case 'accuracy': return '正確さ' + n + '%以上を出したとき';
+      case 'assign': return '課題「' + (u.at || '（削除された課題）') + '」を達成したとき';
+      case 'assignCount': return '課題を' + n + '個達成したとき';
+      case 'newBest': return '課題で自己ベストを更新したとき';
+      case 'typePass': return (n === 6 ? '暗唱' : '「' + (RULE_LV_TYPES[n] || '') + '」') + 'で合格したとき';
+      case 'weekday': return RULE_WEEKDAYS[n] + '曜日に読んだとき';
+      case 'period': return ruleMD(u.from) + '〜' + ruleMD(u.to) + 'に読んだとき';
+      case 'early': return '朝' + n + '時より前に読んだとき';
+      case 'level': return '「' + ((LV[n] || [])[1] || '') + '」になったとき';
+    }
+    return '';
+  }
+  // 最初からある条件：数を変えられるものは、文の中に数の入力欄を入れる
+  function builtinRuleHTML(r, p) {
+    if (!p || p[r.id] === undefined) return esc(r.name);
+    var inp = '<input type="number" class="sParam rule-num" data-k="' + r.id + '" min="' + r.min + '" max="' + r.max + '" step="1" value="' + p[r.id] + '" aria-label="' + esc(r.name) + 'の数">';
+    if (/^week/.test(r.id)) return '1週間に ' + inp + ' 日読んだとき';
+    if (r.id === 'perfect') return '正確さ ' + inp + ' %以上を出したとき（週1回まで）';
+    if (r.id === 'comeback') return inp + ' 日以上あいてから、また読んだとき';
+    return esc(r.name);
+  }
+  function autoRulesHTML(AR) {
+    return '<div class="auto-rules"><h4 style="margin:14px 0 6px">✏ 先生が作った条件</h4>' +
+      '<p class="muted" style="font-size:.85rem">連続日数・語数・正確さ・課題・曜日・期間などで、スタンプを押す条件を作れます（' + 40 + '個まで）。「保存する」を押すと反映されます。</p>' +
+      '<div id="arList"></div>' +
+      '<div class="btn-row" style="margin-top:8px"><button type="button" class="btn" id="arAdd">＋ 条件を追加</button></div>' +
+      '<div id="arForm" hidden></div></div>';
+  }
+  function bindAutoRules(AR, assignments) {
+    var list = (AR.c || []).map(function (u) { return Object.assign({}, u); }), types = AR.types || [], rep = AR.rep || {};
+    function tDef(id) { return types.filter(function (x) { return x.id === id; })[0]; }
+    function draw() {
+      $('#arList').innerHTML = list.length ? list.map(function (u, i) {
+        return '<div class="auto-stamp ar-row"><label style="display:flex;align-items:center;gap:8px;flex:1"><input type="checkbox" class="arOn" data-i="' + i + '"' + (u.on !== false ? ' checked' : '') + '>' +
+          '<span class="pool-mini">' + poolSamples((tDef(u.type) || {}).pool || 'week3', 2, 40) + '</span><span>' + esc(ruleLabel(u)) + ' <span class="pill gray">' + esc(rep[u.rep] || '') + '</span></span></label>' +
+          '<button type="button" class="btn-small btn-danger arDel" data-i="' + i + '">削除</button></div>';
+      }).join('') : '<div class="muted" style="font-size:.88rem">まだありません。</div>';
+      $all('.arOn').forEach(function (c) { c.onchange = function () { list[+c.dataset.i].on = c.checked; }; });
+      $all('.arDel').forEach(function (b) { b.onclick = function () { if (confirm('「' + ruleLabel(list[+b.dataset.i]) + '」の条件を削除しますか？（「保存する」で反映されます）')) { list.splice(+b.dataset.i, 1); draw(); } }; });
+    }
+    function form() {
+      var groups = [];
+      types.forEach(function (t) { if (groups.indexOf(t.g) < 0) groups.push(t.g); });
+      var f = $('#arForm'); f.hidden = false;
+      f.innerHTML = '<div class="card" style="background:#f8fafc;margin-top:8px"><div class="form-row">' +
+        '<div><label for="arType">条件の種類</label><select id="arType">' + groups.map(function (g) {
+          return '<optgroup label="' + esc(g) + '">' + types.filter(function (t) { return t.g === g; }).map(function (t) { return '<option value="' + t.id + '">' + esc(t.label) + '</option>'; }).join('') + '</optgroup>';
+        }).join('') + '</select></div><div id="arParam"></div>' +
+        '<div><label for="arRep">同じ生徒に押す回数</label><select id="arRep">' + Object.keys(rep).map(function (k) { return '<option value="' + k + '">' + esc(rep[k]) + '</option>'; }).join('') + '</select></div></div>' +
+        '<div class="muted" id="arPrev" style="margin:6px 0"></div><div class="error" id="arErr"></div>' +
+        '<div class="btn-row"><button type="button" class="btn-primary" id="arOk">この条件を加える</button><button type="button" class="btn" id="arCancel">やめる</button></div></div>';
+      function cur() {
+        var u = { type: $('#arType').value, rep: $('#arRep').value }, el;
+        if ((el = $('#arN'))) u.n = +el.value;
+        if ((el = $('#arAid'))) { u.aid = el.value; var a = assignments.filter(function (x) { return x.id === u.aid; })[0]; u.at = a ? a.title : ''; }
+        if ((el = $('#arFrom'))) { u.from = el.value; u.to = $('#arTo').value; }
+        return u;
+      }
+      function prev() { var u = cur(); $('#arPrev').textContent = '→ ' + (ruleLabel(u) || '') + '（' + (rep[u.rep] || '') + '）'; }
+      function param() {
+        var t = tDef($('#arType').value), LV = (window.Core && Core.LEVELS) || [], h = '';
+        if (t.id === 'assign') h = '<label for="arAid">課題</label><select id="arAid">' + (assignments.length ? assignments.map(function (a) { return '<option value="' + esc(a.id) + '">' + esc(a.title) + '</option>'; }).join('') : '<option value="">（課題がありません）</option>') + '</select>';
+        else if (t.id === 'period') { var d = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); h = '<label for="arFrom">期間</label><span style="display:flex;gap:6px;align-items:center"><input type="date" id="arFrom" value="' + d + '"> 〜 <input type="date" id="arTo" value="' + d + '"></span>'; }
+        else if (t.id === 'weekday') h = '<label for="arN">曜日</label><select id="arN">' + RULE_WEEKDAYS.map(function (w, i) { return '<option value="' + i + '"' + (i === 6 ? ' selected' : '') + '>' + w + '曜日</option>'; }).join('') + '</select>';
+        else if (t.id === 'level') h = '<label for="arN">レベル</label><select id="arN">' + LV.map(function (l, i) { return i ? '<option value="' + i + '"' + (i === 3 ? ' selected' : '') + '>' + esc(l[1]) + '</option>' : ''; }).join('') + '</select>';
+        else if (t.id === 'typePass') h = '<label for="arN">読み方</label><select id="arN">' + Object.keys(RULE_LV_TYPES).map(function (k) { return '<option value="' + k + '"' + (k === '6' ? ' selected' : '') + '>' + esc(RULE_LV_TYPES[k]) + '</option>'; }).join('') + '</select>';
+        else if (t.n) h = '<label for="arN">数（' + t.n[0].toLocaleString() + '〜' + t.n[1].toLocaleString() + '）</label><input type="number" id="arN" min="' + t.n[0] + '" max="' + t.n[1] + '" step="1" value="' + t.n[2] + '">';
+        $('#arParam').innerHTML = h;
+        $('#arRep').value = t.rep;
+        $all('#arParam input, #arParam select').forEach(function (x) { x.oninput = prev; x.onchange = prev; });
+        prev();
+      }
+      $('#arType').onchange = param; $('#arRep').onchange = prev;
+      $('#arCancel').onclick = function () { f.hidden = true; f.innerHTML = ''; };
+      $('#arOk').onclick = function () {
+        var u = cur(), t = tDef(u.type);
+        $('#arErr').textContent = '';
+        if (t.n && t.id !== 'assign' && t.id !== 'period' && (!Number.isInteger(u.n) || u.n < t.n[0] || u.n > t.n[1])) { $('#arErr').textContent = '数は ' + t.n[0].toLocaleString() + '〜' + t.n[1].toLocaleString() + ' の整数にしてください。'; return; }
+        if (t.id === 'assign' && !u.aid) { $('#arErr').textContent = '課題を選んでください。'; return; }
+        if (t.id === 'period' && (!u.from || !u.to || u.from > u.to)) { $('#arErr').textContent = '期間の日付を正しく入れてください。'; return; }
+        if (list.length >= 40) { $('#arErr').textContent = '条件は40個までです。'; return; }
+        u.id = 'u' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); u.on = true;
+        list.push(u); draw(); f.hidden = true; f.innerHTML = '';
+        toast('条件を加えました。「保存する」を押すと反映されます');
+      };
+      param();
+    }
+    $('#arAdd').onclick = form;
+    draw();
+    return function read() {
+      var p = {};
+      $all('.sParam').forEach(function (x) { p[x.dataset.k] = x.value === '' ? '' : Number(x.value); });
+      return { p: p, c: list };
+    };
+  }
+
   // ---- 設定 ----
   async function viewSettings() {
     bottomNav(); $app.classList.add('wide'); loading();
@@ -9092,10 +9344,11 @@ window.SAMPLE_ASSIGNMENTS = [
           '<p class="muted" style="font-size:.85rem">お手本音声の検知（判定中にお手本が流れたら記録しない）は常に有効です。音声を保存する場合は、生徒と保護者に事前にお知らせください。</p>' +
           rankSettingsHTML(st.rankAward) +
           '<h3 style="margin-top:16px">💌 先生スタンプ（自動）</h3><p class="muted" style="font-size:.85rem">条件を満たした生徒に、先生からのスタンプが自動で届きます。押さない条件はチェックを外してください。スタンプの絵は「<a href="#/t/stamps">🐾 スタンプ</a>」画面で、先生が作ったスタンプに変えられます。</p>' +
-          '<div class="auto-stamps">' + ((window.Core && Core.STAMP_RULES) || []).map(function (r) {
-            return '<label class="auto-stamp"><input type="checkbox" class="sStamp" value="' + r.id + '"' + ((st.autoStamps || []).indexOf(r.id) >= 0 ? ' checked' : '') + '>' +
-              '<span class="pool-mini">' + poolSamples(r.id, 3, 46) + '</span><span>' + esc(r.name) + '</span></label>';
-          }).join('') + '</div>' +
+          '<p class="muted" style="font-size:.85rem">数の入った条件は、数を変えられます。</p>' +
+          '<div class="auto-stamps">' + (st.autoRules ? st.autoRules.rules.filter(function (r) { return r.builtin; }) : ((window.Core && Core.STAMP_RULES) || [])).map(function (r) {
+            return '<div class="auto-stamp"><input type="checkbox" class="sStamp" id="sStamp_' + r.id + '" value="' + r.id + '"' + ((st.autoStamps || []).indexOf(r.id) >= 0 ? ' checked' : '') + ' aria-label="' + esc(r.name) + '">' +
+              '<span class="pool-mini">' + poolSamples(r.id, 3, 46) + '</span><span>' + (st.autoRules ? builtinRuleHTML(r, st.autoRules.p) : esc(r.name)) + '</span></div>';
+          }).join('') + '</div>' + (st.autoRules ? autoRulesHTML(st.autoRules) : '') +
           '<div style="margin-top:14px"><button class="btn-primary" id="sSave">保存する</button></div></div>';
       } else {
         html += '<div class="card muted">アプリ全体の設定（アプリ名・ランキング・不正防止など）は、管理者が変更できます。</div>';
@@ -9111,12 +9364,16 @@ window.SAMPLE_ASSIGNMENTS = [
         try { await call('t_changePassword', { oldPass: $('#pOld').value, newPass: $('#pNew').value }); $('#pOld').value = ''; $('#pNew').value = ''; toast('パスワードを変更しました'); }
         catch (e) { showError(e); }
       };
+      var readAutoRules = st.autoRules && $('#arList') ? bindAutoRules(st.autoRules, o.assignments || []) : null;
       if ($('#sSave')) $('#sSave').onclick = async function () {
         try {
+          var badP = $all('.sParam').filter(function (x) { var v = Number(x.value); return !Number.isInteger(v) || v < +x.min || v > +x.max; })[0];
+          if (badP) { toast('スタンプの条件の数は ' + badP.min + '〜' + badP.max + ' の整数で入力してください', true); badP.focus(); return; }
           var creditLimit = Number($('#sRepeatCredit').value);
           if (!Number.isInteger(creditLimit) || creditLimit < 1 || creditLimit > 20) { toast('加点の回数は1〜20の整数で入力してください', true); $('#sRepeatCredit').focus(); return; }
           await call('t_saveSettings', { settings: { appTitle: $('#sTitle').value, showRanking: $('#sRank').checked, allowNick: $('#sNick').checked, phraseCheck: $('#sPhrase').checked, autoCheck: $('#sAuto').checked, saveAudio: $('#sAudio').checked, repeatCreditLimit: creditLimit, rankAward: readRankSettings(),
-            autoStamps: $all('.sStamp').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }) } });
+            autoStamps: $all('.sStamp').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }),
+            autoRules: readAutoRules ? readAutoRules() : undefined } });
           state.overview = null; setTitle($('#sTitle').value); toast('保存しました');
         } catch (e) { showError(e); }
       };
@@ -9584,9 +9841,9 @@ window.SAMPLE_ASSIGNMENTS = [
         html += '<div class="card"><h2>💌 自動スタンプの絵</h2><p class="muted" style="font-size:.88rem">条件を満たしたときに自動で押すスタンプを、先生が作ったスタンプに変えられます。（押す・押さないは「設定」画面で選べます）</p>' +
           '<div class="auto-art">' + S.rules.map(function (r) {
             var cur = S.autoArt[r.id] || '';
-            return '<div class="auto-art-row"><span class="aa-prev" data-rule="' + r.id + '">' + (cur ? stampHTML(customEntry(S.custom.filter(function (x) { return x.id === cur; })[0] || {}), 56) : poolSamples(r.id, 3, 48)) + '</span>' +
+            return '<div class="auto-art-row"><span class="aa-prev" data-rule="' + r.id + '">' + (cur ? stampHTML(customEntry(S.custom.filter(function (x) { return x.id === cur; })[0] || {}), 56) : poolSamples(r.pool || r.id, 3, 48)) + '</span>' +
               '<span class="aa-name">' + esc(r.name) + (S.on.indexOf(r.id) < 0 ? ' <span class="pill gray">押さない</span>' : '') + '</span>' +
-              '<select class="aa-sel" data-rule="' + r.id + '"><option value="">標準（' + ((window.StampSet && StampSet.pool(r.id).length) || 1) + '種類からランダム）</option>' + S.custom.map(function (x) {
+              '<select class="aa-sel" data-rule="' + r.id + '"><option value="">標準（' + ((window.StampSet && StampSet.pool(r.pool || r.id).length) || 1) + '種類からランダム）</option>' + S.custom.map(function (x) {
                 return '<option value="' + esc(x.id) + '"' + (cur === x.id ? ' selected' : '') + '>先生スタンプ：' + esc(x.text || '（画像）') + '</option>'; }).join('') + '</select></div>';
           }).join('') + '</div><div style="margin-top:10px"><button class="btn-primary" id="aaSave">保存する</button></div></div>';
       }

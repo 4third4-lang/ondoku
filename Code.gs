@@ -816,6 +816,92 @@
     if (v === 'なし') return [];
     return v.split(/[,、\s]+/).filter(Boolean);
   }
+  // ---- 自動スタンプの条件（数値を変える・先生が新しい条件を作る） ----
+  // 「設定」シートの「自動スタンプ条件」に JSON で保存：{ p: { 最初からある条件のID: 数値 }, c: [先生が作った条件] }
+  var RULE_PARAM = {
+    week3: { def: 3, min: 1, max: 7 }, week5: { def: 5, min: 1, max: 7 }, week7: { def: 7, min: 1, max: 7 },
+    perfect: { def: 100, min: 50, max: 100 }, comeback: { def: 7, min: 2, max: 90 }
+  };
+  var WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
+  var REP_NAME = { day: '1日1回まで', week: '1週間に1回まで', month: '1か月に1回まで', ever: '1回だけ' };
+  // g：グループ、n：数値の範囲、rep：くり返しの初期値、pool：標準のスタンプの絵
+  var RULE_TYPES = {
+    streak: { g: '連続・日数', label: '◯日連続で読んだ', n: [2, 365, 5], rep: 'day', pool: 'week5', name: function (r) { return r.n + '日連続で読んだとき'; } },
+    weekDays: { g: '連続・日数', label: '1週間に◯日読んだ', n: [1, 7, 4], rep: 'week', pool: 'week3', name: function (r) { return '1週間に' + r.n + '日読んだとき'; } },
+    monthDays: { g: '連続・日数', label: '1か月に◯日読んだ', n: [1, 31, 10], rep: 'month', pool: 'week5', name: function (r) { return '1か月に' + r.n + '日読んだとき'; } },
+    totalDays: { g: '連続・日数', label: '通算◯日読んだ', n: [1, 3650, 30], rep: 'ever', pool: 'week7', name: function (r) { return '通算' + r.n + '日読んだとき'; } },
+    gap: { g: '連続・日数', label: '◯日以上あいてから、また読んだ', n: [2, 90, 14], rep: 'day', pool: 'comeback', name: function (r) { return r.n + '日以上あいてから、また読んだとき'; } },
+    totalWords: { g: '量・回数', label: '累計◯語に達した', n: [10, 10000000, 5000], rep: 'ever', pool: 'week7', name: function (r) { return '累計' + r.n.toLocaleString() + '語に達したとき'; } },
+    dayWords: { g: '量・回数', label: '1日に◯語読んだ', n: [10, 100000, 300], rep: 'day', pool: 'week3', name: function (r) { return '1日に' + r.n.toLocaleString() + '語読んだとき'; } },
+    dayCount: { g: '量・回数', label: '1日に◯回読んだ', n: [1, 100, 3], rep: 'day', pool: 'week3', name: function (r) { return '1日に' + r.n + '回読んだとき'; } },
+    totalCount: { g: '量・回数', label: '通算◯回読んだ', n: [1, 100000, 50], rep: 'ever', pool: 'week7', name: function (r) { return '通算' + r.n.toLocaleString() + '回読んだとき'; } },
+    accuracy: { g: '成績・課題', label: '正確さ◯%以上を出した', n: [1, 100, 90], rep: 'week', pool: 'perfect', name: function (r) { return '正確さ' + r.n + '%以上を出したとき'; } },
+    assign: { g: '成績・課題', label: '特定の課題を達成した', rep: 'ever', pool: 'achieve', name: function (r) { return '課題「' + (r.at || '（削除された課題）') + '」を達成したとき'; } },
+    assignCount: { g: '成績・課題', label: '課題を◯個達成した', n: [1, 1000, 5], rep: 'ever', pool: 'achieve', name: function (r) { return '課題を' + r.n + '個達成したとき'; } },
+    newBest: { g: '成績・課題', label: '課題で自己ベストを更新した', rep: 'day', pool: 'perfect', name: function () { return '課題で自己ベストを更新したとき'; } },
+    typePass: { g: '成績・課題', label: '特定の読み方で合格した', n: [2, 6, 6], rep: 'day', pool: 'achieve', name: function (r) { return (r.n === 6 ? '暗唱' : '「' + TYPE_NAME[r.n] + '」') + 'で合格したとき'; } },
+    weekday: { g: 'その他', label: '特定の曜日に読んだ', n: [0, 6, 6], rep: 'day', pool: 'week3', name: function (r) { return WEEKDAY_JA[r.n] + '曜日に読んだとき'; } },
+    period: { g: 'その他', label: '決めた期間に読んだ', rep: 'ever', pool: 'week5', name: function (r) { return fmtMD(r.from) + '〜' + fmtMD(r.to) + 'に読んだとき'; } },
+    early: { g: 'その他', label: '朝◯時より前に読んだ', n: [5, 12, 7], rep: 'day', pool: 'week3', name: function (r) { return '朝' + r.n + '時より前に読んだとき'; } },
+    level: { g: 'その他', label: '決めたレベルになった', n: [1, LEVELS.length - 1, 3], rep: 'ever', pool: 'week7', name: function (r) { return '「' + LEVELS[r.n][1] + '」になったとき'; } }
+  };
+  var MAX_CUSTOM_RULES = 40;
+  function fmtMD(d) { var m = str(d).match(/^\d{4}-(\d{2})-(\d{2})$/); return m ? (+m[1]) + '/' + (+m[2]) : str(d); }
+  function ruleConf(store) {
+    var o = {};
+    try { o = JSON.parse(str(store.getSetting('自動スタンプ条件')) || '{}') || {}; } catch (e) { o = {}; }
+    var p = {};
+    Object.keys(RULE_PARAM).forEach(function (k) {
+      var d = RULE_PARAM[k], v = o.p && o.p[k] !== undefined ? Math.round(num(o.p[k])) : d.def;
+      p[k] = v >= d.min && v <= d.max ? v : d.def;
+    });
+    var c = [].concat(o.c || []).map(function (r) { try { return normRule(r); } catch (e) { return null; } }).filter(Boolean);
+    return { p: p, c: c };
+  }
+  // 先生が作った条件の形をそろえる（正しくないときはエラー）
+  function normRule(r) {
+    r = r || {};
+    var T = RULE_TYPES[str(r.type)];
+    if (!T) throw err('条件の種類が正しくありません。');
+    var out = { id: str(r.id).replace(/[^\w-]/g, '').slice(0, 20), type: str(r.type), on: r.on !== false };
+    if (!/^u/.test(out.id)) throw err('条件のIDが正しくありません。');
+    if (T.n) {
+      var n = Math.round(num(r.n));
+      if (!isFinite(n) || n < T.n[0] || n > T.n[1]) throw err('「' + T.label + '」の数は ' + T.n[0] + '〜' + T.n[1] + ' にしてください。');
+      if (out.type === 'typePass' && !(n >= 2 && n <= 6)) throw err('読み方を選んでください。');
+      out.n = n;
+    }
+    if (out.type === 'assign') {
+      out.aid = str(r.aid).slice(0, 40); out.at = str(r.at).slice(0, 60);
+      if (!out.aid) throw err('達成する課題を選んでください。');
+    }
+    if (out.type === 'period') {
+      out.from = str(r.from).slice(0, 10); out.to = str(r.to).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(out.from) || !/^\d{4}-\d{2}-\d{2}$/.test(out.to)) throw err('期間の始まりと終わりの日付を入れてください。');
+      if (out.from > out.to) throw err('期間の始まりは、終わりより前の日にしてください。');
+    }
+    out.rep = REP_NAME[str(r.rep)] ? str(r.rep) : T.rep;
+    out.name = T.name(out);
+    return out;
+  }
+  // 最初からある条件と先生が作った条件を合わせた一覧（名前は数値に合わせて作る）
+  function allStampRules(store) {
+    var cf = ruleConf(store);
+    var base = STAMP_RULES.map(function (r) {
+      var x = { id: r.id, a: r.a, t: r.t, name: r.name, builtin: true };
+      if (RULE_PARAM[r.id]) {
+        var n = cf.p[r.id]; x.n = n; x.min = RULE_PARAM[r.id].min; x.max = RULE_PARAM[r.id].max;
+        if (/^week/.test(r.id)) x.name = '1週間に' + n + '日読んだとき';
+        else if (r.id === 'perfect') x.name = (n >= 100 ? '正確さ100%' : '正確さ' + n + '%以上') + 'を出したとき（週1回まで）';
+        else if (r.id === 'comeback') x.name = n + '日以上あいてから、また読んだとき';
+      }
+      return x;
+    });
+    return base.concat(cf.c.map(function (r) { var x = {}; for (var k in r) x[k] = r[k]; x.pool = RULE_TYPES[r.type].pool; x.name = r.name + '（' + REP_NAME[r.rep] + '）'; return x; }));
+  }
+  function ruleTypesPublic() {
+    return Object.keys(RULE_TYPES).map(function (k) { var T = RULE_TYPES[k]; return { id: k, g: T.g, label: T.label, n: T.n || null, rep: T.rep, pool: T.pool }; });
+  }
   // ---- 先生が作ったスタンプ ----
   function customStamps(store) { return store.getStamps ? store.getStamps().filter(function (x) { return str(x.id); }) : []; }
   function stampPublic(d) {
@@ -1522,26 +1608,58 @@
     award('comeback', comeback);
     award('alltypes', !!(after2 && after2.types.length === 5 && after2.types.every(function (t) { return after2.passes[t] >= 1; })));
     award('shodan', after.index >= 10);
-    // 先生スタンプ（条件を満たすと自動で押す。同じ条件では1回だけ）
-    var on = stampRulesOn(store), art = autoStampArt(store);
-    function stamp(ruleId, key, cond) {
-      if (!cond || on.indexOf(ruleId) < 0 || ach.sk[key]) return;
-      var rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0];
+    // 先生スタンプ（条件を満たすと自動で押す。同じ条件では、決めた期間に1回だけ）
+    var on = stampRulesOn(store), art = autoStampArt(store), rcf = ruleConf(store), P = rcf.p;
+    var monthKey = today.slice(0, 7);
+    if (newDay) { if (ach.mm !== monthKey) { ach.mm = monthKey; ach.md = 0; } ach.md = num(ach.md) + 1; }   // 今月読んだ日数
+    inc('n');                                   // 通算の音読回数
+    if (achievedNew) inc('ac');                 // 達成した課題の数
+    var improved = !!(aid && newBest && b);     // 2回目以降の音読で自己ベストを更新
+    function stamp(ruleId, key, cond, rule) {
+      if (!cond || ach.sk[key]) return;
+      if (!rule) { if (on.indexOf(ruleId) < 0) return; rule = STAMP_RULES.filter(function (x) { return x.id === ruleId; })[0]; }
       ach.sk[key] = 1;
       // 先生が作ったスタンプが選ばれていれば、そちらを押す
-      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(ruleId), ach)) || { a: rule.a, t: rule.t };
+      var e = (art[ruleId] && stampEntry(findStampDef(store, 'c:' + art[ruleId]))) || stampEntry(pickDesign(SS().pool(rule.type ? RULE_TYPES[rule.type].pool : ruleId), ach)) || { a: rule.a || 'cat', t: rule.t || 'Great!' };
       e.r = ruleId;
+      if (rule.type) e.rn = str(rule.name).slice(0, 40);   // 先生が作った条件：生徒の画面に条件の名前を出す
       var rec = {}; for (var k in e) rec[k] = e[k];
       rec.d = today; rec.n = 1;
       ach.st.push(rec); newStamps.push(e);
     }
     stamp('first', 'first', firstEver && r.correct > 0);
-    stamp('week3', 'w3:' + ws, newDay && ach.wd === 3);
-    stamp('week5', 'w5:' + ws, newDay && ach.wd === 5);
-    stamp('week7', 'w7:' + ws, newDay && ach.wd === 7);
+    stamp('week3', 'w3:' + ws, newDay && ach.wd === P.week3);
+    stamp('week5', 'w5:' + ws, newDay && ach.wd === P.week5);
+    stamp('week7', 'w7:' + ws, newDay && ach.wd === P.week7);
     stamp('achieve', 'a:' + aid, achievedNew);
-    stamp('perfect', 'pf:' + ws, r.accuracy >= 100);
-    stamp('comeback', 'cb:' + today, comeback);
+    stamp('perfect', 'pf:' + ws, r.correct > 0 && r.accuracy >= P.perfect);
+    stamp('comeback', 'cb:' + today, firstToday && !!prevLast && prevLast < addDays(today, -P.comeback));
+    function repKey(rep) { return rep === 'ever' ? '' : rep === 'month' ? monthKey : rep === 'week' ? ws : today; }
+    rcf.c.forEach(function (u) {
+      if (!u.on) return;
+      var n = u.n, rd = r.correct > 0, ok = false;
+      switch (u.type) {
+        case 'streak': ok = newDay && num(s.streak) === n; break;
+        case 'weekDays': ok = newDay && ach.wd === n; break;
+        case 'monthDays': ok = newDay && ach.md === n; break;
+        case 'totalDays': ok = newDay && ach.d === n; break;
+        case 'gap': ok = firstToday && !!prevLast && prevLast < addDays(today, -n); break;
+        case 'totalWords': ok = rd && num(s.totalWords) >= n && num(s.totalWords) - r.correct < n; break;
+        case 'dayWords': ok = rd && num(s.todayWords) >= n && num(s.todayWords) - r.correct < n; break;
+        case 'dayCount': ok = ach.tn === n; break;
+        case 'totalCount': ok = num(c.n) === n; break;
+        case 'accuracy': ok = rd && r.accuracy >= n; break;
+        case 'assign': ok = achievedNew && aid === u.aid; break;
+        case 'assignCount': ok = achievedNew && num(c.ac) === n; break;
+        case 'newBest': ok = improved; break;
+        case 'typePass': ok = !!a && rd && r.accuracy >= passLine(a) && (n === 6 ? recite : type === n); break;
+        case 'weekday': ok = rd && dow === n; break;
+        case 'period': ok = rd && today >= u.from && today <= u.to; break;
+        case 'early': ok = rd && hour >= 4 && hour < n; break;
+        case 'level': ok = after.index >= n && before.index < n; break;
+      }
+      stamp(u.id, 'u:' + u.id + ':' + repKey(u.rep), ok, u);
+    });
     award('teacher', ach.st.length >= 1);
     // ポイント（お店で使える）：毎日の最初の音読 +10、バッジ1つ +20、課題達成 +30
     var gain = (newDay ? 10 : 0) + newBadges.length * 20 + (achievedNew ? 30 : 0);
@@ -2105,6 +2223,7 @@
       return pub;
     });
     var settings = settingsForClient(store);
+    if (me.admin) { var rcfO = ruleConf(store); settings.autoRules = { p: rcfO.p, c: rcfO.c, types: ruleTypesPublic(), rep: REP_NAME, rules: allStampRules(store) }; }   // 自動スタンプの条件（管理者の設定画面用）
     return { assignments: assignments, students: list, classes: classList(store).map(function (c) { return c.name; }), today: today, settings: settings,
       openFlags: openFlags(store, today) + pendingPics(store, me).length, me: me,
       folders: folderList(store).map(function (f) { return folderPublic(f, me, tname); }) };
@@ -2398,8 +2517,9 @@
   // ================= 先生スタンプ（作成・手動で押す） =================
   handlers.t_stamps = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx);
-    return { custom: customStamps(store).map(stampPublic), rules: STAMP_RULES, live: LIVE_STAMPS, animals: STAMP_ANIMALS,
-      autoArt: autoStampArt(store), on: stampRulesOn(store), me: me.id, admin: me.admin };
+    var rulesAll = allStampRules(store), onIds = stampRulesOn(store).concat(rulesAll.filter(function (r) { return r.type && r.on; }).map(function (r) { return r.id; }));
+    return { custom: customStamps(store).map(stampPublic), rules: rulesAll, live: LIVE_STAMPS, animals: STAMP_ANIMALS,
+      autoArt: autoStampArt(store), on: onIds, me: me.id, admin: me.admin };
   };
   handlers.t_saveStamp = function (p, store, ctx) {
     var me = currentTeacher(p, store, ctx), it = p.stamp || {};
@@ -2630,12 +2750,29 @@
       var ids = [].concat(st.autoStamps || []).filter(function (x) { return STAMP_RULES.some(function (r) { return r.id === x; }); });
       store.setSetting('自動スタンプ', ids.length ? ids.join(',') : 'なし');
     }
+    if (st.autoRules && typeof st.autoRules === 'object') {
+      var ar = st.autoRules, outA = { p: {}, c: [] }, seenR = {};
+      Object.keys(RULE_PARAM).forEach(function (k) {
+        var d = RULE_PARAM[k], raw = ar.p ? ar.p[k] : undefined, v = raw === undefined || raw === '' || raw === null ? d.def : Math.round(Number(raw));
+        if (!isFinite(v) || v < d.min || v > d.max) throw err('自動スタンプの数は ' + d.min + '〜' + d.max + ' にしてください。');
+        outA.p[k] = v;
+      });
+      var listR = [].concat(ar.c || []);
+      if (listR.length > MAX_CUSTOM_RULES) throw err('自動スタンプの条件は ' + MAX_CUSTOM_RULES + ' 個までです。');
+      listR.forEach(function (r) {
+        var x = normRule(r);
+        if (seenR[x.id]) throw err('同じ条件が2つあります。もう一度画面を開き直してください。');
+        seenR[x.id] = 1; delete x.name; outA.c.push(x);
+      });
+      store.setSetting('自動スタンプ条件', JSON.stringify(outA));
+    }
     if ('autoArt' in st) {
-      var art = {}, have = {};
+      var art = {}, have = {}, ruleIds = {};
       customStamps(store).forEach(function (x) { have[str(x.id)] = 1; });
+      allStampRules(store).forEach(function (r) { ruleIds[r.id] = 1; });
       Object.keys(st.autoArt || {}).forEach(function (k) {
         var v = str(st.autoArt[k]);
-        if (v && have[v] && STAMP_RULES.some(function (r) { return r.id === k; })) art[k] = v;
+        if (v && have[v] && ruleIds[k]) art[k] = v;
       });
       store.setSetting('自動スタンプの絵', JSON.stringify(art));
     }
