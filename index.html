@@ -5766,7 +5766,7 @@ window.SAMPLE_ASSIGNMENTS = [
         self.onError('マイクが使えません。ブラウザの設定でマイクの使用を「許可」にしてください。');
       } else if (e.error === 'service-not-allowed') {
         self.active = false;
-        self.onError('音声認識が使えません。iPhone・iPad の場合は「設定」→「一般」→「キーボード」→「音声入力」をオンにしてください。');
+        self.onError('音声認識が使えません（service-not-allowed）。iPhone・iPad では、Safari で開き、もう一度🎤を押してください。直らないときは「設定」→「一般」→「キーボード」→「音声入力」と「Siri」がオンか確認してください。');
       } else if (e.error === 'network') {
         self.active = false;
         self.onError('音声認識にはインターネット接続が必要です。接続を確認してください。');
@@ -7054,6 +7054,10 @@ window.SAMPLE_ASSIGNMENTS = [
 
   // ================= 生徒：練習 =================
   // 音声認識の機能はあるように見えても、実際には聞き取れないブラウザ（Brave・iPhone/iPad の Chrome など）
+  function appleTouch() {
+    var ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  }
   function unreliableBrowser() {
     var ua = navigator.userAgent || '';
     var ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
@@ -7529,17 +7533,28 @@ window.SAMPLE_ASSIGNMENTS = [
       Speaker.stop();
       $('#resultArea').innerHTML = '';
       ttsDetected = false;
+      // iPhone・iPad の Safari は、ボタンを押したその場で聞き取りを始めないと「音声入力が使えない」と断られる。
+      // そのため、サーバーの確認を待たずに聞き取りを先に始めておく（許可されなければすぐ止める）
+      var early = null;
+      if (appleTouch()) {
+        early = makeRec();
+        state.recognizer = early;
+        try { early.start(); } catch (e) { early = null; state.recognizer = null; }
+      }
+      var dropEarly = function () { if (early) { early.abort(); if (state.recognizer === early) state.recognizer = null; early = null; } };
       // マイクを開く前に、この生徒の音読開始をサーバーで一つだけ許可する。
       try {
         var granted = await beginReadingAttempt({ aid: opt.aid || '', text: opt.aid ? '' : opt.text, kind: opt.kind, type: type,
           recite: passage.classList.contains('blur'), libId: opt.libId || '', fortune: opt.fortune || '' });
-        if (!granted || disposed || seq !== startSeq) {
+        if (!granted || disposed || seq !== startSeq || (early && !early.active)) {
+          dropEarly();
           cancelReadingAttempt(granted); busy = false; starting = false; micBtn.disabled = false;
           if (!disposed) label.textContent = 'ボタンを押して音読スタート';
           return;
         }
         attempt = granted; phrase = String(attempt.phrase || ''); phraseAt = Number(attempt.phraseAt) || 0;
       } catch (e) {
+        dropEarly();
         busy = false; starting = false; micBtn.disabled = false;
         if (!disposed) { showError(e); label.textContent = '開始できませんでした。もう一度ためしてください'; }
         return;
@@ -7560,22 +7575,21 @@ window.SAMPLE_ASSIGNMENTS = [
       }
       // 音声の保存（対応端末のみ）
       capture = null;
-      if (settings.saveAudio && AudioCapture.isSupported() && !prefs().captureOff) {
+      if (!early && settings.saveAudio && AudioCapture.isSupported() && !prefs().captureOff) {   // iPhone・iPad では録音と聞き取りを同時に使わない
         var openedCapture = new AudioCapture(); capture = openedCapture;
         try { await openedCapture.start(); } catch (e) { openedCapture.cancel(); if (capture === openedCapture) capture = null; }
         if (disposed || seq !== startSeq || document.hidden) openedCapture.cancel();
       }
-      if (disposed || seq !== startSeq || document.hidden) {
+      if (disposed || seq !== startSeq || document.hidden || (early && !early.active)) {
+        dropEarly();
         if (capture) { capture.cancel(); capture = null; }
         cancelReadingAttempt(attempt); attempt = null; busy = false; starting = false; micBtn.disabled = false; return;
       }
-      var rec = new Recognizer({
-        lang: CFG.SPEECH_LANG || 'en-US',
-        onUpdate: function (t) { live.textContent = t || '…'; },
-        onError: function (m) { if (disposed) return; toast(m, true); resetUI(); if (capture) { capture.cancel(); capture = null; } }
-      });
+      var rec = early || makeRec();
       state.recognizer = rec;
-      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした：' + e.message, true); resetUI(); if (capture) { capture.cancel(); capture = null; } return; }
+      if (!early) {
+        try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした：' + e.message, true); resetUI(); if (capture) { capture.cancel(); capture = null; } return; }
+      }
       busy = false; starting = false; micBtn.disabled = false;
       recording = true; startedAt = Date.now();
       $('#bModel').disabled = true;
@@ -7588,6 +7602,13 @@ window.SAMPLE_ASSIGNMENTS = [
       label.textContent = '聞き取り中… 読み終えたら■を押す';
       live.textContent = '…';
       timerId = setInterval(tick, 500); tick();
+    }
+    function makeRec() {
+      return new Recognizer({
+        lang: CFG.SPEECH_LANG || 'en-US',
+        onUpdate: function (t) { live.textContent = t || '…'; },
+        onError: function (m) { if (disposed) return; toast(m, true); resetUI(); if (capture) { capture.cancel(); capture = null; } }
+      });
     }
     function resetUI() {
       recording = false; clearInterval(timerId); clearInterval(ttsTimer);
@@ -8107,11 +8128,20 @@ window.SAMPLE_ASSIGNMENTS = [
       busy = true; mic.disabled = true; $('#rpNext').disabled = true;
       var seq = ++startSeq;
       Speaker.stop();
+      var mk = function () {
+        return new Recognizer({ lang: CFG.SPEECH_LANG || 'en-US', onUpdate: function (t) { live.textContent = t || '…'; },
+          onError: function (m) { if (!disposed) toast(m, true); abortSet('音声を確認できませんでした。最初の文からはじめてください'); } });
+      };
+      // iPhone・iPad の Safari は、ボタンを押したその場で聞き取りを始める（サーバーの確認を待つと断られるため）
+      var early = null;
+      if (appleTouch()) { early = mk(); state.recognizer = early; try { early.start(); } catch (e) { early = null; state.recognizer = null; } }
+      var dropEarly = function () { if (early) { early.abort(); if (state.recognizer === early) state.recognizer = null; early = null; } };
       if (!attempt) {
         label.textContent = '音読の開始を確認しています…';
         try {
           var granted = await beginReadingAttempt({ text: sents.join(' '), kind: 'repeat', type: 1, recite: false });
-          if (!granted || disposed || seq !== startSeq) {
+          if (!granted || disposed || seq !== startSeq || (early && !early.active)) {
+            dropEarly();
             cancelReadingAttempt(granted); busy = false;
             if (!disposed) { mic.disabled = false; label.textContent = 'ボタンを押して音読スタート'; }
             return;
@@ -8119,13 +8149,13 @@ window.SAMPLE_ASSIGNMENTS = [
           attempt = granted; phrase = String(attempt.phrase || ''); phraseAt = Number(attempt.phraseAt) || 0;
           if (phrase) steps.push({ en: phrase, ja: '最後に合言葉を読もう', tr: '', pct: null, phrase: true });
           draw();
-        } catch (e) { busy = false; if (!disposed) { mic.disabled = false; showError(e); label.textContent = '開始できませんでした。もう一度ためしてください'; } return; }
+        } catch (e) { dropEarly(); busy = false; if (!disposed) { mic.disabled = false; showError(e); label.textContent = '開始できませんでした。もう一度ためしてください'; } return; }
       }
-      if (disposed || document.hidden || seq !== startSeq) { abortSet(); return; }
-      rec = new Recognizer({ lang: CFG.SPEECH_LANG || 'en-US', onUpdate: function (t) { live.textContent = t || '…'; },
-        onError: function (m) { if (!disposed) toast(m, true); abortSet('音声を確認できませんでした。最初の文からはじめてください'); } });
+      if (early && !early.active) { early = null; busy = false; return; }   // 聞き取りがもう止まっている（エラーは表示ずみ）
+      if (disposed || document.hidden || seq !== startSeq) { dropEarly(); abortSet(); return; }
+      rec = early || mk();
       state.recognizer = rec;
-      try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした', true); abortSet(); return; }
+      if (!early) { try { rec.start(); } catch (e) { toast('音声認識を開始できませんでした', true); abortSet(); return; } }
       busy = false; mic.disabled = false;
       recording = true; startedAt = Date.now();
       clearInterval(ttsTimer);
