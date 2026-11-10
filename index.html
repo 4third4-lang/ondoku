@@ -7339,6 +7339,38 @@ window.SAMPLE_ASSIGNMENTS = [
       });
       return out;
     }
+    // ④ 長い文（11語以上）は、語句のカタマリにまとめて10個以内にする
+    var CHUNK_MAX = 10;
+    var DET = /^(a|an|the|my|your|his|her|its|our|their|this|these|those|some|any|no|every|each|many|much|another|other|such|one|two|three|four|five|six|seven|eight|nine|ten|\d+)$/i;
+    var PREP = /^(in|on|at|to|for|of|with|from|by|about|into|onto|after|before|under|over|near|during|without|through|around|between|among|across|along|behind|since|until|like|than|as)$/i;
+    var NUM = /^(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|hundred|\d+)$/i;
+    var STARTS = /^(and|but|or|so|because|when|if|that|who|which|where|while|though|although|I|you|he|she|it|we|they)$/i;   // 新しいまとまりが始まりやすい語
+    var CONJ = /^(and|but|or|so|because|when|if|that|who|which|where|while|though|although)$/i;
+    function chunkWords(words) {
+      if (words.length <= CHUNK_MAX) return words.slice();
+      var ch = words.map(function (w) { return [w]; });
+      var join = function (i) { ch.splice(i, 2, ch[i].concat(ch[i + 1])); };
+      // 冠詞・所有格などは、うしろの語とまとめる（the park／my friend）
+      for (var i = ch.length - 2; i >= 0; i--) if (ch[i].length === 1 && DET.test(ch[i][0])) join(i);
+      // 前置詞・to は、うしろの語句とまとめる（in the park／to school）
+      for (i = ch.length - 2; i >= 0; i--) if (ch.length > CHUNK_MAX && PREP.test(ch[i][0]) && ch[i].length === 1) join(i);
+      // まだ多ければ、となり合う短いカタマリどうしをまとめる
+      //   （「in a small」＋「town」のような途中の語句はつなぎやすく、「and」「I」などで始まる語句の前では切りやすくする）
+      var cost = function (k) {
+        var L = ch[k], R = ch[k + 1], c = L.length + R.length;
+        if (DET.test(L[0]) || PREP.test(L[0]) || NUM.test(L[0]) || DET.test(L[L.length - 1]) || NUM.test(L[L.length - 1])) c -= 1.5;
+        if (PREP.test(R[0]) || STARTS.test(R[0])) c += 2;
+        if (L.length === 1 && CONJ.test(L[0])) c -= 2.5;
+        if (R.length === 1 && !PREP.test(R[0]) && !STARTS.test(R[0]) && L.some(function (w) { return DET.test(w); }) && !DET.test(L[L.length - 1])) c -= 1;   // the big ＋ tree   // 「and」「because」だけのカードは作らず、うしろとまとめる
+        return c;
+      };
+      while (ch.length > CHUNK_MAX) {
+        var best = 0;
+        for (i = 1; i < ch.length - 1; i++) if (cost(i) < cost(best)) best = i;
+        join(best);
+      }
+      return ch.map(function (c) { return c.join(' '); });
+    }
     // ④ 英文の行を、文ごとにバラバラにした単語カードで表示
     function shuffleLine(line) {
       var groups = [[]], phraseHTML = '', phraseBefore = false, seenWord = false, spk = '';
@@ -7353,7 +7385,9 @@ window.SAMPLE_ASSIGNMENTS = [
         seenWord = true;
         var w = t.text.replace(/^["“'‘(]+/, '').replace(/[.,!?;:"”’)]+$/, '');
         if (w) groups[groups.length - 1].push(w);
+        if (/[.!?]["”’)]*$/.test(t.text) && !/^(Mr|Mrs|Ms|Dr|St)\.$/i.test(t.text)) groups.push([]);   // 文の終わりで区切る
       });
+      groups = groups.filter(function (g) { return g.length; }).map(chunkWords);
       var key = line.map(function (t) { return t.text; }).join(' ');
       if (!shuffleCache[key]) {
         shuffleCache[key] = groups.filter(function (g) { return g.length; }).map(function (g) {
