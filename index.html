@@ -7136,6 +7136,16 @@ window.SAMPLE_ASSIGNMENTS = [
     var m = String(text).match(/[^。！？!?]*[。！？!?]+[」』）)"”]*|[^。！？!?]+$/g) || [];
     return m.map(function (x) { return x.trim(); }).filter(Boolean);
   }
+  // 和訳を英文の1文ごとに分ける（合わなければ []）
+  //   1文ずつ改行してあって、行の数が英文の文の数と同じなら、その行をそのまま使う（「」の中に。があってもよい）
+  function jaSentencesFor(text, ja, n) {
+    if (!ja) return [];
+    if (n === undefined) n = countEnSentences(text);
+    var lines = String(ja).split(/\n+/).map(function (x) { return x.replace(/^[\s　]+|[\s　]+$/g, ''); }).filter(Boolean);
+    if (lines.length === n) return lines;
+    var list = splitJaText(String(ja).replace(/\n/g, ''));
+    return list.length === n ? list : [];
+  }
   function splitJaLine(line) {
     var text = line.map(function (t) { return t.status === 'space' ? ' ' : t.text; }).join('').trim();
     return splitJaText(text).map(function (x) { return [{ text: x, status: 'ja' }]; });
@@ -7318,11 +7328,13 @@ window.SAMPLE_ASSIGNMENTS = [
     var type = opt.type || 1;
     var blanks = type === 2 ? (opt.blanks && opt.blanks.length ? opt.blanks : Blanks.auto(opt.text)) : [];
     var hasJa = Scoring.tokenize(opt.text).some(function (t) { return t.ja; });
-    var jaFixed = type === 4 || type === 5;           // 日本語を常に表示する種類
+    var jaFixed = type === 4 || type === 5;           // 「英文を隠す」を使わない種類
+    var jaAlways = type !== 1;                         // ②〜⑤は日本語を必ず表示する（隠せない）
     // 和訳欄の文の数が英文の文の数と同じなら、どの種類でも「日本語（上）→英語（下）」の組で1文ずつ表示
-    var jaSent = (!hasJa && opt.ja) ? splitJaText(String(opt.ja).replace(/\n/g, '')) : [];
-    var jaPaired = jaSent.length > 0 && jaSent.length === countEnSentences(opt.text);
-    var showJaBox = jaFixed && !hasJa && opt.ja && !jaPaired;   // 組にできないときは和訳をまとめて表示
+    //   和訳が1文ずつ改行されていて、行の数が英文の文の数と同じなら、その行をそのまま使う（「」の中に。があっても1文として扱える）
+    var jaSent = (!hasJa && opt.ja) ? jaSentencesFor(opt.text, opt.ja) : [];
+    var jaPaired = jaSent.length > 0;
+    var showJaBox = jaAlways && !hasJa && opt.ja && !jaPaired;   // 組にできないときは和訳をまとめて表示
     var hasJaDisp = hasJa || jaPaired;
     var shuffleCache = {};
     function isEn(t) { return t.word || (t.status !== 'space' && t.status !== 'ja' && t.status !== 'speaker' && !/^phrase/.test(t.status) && t.status !== 'blank' && /[A-Za-z0-9]/.test(t.text)); }
@@ -7437,17 +7449,17 @@ window.SAMPLE_ASSIGNMENTS = [
         return '<button data-v="' + r[0] + '" class="' + (p.size === r[0] ? 'active' : '') + '">' + r[1] + '</button>';
       }).join('') + '</div>' +
       (jaFixed ? '' : '<button class="btn-small" id="bHide">🙈 英文を隠す</button>') +
-      (hasJaDisp && !jaFixed ? '<button class="btn-small" id="bJaInline">' + (p.hideJa ? '日本語を表示' : '日本語を隠す') + '</button>' : '') +
-      (opt.ja && !jaFixed && !jaPaired ? '<button class="btn-small" id="bJa">和訳</button>' : '') +
+      (hasJaDisp && !jaAlways ? '<button class="btn-small" id="bJaInline">' + (p.hideJa ? '日本語を表示' : '日本語を隠す') + '</button>' : '') +
+      (opt.ja && !jaAlways && !jaPaired ? '<button class="btn-small" id="bJa">和訳</button>' : '') +
       '<button class="btn-small' + (p.lineMode ? ' on' : '') + '" id="bLine">📍 1行ずつ</button>' +
       '<button class="btn-small' + (p.spacious ? ' on' : '') + '" id="bSpace">↕ 行間</button>' +
       (type === 1 && !opt.noRepeat ? '<button class="btn-small" id="bRepeat">🔁 リピート練習</button>' : '') +
       '</div>' +
       '<div class="line-nav hidden" id="lineNav"><button class="btn-small" id="bPrevLine">◀ 前の行</button><span id="lineCount"></span><button class="btn-small btn-primary" id="bNextLine">次の行 ▶</button></div>';
     if (!jaFixed) html += '<div class="tip-line">🙈「英文を隠す」にしたまま読んで合格（' + (opt.passLine || 80) + '%以上）すると、暗唱ボーナスとバッジがもらえます。</div>';
-    if (showJaBox) html += '<div class="ja-box">' + splitJaText(String(opt.ja).replace(/\n/g, '')).map(esc).join('<br>') + '</div>';
-    html += '<div class="passage ' + (p.size === 'mid' ? '' : p.size) + (p.spacious ? ' spacious' : '') + (hasJaDisp && p.hideJa && !jaFixed ? ' hide-ja' : '') + (type === 5 ? ' mode-trans' : '') + (type === 4 ? ' mode-shuffle' : '') + (type === 3 ? ' mode-nospace' : '') + '" id="passage">' + display(plainTokens(opt.text), false) + '</div>';
-    if (opt.ja && !jaFixed && !jaPaired) html += '<div class="ja-text hidden" id="jaText">' + esc(opt.ja) + '</div>';
+    if (showJaBox) html += '<div class="ja-box">' + esc(String(opt.ja).trim()).replace(/\n+/g, '<br>') + '</div>';
+    html += '<div class="passage ' + (p.size === 'mid' ? '' : p.size) + (p.spacious ? ' spacious' : '') + (hasJaDisp && p.hideJa && !jaAlways ? ' hide-ja' : '') + (type === 5 ? ' mode-trans' : '') + (type === 4 ? ' mode-shuffle' : '') + (type === 3 ? ' mode-nospace' : '') + '" id="passage">' + display(plainTokens(opt.text), false) + '</div>';
+    if (opt.ja && !jaAlways && !jaPaired) html += '<div class="ja-text hidden" id="jaText">' + esc(opt.ja) + '</div>';
     html += '<div class="live" id="live">（ここに聞き取った英語が表示されます）</div>' +
       '<div class="mic-dock"><button class="mic-btn" id="bMic" aria-label="音読をはじめる">🎤</button>' +
       '<div class="mic-text"><div class="mic-label" id="micLabel">ボタンを押して音読スタート</div><div class="timer" id="timer"></div></div></div>';
@@ -8081,7 +8093,7 @@ window.SAMPLE_ASSIGNMENTS = [
   // ================= 生徒：リピート練習（お手本を1文聞く → 自分で読む） =================
   function jaForSentences(text, ja, n) {
     var list = [];
-    if (ja) list = splitJaText(String(ja).replace(/\n/g, ''));
+    if (ja) return jaSentencesFor(text, ja, n);
     else {
       String(text).split('\n').forEach(function (line) { if (Scoring.isJaLine && Scoring.isJaLine(line)) list = list.concat(splitJaText(line)); });
     }
@@ -8907,10 +8919,11 @@ window.SAMPLE_ASSIGNMENTS = [
         var textHasJa = Scoring.tokenize(ta.value).some(function (t) { return t.ja; });
         if (!ja) { el.textContent = ''; return; }
         if (textHasJa) { el.textContent = '英文の中に日本語の行があるため、和訳欄は「和訳」ボタンで表示されます。'; return; }
-        var nj = splitJaText(ja.replace(/\n/g, '')).length, ne = countEnSentences(ta.value);
-        el.innerHTML = nj === ne
+        var ne = countEnSentences(ta.value), al = jaSentencesFor(ta.value, ja, ne);
+        var nj = al.length || Math.max(ja.split(/\n+/).filter(function (x) { return x.trim(); }).length, splitJaText(ja.replace(/\n/g, '')).length);
+        el.innerHTML = al.length
           ? '✅ 英文 ' + ne + '文と和訳 ' + nj + '文が対応しています。生徒の画面では「日本語（上）→英語（下）」の組で1文ずつ表示されます。'
-          : '⚠ 文の数が合いません（英文 ' + ne + '文・和訳 ' + nj + '文）。1文ずつの組にするには、和訳を英文と同じ数の文（「。」で区切る）にしてください。';
+          : '⚠ 文の数が合いません（英文 ' + ne + '文・和訳 ' + nj + '文）。和訳を英文の1文ごとに1行ずつ改行して入れてください（「」の中の「。」は気にしなくて大丈夫です）。合わないままだと、穴埋めなどの画面では和訳がまとめて上に表示されます。';
       }
       function drawBlanks() {
         var set = {}, k = 0;
