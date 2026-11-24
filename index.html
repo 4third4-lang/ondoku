@@ -7329,7 +7329,7 @@ window.SAMPLE_ASSIGNMENTS = [
     var blanks = type === 2 ? (opt.blanks && opt.blanks.length ? opt.blanks : Blanks.auto(opt.text)) : [];
     var hasJa = Scoring.tokenize(opt.text).some(function (t) { return t.ja; });
     var jaFixed = type === 4 || type === 5;           // 「英文を隠す」を使わない種類
-    var jaAlways = type !== 1;                         // ②〜⑤は日本語を必ず表示する（隠せない）
+    var jaAlways = true;                               // 日本語はどの種類でも必ず英文といっしょに表示する（隠せない）
     // 和訳欄の文の数が英文の文の数と同じなら、どの種類でも「日本語（上）→英語（下）」の組で1文ずつ表示
     //   和訳が1文ずつ改行されていて、行の数が英文の文の数と同じなら、その行をそのまま使う（「」の中に。があっても1文として扱える）
     var jaSent = (!hasJa && opt.ja) ? jaSentencesFor(opt.text, opt.ja) : [];
