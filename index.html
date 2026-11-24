@@ -7559,7 +7559,7 @@ window.SAMPLE_ASSIGNMENTS = [
     function tick() {
       var sec = Math.floor((Date.now() - startedAt) / 1000);
       timerEl.textContent = Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2);
-      if (sec >= 300) stopRec(); // 5分で自動終了
+      if (sec >= 870) stopRec(); // 5分での自動終了はやめた。サーバーの音読の有効時間（15分）を過ぎて記録が消えないよう、14分30秒で区切って送る
     }
     function isLiveHere() { return !!(opt.aid && state.home && state.home.live && state.home.live.aid === opt.aid); }
     function stripPh(tokens) { return (tokens || []).filter(function (t) { return !t.ph; }); }   // 最初と最後の合言葉は英文の外（帯）に出す
