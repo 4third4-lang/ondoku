@@ -297,6 +297,7 @@ body.has-nav main { padding-bottom: 90px; }
 .passage .pair { margin-bottom: .55em; }
 .passage .pair:last-child { margin-bottom: 0; }
 .passage .line.ja-line { line-height: 1.5; margin-bottom: .05em; }
+.passage .line.ja-note { font-size: .62em; color: var(--muted, #667); margin: .2em 0 .5em; font-family: inherit; }
 .passage .line.ja-line .w.ja { font-size: .72em; }
 .passage.hide-ja .line.ja-line { display: none; }
 .passage .gap { height: .8em; }
@@ -7264,12 +7265,18 @@ window.SAMPLE_ASSIGNMENTS = [
       return h;
     }
     // 日本語の行がなく、和訳欄の文の数が英文と同じなら組にする
-    var hasJaLine = lines.some(function (l) { return kind(l) === 'ja'; });
-    if (!hasJaLine && opts.jaSentences && opts.jaSentences.length) {
+    //   （英文の中に日本語だけの行〔場面の説明など〕があれば、その行はそのまま出して、英文だけを和訳と組にする）
+    if (opts.jaSentences && opts.jaSentences.length) {
       var allEn = [];
       lines.forEach(function (l) { if (kind(l) === 'en') allEn = allEn.concat(splitEnLine(l)); });
       if (allEn.length === opts.jaSentences.length) {
-        return pairs(opts.jaSentences.map(function (x) { return [{ text: x, status: 'ja' }]; }), allEn);
+        var out = '', q = 0;
+        lines.forEach(function (l) {
+          var k = kind(l);
+          if (k === 'ja') out += '<div class="line ja-note">' + spansHTML(l) + '</div>';
+          else if (k === 'en') splitEnLine(l).forEach(function (en) { out += pairs([[{ text: opts.jaSentences[q++], status: 'ja' }]], [en]); });
+        });
+        return out;
       }
     }
     var html = '', i = 0;
@@ -7332,9 +7339,17 @@ window.SAMPLE_ASSIGNMENTS = [
     var jaAlways = true;                               // 日本語はどの種類でも必ず英文といっしょに表示する（隠せない）
     // 和訳欄の文の数が英文の文の数と同じなら、どの種類でも「日本語（上）→英語（下）」の組で1文ずつ表示
     //   和訳が1文ずつ改行されていて、行の数が英文の文の数と同じなら、その行をそのまま使う（「」の中に。があっても1文として扱える）
-    var jaSent = (!hasJa && opt.ja) ? jaSentencesFor(opt.text, opt.ja) : [];
+    // 英文の中に「日本語だけの行」があるときは、その行を和訳として使う。ないときは和訳欄を使う
+    //   （「Scene ユミは…」のように英文の行に日本語が少しまじっているだけなら、和訳欄を使う）
+    //   日本語だけの行が少し（英文の半分未満）しかないなら、それは「場面の説明」などのメモとみなして、和訳欄で組にする
+    var jaOnlyLines = String(opt.text || '').split(/\n/).filter(function (l) {
+      var ts = Scoring.tokenize(l).filter(function (t) { return !t.space; });
+      return ts.length > 0 && ts.every(function (t) { return t.ja; });
+    }).length;
+    var hasJaLines = jaOnlyLines > 0 && !(opt.ja && jaOnlyLines * 2 < countEnSentences(opt.text));
+    var jaSent = (!hasJaLines && opt.ja) ? jaSentencesFor(opt.text, opt.ja) : [];
     var jaPaired = jaSent.length > 0;
-    var showJaBox = jaAlways && !hasJa && opt.ja && !jaPaired;   // 組にできないときは和訳をまとめて表示
+    var showJaBox = jaAlways && !hasJaLines && opt.ja && !jaPaired;   // 組にできないときは和訳をまとめて表示
     var hasJaDisp = hasJa || jaPaired;
     var shuffleCache = {};
     function isEn(t) { return t.word || (t.status !== 'space' && t.status !== 'ja' && t.status !== 'speaker' && !/^phrase/.test(t.status) && t.status !== 'blank' && /[A-Za-z0-9]/.test(t.text)); }
