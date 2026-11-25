@@ -1040,11 +1040,12 @@ window.APP_CONFIG = {
 
   // 表示用のトークン列（空白区切り）
   // 日本語（かな・漢字・全角文字・和文の句読点）は「表示だけ」の部分として扱い、音読の対象にしない
-  var JA_RE = /([\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]+)/;
-  var JA_TEST = /^[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]+$/;
+  //   「・」（中黒）は英文の箇条書きにも使うので、それだけでは日本語とみなさない（日本語にくっついた「・」は日本語の一部のまま）
+  var JA_RE = /([\u2E80-\u30FA\u30FC-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]+)/;
+  var JA_TEST = /^[\u2E80-\u30FA\u30FC-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]+$/;
 
   // 日本語が主の行か（日本語の文字数×2 ＞ 英字の数）。日本語の行は、数字や英字もすべて表示だけの扱いにする
-  var JA_CHAR_G = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]/g;
+  var JA_CHAR_G = /[\u2E80-\u30FA\u30FC-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF]/g;
   function isJaLine(line) {
     var ja = (String(line).match(JA_CHAR_G) || []).length;
     var latin = (String(line).match(/[A-Za-z]/g) || []).length;
