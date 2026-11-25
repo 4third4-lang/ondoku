@@ -10062,14 +10062,20 @@ window.SAMPLE_ASSIGNMENTS = [
   async function viewLives() {
     bottomNav(); $app.classList.add('wide'); loading();
     try {
-      var both = await Promise.all([call('t_lives'), loadOverview()]), L = both[0], o = both[1], m = me();
+      var both = await Promise.all([call('t_lives'), loadOverview(), cached('t_library').catch(function () { return {}; })]), L = both[0], o = both[1], m = me();
+      var LR = both[2] || {}, lTree = libTree(LR), lItems = libItems(LR, false);
       var classes = o.classes.filter(function (c) { return m.admin || (m.classes || []).indexOf(c) >= 0; });
       var html = teacherTabs('live');
       html += '<div class="card"><h2>🔴 ライブをはじめる</h2>' +
         '<p class="muted" style="font-size:.88rem">ライブ中に生徒が課題を読むと、1回ごとに<b>正確さ（%）の数字がポイント</b>になり、合計ポイントで順位が決まります（同じなら先に達した人が上）。' +
         '順位表を教室の大きな画面に映して使ってください。終了すると、上位3名と10位までの生徒を表彰し、特別スタンプを自動で送ります。<br>📝 ライブの記録（ポイント・順位・ライブ中の音読）は<b>スプレッドシートに保存しません</b>。ライブ中の音読は、ふだんの記録（累計単語数・級・課題のベスト・ランキング）にも入りません。終わったライブの結果は6時間たつと消えます（作っただけでまだ始めていないライブも、6時間で消えます）。</p>' +
-        '<label for="lvA">読む課題</label><select id="lvA"><option value="">選んでください</option>' + o.assignments.filter(function (a) { return a.published; }).map(function (a) {
-          return '<option value="' + esc(a.id) + '" data-cls="' + esc(a.classes) + '">' + esc(a.title) + (a.classes ? '（' + esc(a.classes) + '）' : '') + '</option>'; }).join('') + '</select>' +
+        '<label>読む英文</label><div class="check-row" id="lvSrc"><label class="check"><input type="radio" name="lvSrc" value="a" checked>課題から選ぶ</label>' +
+          '<label class="check"><input type="radio" name="lvSrc" value="l">ライブラリから選ぶ</label></div>' +
+        '<div id="lvSrcL" class="hidden"><div class="form-row"><div><label for="lvLF">ライブラリのフォルダ</label><select id="lvLF"><option value="">📁 デフォルト</option>' + folderOptions(lTree, '', {}) + '</select></div>' +
+          '<div><label for="lvLI">英文</label><select id="lvLI"></select></div></div>' +
+          '<p class="muted" style="font-size:.82rem;margin:4px 0 0">ライブラリの英文を選ぶと、参加するクラス向けの課題「【ライブ】…」が自動で作られ、その課題でライブを行います（ライブのあとも課題として残ります。いらなければ課題の画面で削除できます）。</p></div>' +
+        '<div id="lvSrcA"><label for="lvA">読む課題</label><select id="lvA"><option value="">選んでください</option>' + o.assignments.filter(function (a) { return a.published; }).map(function (a) {
+          return '<option value="' + esc(a.id) + '" data-cls="' + esc(a.classes) + '">' + esc(a.title) + (a.classes ? '（' + esc(a.classes) + '）' : '') + '</option>'; }).join('') + '</select></div>' +
         '<label>参加するクラス</label><div class="check-row" id="lvC">' + classes.map(function (c) { return '<label class="check"><input type="checkbox" value="' + esc(c) + '">' + esc(c) + '</label>'; }).join('') + '</div>' +
         '<div class="form-row"><div><label for="lvM">制限時間</label><select id="lvM"><option value="0">なし（終了ボタンで終わる）</option>' +
           [3, 5, 10, 15, 20, 30, 45].map(function (x) { return '<option value="' + x + '">' + x + '分</option>'; }).join('') + '</select></div>' +
@@ -10091,17 +10097,35 @@ window.SAMPLE_ASSIGNMENTS = [
           '<div><div class="muted">4〜10位</div>' + stampHTML(liveEntry(L, $('#lvS10').value, 4), 70) + '</div>';
       }
       $('#lvS3').onchange = prev; $('#lvS10').onchange = prev; prev();
+      var srcLib = function () { var r = document.querySelector('input[name="lvSrc"]:checked'); return r && r.value === 'l'; };
+      var fillItems = function () {
+        var ids = libSubIds(lTree, $('#lvLF').value), list = lItems.filter(function (x) { return ids.indexOf(x.folder) >= 0; });
+        $('#lvLI').innerHTML = '<option value="">' + (list.length ? '選んでください' : 'このフォルダに英文はありません') + '</option>' + list.map(function (x) {
+          return '<option value="' + esc(x.id) + '">' + esc(x.title) + (x.folder !== $('#lvLF').value ? '（' + esc(libName(lTree, x.folder)) + '）' : '') + '</option>'; }).join('');
+      };
+      $('#lvLF').onchange = fillItems; fillItems();
+      $all('input[name="lvSrc"]').forEach(function (r) { r.onchange = function () { $('#lvSrcL').classList.toggle('hidden', !srcLib()); $('#lvSrcA').classList.toggle('hidden', srcLib()); }; });
       $('#lvA').onchange = function () {
         var opt = this.selectedOptions[0], cl = String((opt && opt.dataset.cls) || '').split(/[,、\s]+/).filter(Boolean);
         $all('#lvC input').forEach(function (c) { c.checked = cl.indexOf(c.value) >= 0; });
       };
       $('#lvGo').onclick = async function () {
         var btn = this; $('#lvErr').textContent = '';
-        if (!$('#lvA').value) { $('#lvErr').textContent = '読む課題を選んでください。'; return; }
+        var cls = $all('#lvC input').filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+        var item = srcLib() ? lItems.filter(function (x) { return x.id === $('#lvLI').value; })[0] : null;
+        if (srcLib() && !item) { $('#lvErr').textContent = 'ライブラリの英文を選んでください。'; return; }
+        if (!srcLib() && !$('#lvA').value) { $('#lvErr').textContent = '読む課題を選んでください。'; return; }
+        if (srcLib() && !cls.length && !m.admin) { $('#lvErr').textContent = '参加するクラスを選んでください。'; return; }
         btn.disabled = true;
         try {
-          var r = await call('t_createLive', { aid: $('#lvA').value, classes: $all('#lvC input').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }),
-            minutes: +$('#lvM').value, title: $('#lvT').value, awards: { top3: $('#lvS3').value, top10: $('#lvS10').value } });
+          var aid = $('#lvA').value;
+          if (item) {   // ライブラリの英文から、ライブ用の課題を作る
+            var made = await call('t_saveAssignment', { assignment: { title: ('【ライブ】' + ($('#lvT').value.trim() || item.title)).slice(0, 80), text: item.text, ja: item.ja || '',
+              classes: cls.join(','), published: true, types: [1], mode: 'normal' } });
+            aid = made.id;
+          }
+          var r = await call('t_createLive', { aid: aid, classes: cls,
+            minutes: +$('#lvM').value, title: $('#lvT').value || (item ? item.title : ''), awards: { top3: $('#lvS3').value, top10: $('#lvS10').value } });
           go('#/t/live/' + encodeURIComponent(r.id));
         } catch (e) { $('#lvErr').textContent = e.message; btn.disabled = false; }
       };
