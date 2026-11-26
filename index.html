@@ -7280,7 +7280,9 @@ window.SAMPLE_ASSIGNMENTS = [
         return out;
       }
     }
-    var html = '', i = 0;
+    // 和訳欄があるのに英文と組にできなかったとき（英文の中に日本語の行もないとき）は、和訳をまとめて上に出す（日本語が消えないように）
+    var html = (opts.jaSentences && opts.jaSentences.length && !lines.some(function (l) { return kind(l) === 'ja'; }))
+      ? '<div class="ja-box">' + opts.jaSentences.map(esc).join('<br>') + '</div>' : '', i = 0;
     while (i < lines.length) {
       var k = kind(lines[i]), k2 = i + 1 < lines.length ? kind(lines[i + 1]) : null;
       if ((k === 'en' && k2 === 'ja') || (k === 'ja' && k2 === 'en')) {
